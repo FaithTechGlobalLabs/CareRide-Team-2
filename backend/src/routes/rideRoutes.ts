@@ -1,20 +1,6 @@
-// rideRoutes.ts
+import { Router } from "express";
 
-import express from "express";
-import {
-  createRide,
-  getRides,
-  getRideById,
-  updateRide,
-  deleteRide,
-} from "../controllers/rideController.js";
-
-const router = express.Router();
-
-router.post("/", createRide);
-router.get("/", getRides);
-router.get("/:rideId", getRideById);
-router.patch("/:rideId", updateRide);
-router.delete("/:rideId", deleteRide);
+// Ride actions are mounted from src/api/routes.ts against the JSON store.
+const router = Router();
 
 export default router;

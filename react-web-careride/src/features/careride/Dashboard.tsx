@@ -1,0 +1,318 @@
+import { Link } from "@tanstack/react-router"
+import {
+  ArrowRight,
+  CalendarDays,
+  CarFront,
+  Check,
+  Clock3,
+  HeartHandshake,
+  MapPin,
+  Plus,
+  Users,
+} from "lucide-react"
+import { useCare } from "./context"
+import { Layout } from "./Layout"
+import {
+  AddLink,
+  Badge,
+  Empty,
+  PageTitle,
+  Panel,
+  RideList,
+  RideSearch,
+} from "./ui"
+export function Dashboard() {
+  const { data, session } = useCare()
+  const upcoming = data.rides
+    .filter((r) => ["requested", "accepted", "in_progress"].includes(r.status))
+    .sort((a, b) => a.requested_pickup_at.localeCompare(b.requested_pickup_at))
+  const awaiting = upcoming.filter((r) => r.status === "requested")
+  const assigned = upcoming.filter((r) => r.status !== "requested")
+  const completed = data.rides.filter((r) => r.status === "completed")
+  const unread = data.notifications.filter((n) => !n.read_at).length
+  return (
+    <Layout>
+      <PageTitle
+        eyebrow="LET’S KEEP OUR COMMUNITY MOVING"
+        title={`Hello, ${session?.user.name.split(" ")[0] ?? "there"}.`}
+        description="A little coordination. A meaningful difference."
+        action={<AddLink to="/book">Book a ride</AddLink>}
+      />
+      <div className="stats-grid">
+        <Stat
+          icon={<CalendarDays size={21} />}
+          title="Upcoming rides"
+          value={upcoming.length}
+          note="Journeys still ahead"
+        />
+        <Stat
+          icon={<Clock3 size={21} />}
+          title="Awaiting a driver"
+          value={awaiting.length}
+          note="Ready for a volunteer"
+          tone="amber"
+        />
+        <Stat
+          icon={<CarFront size={21} />}
+          title="Drivers assigned"
+          value={assigned.length}
+          note="In good hands"
+        />
+        <Stat
+          icon={<Check size={21} />}
+          title="Completed rides"
+          value={completed.length}
+          note="Connections made"
+        />
+      </div>
+      <div className="dashboard-columns">
+        <div>
+          <Panel
+            title="Upcoming rides"
+            description="Keep an eye on the journeys you’ve arranged."
+            action={
+              <Link to="/rides" className="text-link">
+                View all <ArrowRight size={15} />
+              </Link>
+            }
+          >
+            {upcoming.length ? (
+              <RideList rides={upcoming.slice(0, 5)} />
+            ) : (
+              <Empty
+                title="A clear road ahead"
+                description="Book a ride to help a client get where they need to go."
+                action={<AddLink to="/book">Book a ride</AddLink>}
+              />
+            )}
+          </Panel>
+          <Panel
+            title="Your community impact"
+            description="Every completed journey is a connection to care."
+            className="impact-panel"
+          >
+            <div className="impact-inner">
+              <span className="impact-icon">
+                <HeartHandshake size={39} />
+              </span>
+              <div>
+                <span className="sample-tag">
+                  Sample savings · illustrative data
+                </span>
+                <h3>Small journeys. Real possibilities.</h3>
+                <p>
+                  Savings below are made up for the demo, not measured outcomes.
+                </p>
+              </div>
+            </div>
+            <div className="impact-metrics">
+              <div>
+                <strong>{completed.length}</strong>
+                <span>Completed rides</span>
+              </div>
+              <div>
+                <strong>${data.summary.estimated_cost_saved ?? 0}</strong>
+                <span>Sample transportation savings</span>
+              </div>
+              <div>
+                <strong>
+                  {data.summary.staff_minutes_saved ??
+                    data.summary.minutes_saved ??
+                    0}{" "}
+                  min
+                </strong>
+                <span>Sample staff time saved</span>
+              </div>
+            </div>
+          </Panel>
+        </div>
+        <div>
+          <Panel title="Quick actions">
+            <div className="quick-actions">
+              <Link to="/book" search={{ client: undefined }}>
+                <span className="quick-icon">
+                  <Plus size={20} />
+                </span>
+                <div>
+                  <strong>Book a ride</strong>
+                  <small>Help a client get to care</small>
+                </div>
+                <ArrowRight size={17} />
+              </Link>
+              <Link to="/clients/new">
+                <span className="quick-icon">
+                  <Users size={20} />
+                </span>
+                <div>
+                  <strong>Register a client</strong>
+                  <small>A warm welcome starts here</small>
+                </div>
+                <ArrowRight size={17} />
+              </Link>
+              <Link to="/locations">
+                <span className="quick-icon">
+                  <MapPin size={20} />
+                </span>
+                <div>
+                  <strong>Address book</strong>
+                  <small>Your community’s destinations</small>
+                </div>
+                <ArrowRight size={17} />
+              </Link>
+            </div>
+          </Panel>
+          <Panel title="A helping hand" className="help-panel">
+            <span className="help-illustration">
+              <HeartHandshake size={46} strokeWidth={1.3} />
+            </span>
+            <h3>
+              Care goes further
+              <br />
+              when we go together.
+            </h3>
+            <p>
+              Review driver approvals to welcome more volunteers into your
+              community.
+            </p>
+            <Link to="/approvals" className="btn secondary">
+              Review approvals <ArrowRight size={15} />
+            </Link>
+          </Panel>
+          <Panel title="Stay in the loop">
+            <p className="muted">
+              {unread
+                ? `${unread} unread ride update${unread > 1 ? "s" : ""}.`
+                : "You’re all caught up. New ride updates will appear here."}
+            </p>
+            <Link to="/notifications" className="text-link">
+              Open notifications <ArrowRight size={15} />
+            </Link>
+          </Panel>
+        </div>
+      </div>
+    </Layout>
+  )
+}
+function Stat({
+  icon,
+  title,
+  value,
+  note,
+  tone = "",
+}: {
+  icon: React.ReactNode
+  title: string
+  value: number
+  note: string
+  tone?: string
+}) {
+  return (
+    <div className={`stat-card ${tone}`}>
+      <div>
+        <span>{title}</span>
+        <span className="stat-icon">{icon}</span>
+      </div>
+      <strong>{value.toString().padStart(2, "0")}</strong>
+      <small>{note}</small>
+    </div>
+  )
+}
+export function RidesScreen() {
+  const { data } = useCare()
+  return (
+    <Layout>
+      <PageTitle
+        title="Every journey, in one place."
+        description="Search bookings and follow each ride from request to arrival."
+        action={<AddLink to="/book">Book a ride</AddLink>}
+      />
+      <Panel>
+        <RideSearch rides={data.rides} />
+      </Panel>
+    </Layout>
+  )
+}
+export function DriverDashboard() {
+  const { data, session } = useCare()
+  const active = data.rides.filter((r) =>
+    ["accepted", "in_progress"].includes(r.status)
+  )
+  const approved = data.verifications.filter((v) => v.status === "approved")
+  return (
+    <Layout driver>
+      <PageTitle
+        eyebrow="YOUR TIME MAKES A DIFFERENCE"
+        title={`Hello, ${session?.user.name.split(" ")[0] ?? "driver"}.`}
+        description="A ride from you can open a world of possibilities."
+        action={
+          <Link className="btn secondary" to="/driver/availability">
+            <CalendarDays size={18} />
+            My availability
+          </Link>
+        }
+      />
+      <div className="driver-info-strip">
+        <span>
+          <CarFront size={20} />
+          {active.length} active ride{active.length === 1 ? "" : "s"}
+        </span>
+        <span>
+          <Check size={20} />
+          {approved.length} organization approval
+          {approved.length === 1 ? "" : "s"}
+        </span>
+        <Link to="/driver/verification" className="text-link">
+          Manage approvals <ArrowRight size={15} />
+        </Link>
+      </div>
+      <Panel
+        title="Your upcoming rides"
+        description="The people counting on you for their next journey."
+      >
+        {active.length ? (
+          <RideList rides={active} driver />
+        ) : (
+          <Empty
+            title="Your next journey is waiting"
+            description="Accept an eligible ride below to help someone get to care."
+          />
+        )}
+      </Panel>
+      <Panel
+        title="Available rides"
+        description="Requests that match your organization approval, vehicle, schedule, and service area."
+        action={
+          <span className="count-pill">
+            {data.availableRides.length} available
+          </span>
+        }
+      >
+        {data.availableRides.length ? (
+          <RideList rides={data.availableRides} driver />
+        ) : (
+          <Empty
+            title="No matching requests right now"
+            description="Check your organization approval and active availability. New matches appear when staff book a ride."
+            action={
+              <Link to="/driver/availability" className="btn secondary">
+                Review availability
+              </Link>
+            }
+          />
+        )}
+      </Panel>
+      <Panel title="Past journeys">
+        <RideList
+          rides={data.rides.filter((r) =>
+            ["completed", "no_show", "cancelled"].includes(r.status)
+          )}
+          driver
+        />
+      </Panel>
+      <div className="info-box">
+        <Badge status={approved.length ? "approved" : "pending"} /> Only the
+        organization that books a ride can approve you to provide it.
+      </div>
+    </Layout>
+  )
+}

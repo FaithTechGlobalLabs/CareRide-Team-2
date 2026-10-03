@@ -1,11 +1,6 @@
-export type OrganizationType =
-  | "partner_org"
-  | "transport_provider";
+export type OrganizationType = "partner_org" | "transport_provider";
 
-export type OrganizationStatus =
-  | "pending"
-  | "active"
-  | "suspended";
+export type OrganizationStatus = "pending" | "active" | "suspended";
 
 export interface Organization {
   id: string;
@@ -16,13 +11,10 @@ export interface Organization {
   phone: string;
   address: string;
   status: OrganizationStatus;
-  created_at: Date;
+  created_at: string;
 }
 
-export type DestinationType =
-  | "hospital"
-  | "shelter"
-  | "service";
+export type DestinationType = "hospital" | "shelter" | "service";
 
 export interface Destination {
   id: string;

@@ -32,6 +32,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# JSON stand-in for Postgres
+data/
+
 # Temporary/cache files
 *.tmp
 *.temp

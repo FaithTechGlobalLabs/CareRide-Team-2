@@ -1,10 +1,6 @@
-import express from "express";
+import { Router } from "express";
 
-import { registerAdmin, loginAdmin} from "../controllers/adminController.js";
-
-const router = express.Router();
-
-router.post("/admins/register", registerAdmin);
-router.post("/admins/login", loginAdmin);
+// Admin actions are mounted from src/api/routes.ts against the JSON store.
+const router = Router();
 
 export default router;

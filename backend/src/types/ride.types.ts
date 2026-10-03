@@ -9,9 +9,7 @@ export type RideStatus =
   | "no_show"
   | "declined";
 
-export type RideOption =
-  | "free"
-  | "paid_external";
+export type RideOption = "free" | "paid_external";
 
 export interface RideRequest {
   id: string;
@@ -27,8 +25,16 @@ export interface RideRequest {
   destination_id?: string;
   destination_address?: string;
 
-  requested_pickup_at: Date;
-  appointment_at?: Date;
+  destination_lat?: number;
+  destination_lng?: number;
+
+  trip_group_id?: string;
+  linked_ride_id?: string;
+  trip_leg?: "outbound" | "return";
+  urgency?: "routine" | "soon" | "time_sensitive";
+
+  requested_pickup_at: string;
+  appointment_at?: string;
 
   passenger_count: number;
   accessibility_needs?: string;
@@ -39,7 +45,10 @@ export interface RideRequest {
   driver_id?: string;
 
   approved_by_user_id?: string;
-  approved_at?: Date;
+  approved_at?: string;
+  picked_up_at?: string;
+  waiting_minutes?: number;
+  sample?: boolean;
 
   ride_option: RideOption;
 
@@ -50,23 +59,20 @@ export interface RideRequest {
   staff_minutes_spent?: number;
   missed_appointment_avoided?: boolean;
 
-  created_at: Date;
-  updated_at: Date;
-  completed_at?: Date;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
   cancelled_reason?: string;
 }
 
-export type DriverOfferResponse =
-  | "accepted"
-  | "declined"
-  | "expired";
+export type DriverOfferResponse = "accepted" | "declined" | "expired";
 
 export interface DriverOffer {
   id: string;
   ride_request_id: string;
   driver_id: string;
 
-  offered_at: Date;
+  offered_at: string;
   response?: DriverOfferResponse;
-  responded_at?: Date;
+  responded_at?: string;
 }

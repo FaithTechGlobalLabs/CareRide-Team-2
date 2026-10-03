@@ -14,7 +14,6 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-<<<<<<< HEAD
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "bcrypt": "^6.0.0",
@@ -22,11 +21,6 @@
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-=======
-    "cors": "^2.8.6",
-    "dotenv": "^18.0.5",
-    "express": "^5.2.1",
->>>>>>> main
     "pg": "^8.23.1"
   },
   "devDependencies": {

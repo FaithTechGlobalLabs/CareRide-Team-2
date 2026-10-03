@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { registerApi } from "./api/routes.js";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -8,6 +9,7 @@ const PORT = Number(process.env.PORT) || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+registerApi(app);
 
 app.get("/", (_req, res) => {
   res.status(200).json({

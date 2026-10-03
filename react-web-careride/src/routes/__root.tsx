@@ -1,5 +1,5 @@
-import * as React from 'react'
-import { Outlet, createRootRoute } from '@tanstack/react-router'
+import { Outlet, createRootRoute } from "@tanstack/react-router"
+import { CareProvider } from "@/features/careride/Provider"
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -7,8 +7,8 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   return (
-    <React.Fragment>
+    <CareProvider>
       <Outlet />
-    </React.Fragment>
+    </CareProvider>
   )
 }

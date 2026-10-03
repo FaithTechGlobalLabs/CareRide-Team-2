@@ -1,8 +1,4 @@
-export type StaffRole =
-  | "staff"
-  | "admin"
-  | "dispatcher"
-  | "driver";
+export type StaffRole = "staff" | "admin" | "dispatcher" | "driver";
 
 export interface Staff {
   id: string;
@@ -17,9 +13,10 @@ export interface Staff {
 
 export interface Client {
   id: string;
+  organization_id: string;
   first_name: string;
   last_name: string;
-  dob: Date;
+  dob: string;
   address?: string;
   has_smartphone: boolean;
   phone?: string;
@@ -27,5 +24,5 @@ export interface Client {
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   notes?: string;
-  created_at: Date;
+  created_at: string;
 }

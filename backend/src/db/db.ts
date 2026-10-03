@@ -11,9 +11,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, "../../../.env"), quiet: true });
 
 export const pool = new Pool({
-  host: process.env.POSTGRES_HOST ,
+  host: process.env.POSTGRES_HOST,
   port: Number(process.env.POSTGRES_PORT),
-  user: process.env.POSTGRES_USER ,
-  password: process.env.POSTGRES_PASSWORD ,
-  database: process.env.POSTGRES_DB ,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+  database: process.env.POSTGRES_DB,
 });

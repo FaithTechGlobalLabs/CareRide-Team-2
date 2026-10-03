@@ -8,10 +8,7 @@ import {
   deleteStaffById,
 } from "../db/staffHelpers.js";
 
-export const listUsers = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const listUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const staff = await getAllStaff();
 
@@ -29,7 +26,7 @@ export const listUsers = async (
 
 export const updateUserRole = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const { userId } = req.params;
@@ -42,12 +39,7 @@ export const updateUserRole = async (
       return;
     }
 
-    const validRoles: StaffRole[] = [
-      "staff",
-      "admin",
-      "dispatcher",
-      "driver",
-    ];
+    const validRoles: StaffRole[] = ["staff", "admin", "dispatcher", "driver"];
 
     if (!validRoles.includes(role)) {
       res.status(400).json({
@@ -65,10 +57,7 @@ export const updateUserRole = async (
       return;
     }
 
-    const updatedStaff = await updateStaffRoleById(
-      userId,
-      role
-    );
+    const updatedStaff = await updateStaffRoleById(userId, role);
 
     res.status(200).json({
       message: "Staff role updated successfully.",
@@ -85,7 +74,7 @@ export const updateUserRole = async (
 
 export const deleteUser = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const { userId } = req.params;

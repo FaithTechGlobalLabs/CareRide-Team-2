@@ -9,14 +9,11 @@ import {
   findOrganizationByEmail,
 } from "../db/organizationHelpers.js";
 
-import {
-  createStaff,
-  findStaffByEmail,
-} from "../db/staffHelpers.js";
+import { createStaff, findStaffByEmail } from "../db/staffHelpers.js";
 
 export const registerOrganization = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const {
@@ -73,10 +70,7 @@ export const registerOrganization = async (
       return;
     }
 
-    const organizationData: Omit<
-      Organization,
-      "id" | "created_at"
-    > = {
+    const organizationData: Omit<Organization, "id" | "created_at"> = {
       name,
       type,
       contact_name: staffName,

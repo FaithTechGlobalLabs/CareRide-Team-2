@@ -21,6 +21,8 @@ jobs:
         run: npm ci
         working-directory: react-web-careride
       - name: Build React frontend
+        env: 
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: npm run build
         working-directory: react-web-careride
       - name: Deploy

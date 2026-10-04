@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import {
   Bell,
+  Calendar,
   CalendarDays,
   CarFront,
   CircleHelp,
@@ -58,6 +59,7 @@ export function Layout({
   const nav = driver
     ? [
         { to: "/driver", title: "My rides", icon: CarFront },
+        { to: "/driver/schedule", title: "Schedule", icon: Calendar },
         {
           to: "/driver/availability",
           title: "Availability",

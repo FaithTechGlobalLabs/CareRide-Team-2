@@ -18,7 +18,19 @@ import {
   dateTime,
 } from "./ui"
 import { PinMap } from "./MapPin"
+import { fireConfetti } from "@/components/ui/confetti"
+import { addDays, vancouverMinutes, vancouverYmd } from "./dates"
 import type { Client, Destination, Ride } from "./types"
+
+function upcomingQuarterSlot(now = new Date()) {
+  const ymd = vancouverYmd(now)
+  const minutes = vancouverMinutes(now.toISOString())
+  const slot = Math.ceil((minutes + 1) / 15) * 15
+  if (slot >= 24 * 60) return { date: addDays(ymd, 1), time: "00:00" }
+  const hour = String(Math.floor(slot / 60)).padStart(2, "0")
+  const minute = String(slot % 60).padStart(2, "0")
+  return { date: ymd, time: `${hour}:${minute}` }
+}
 
 const quarterHourTimes = Array.from({ length: 24 * 4 }, (_, index) => {
   const hour = String(Math.floor(index / 4)).padStart(2, "0")
@@ -400,13 +412,76 @@ function LocationForm({
     </Layout>
   )
 }
-export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
+export function BookingScreen({
+  selectedClient,
+  editRideId,
+}: {
+  selectedClient?: string
+  editRideId?: string
+}) {
+  const { data } = useCare()
+  const editingRide = editRideId
+    ? data.rides.find((ride) => ride.id === editRideId)
+    : undefined
+
+  if (editRideId && !editingRide)
+    return (
+      <Layout>
+        <Empty
+          title="Booking unavailable"
+          description="This booking may have changed or may no longer be available to edit."
+          action={
+            <Link to="/rides" className="btn secondary">
+              Back to bookings
+            </Link>
+          }
+        />
+      </Layout>
+    )
+
+  return (
+    <BookingForm selectedClient={selectedClient} editingRide={editingRide} />
+  )
+}
+
+function BookingForm({
+  selectedClient,
+  editingRide,
+}: {
+  selectedClient?: string
+  editingRide?: Ride
+}) {
   const { data, mutate } = useCare()
   const navigate = useNavigate()
-  const [pickup, setPickup] = useState("")
-  const [destination, setDestination] = useState("")
+  const initialPickup =
+    editingRide?.pickup_id ??
+    data.destinations.find(
+      (item) => item.address === editingRide?.pickup_address
+    )?.id ??
+    ""
+  const initialDestination =
+    editingRide?.destination_id ??
+    data.destinations.find(
+      (item) => item.address === editingRide?.destination_address
+    )?.id ??
+    ""
+  const [pickup, setPickup] = useState(initialPickup)
+  const [destination, setDestination] = useState(initialDestination)
   const [roundTrip, setRoundTrip] = useState(false)
-  const [pickupDate, setPickupDate] = useState("")
+  const [slot] = useState(upcomingQuarterSlot)
+  const editingMinutes = editingRide
+    ? vancouverMinutes(editingRide.requested_pickup_at)
+    : undefined
+  const [pickupDate, setPickupDate] = useState(
+    editingRide
+      ? vancouverYmd(new Date(editingRide.requested_pickup_at))
+      : slot.date
+  )
+  const [pickupTime, setPickupTime] = useState(
+    editingMinutes == null
+      ? slot.time
+      : `${String(Math.floor(editingMinutes / 60)).padStart(2, "0")}:${String(editingMinutes % 60).padStart(2, "0")}`
+  )
   const [returnDate, setReturnDate] = useState("")
   const locations = data.destinations.filter((d) => d.is_active)
   const openDatePicker = (event: FocusEvent<HTMLInputElement>) => {
@@ -422,17 +497,28 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
     <Layout>
       <PageTitle
         eyebrow="A JOURNEY TO CARE"
-        title="Let’s get them there."
-        description="Arrange a free ride to the places that matter."
+        title={editingRide ? "Update this journey." : "Let’s get them there."}
+        description={
+          editingRide
+            ? "Changes are available until a driver confirms the ride."
+            : "Arrange a free ride to the places that matter."
+        }
       />
       <div className="booking-columns">
-        <Panel title="Book a ride" className="form-panel">
+        <Panel
+          title={editingRide ? "Edit booking" : "Book a ride"}
+          className="form-panel"
+        >
           <Form
-            submit="Submit ride request"
+            submit={editingRide ? "Save booking" : "Make booking"}
             onSubmit={async (f) => {
               const p = locations.find((d) => d.id === pickup)
               const d = locations.find((d) => d.id === destination)
               if (!p || !d) throw new Error("Choose a pickup and destination.")
+              if (p.id === d.id)
+                throw new Error(
+                  "Pickup and destination must be different places."
+                )
               const pickupAt = new Date(
                 `${f.get("requested_pickup_date")}T${f.get("requested_pickup_time")}`
               )
@@ -457,12 +543,14 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 "return_pickup_time",
               ])
                 f.delete(name)
-              const result = await mutate<Ride | Ride[]>("/rides", "POST", {
+              const body = {
                 ...Object.fromEntries(f),
+                pickup_destination_id: p.id,
                 pickup_id: p.id,
                 pickup_address: p.address,
                 pickup_lat: p.lat,
                 pickup_lng: p.lng,
+                destination_destination_id: d.id,
                 destination_id: d.id,
                 destination_address: d.address,
                 destination_lat: d.lat,
@@ -472,9 +560,16 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 passenger_count: Number(f.get("passenger_count")),
                 accessibility_needs: f.getAll("accessibility").join(", "),
                 trip_type: roundTrip ? "round_trip" : "one_way",
+                round_trip: roundTrip,
                 ride_option: "free",
-              })
+              }
+              const result = await mutate<Ride | Ride[]>(
+                editingRide ? `/rides/${editingRide.id}` : "/rides",
+                editingRide ? "PATCH" : "POST",
+                body
+              )
               const ride = Array.isArray(result) ? result[0] : result
+              if (!editingRide) fireConfetti()
               await navigate({
                 to: "/rides/$rideId",
                 params: { rideId: ride.id },
@@ -484,7 +579,7 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
             <Field label="Primary client" wide>
               <select
                 name="client_id"
-                defaultValue={selectedClient ?? ""}
+                defaultValue={editingRide?.client_id ?? selectedClient ?? ""}
                 required
               >
                 <option value="" disabled>
@@ -510,7 +605,11 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               >
                 <option value="">Choose from the address book</option>
                 {locations.map((d) => (
-                  <option key={d.id} value={d.id}>
+                  <option
+                    key={d.id}
+                    value={d.id}
+                    disabled={d.id === destination}
+                  >
                     {d.name}
                   </option>
                 ))}
@@ -529,7 +628,7 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               >
                 <option value="">Where are they going?</option>
                 {locations.map((d) => (
-                  <option key={d.id} value={d.id}>
+                  <option key={d.id} value={d.id} disabled={d.id === pickup}>
                     {d.name}
                   </option>
                 ))}
@@ -545,17 +644,21 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 + Add a location to the address book
               </Link>
             </div>
-            <Field label="Trip type" wide>
-              <select
-                value={roundTrip ? "round_trip" : "one_way"}
-                onChange={(e) => setRoundTrip(e.target.value === "round_trip")}
-              >
-                <option value="one_way">One-way journey</option>
-                <option value="round_trip">
-                  Round trip — two separate ride requests
-                </option>
-              </select>
-            </Field>
+            {!editingRide && (
+              <Field label="Trip type" wide>
+                <select
+                  value={roundTrip ? "round_trip" : "one_way"}
+                  onChange={(e) =>
+                    setRoundTrip(e.target.value === "round_trip")
+                  }
+                >
+                  <option value="one_way">One-way journey</option>
+                  <option value="round_trip">
+                    Round trip — two separate ride requests
+                  </option>
+                </select>
+              </Field>
+            )}
             <Field label="Pickup date">
               <input
                 name="requested_pickup_date"
@@ -567,10 +670,12 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               />
             </Field>
             <Field label="Pickup time" hint="America/Vancouver">
-              <select name="requested_pickup_time" defaultValue="" required>
-                <option value="" disabled>
-                  Select time
-                </option>
+              <select
+                name="requested_pickup_time"
+                value={pickupTime}
+                onChange={(event) => setPickupTime(event.target.value)}
+                required
+              >
                 {quarterHourTimes.map((time) => (
                   <option key={time} value={time}>
                     {time}
@@ -613,7 +718,7 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 type="number"
                 min={1}
                 max={30}
-                defaultValue={1}
+                defaultValue={editingRide?.passenger_count ?? 1}
                 required
               />
             </Field>
@@ -626,6 +731,9 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                       name="accessibility"
                       type="checkbox"
                       value={s.toLowerCase()}
+                      defaultChecked={editingRide?.accessibility_needs
+                        ?.toLowerCase()
+                        .includes(s.toLowerCase())}
                     />
                     {s}
                   </label>
@@ -637,6 +745,7 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 name="notes"
                 placeholder="Anything the driver should know?"
                 maxLength={1000}
+                defaultValue={editingRide?.notes}
               />
             </Field>
           </Form>
@@ -692,40 +801,43 @@ export function NotificationsScreen() {
           Show unread only
         </label>
         <div className="notice-list">
-        {notices.map((n) => (
-          <article key={n.id} className={`notice ${n.read_at ? "" : "unread"}`}>
-            <div>
-              <h3>
-                {n.message ??
-                  {
-                    confirmation: "Your ride request is confirmed",
-                    driver_assigned: "A driver has accepted your ride",
-                    completed: "Your client has arrived",
-                    cancelled: "Ride cancelled",
-                  }[n.type] ??
-                  "Ride update"}
-              </h3>
-              <p>
-                {n.sent_at ? dateTime(n.sent_at) : "New update"} · In-app
-                notification
-              </p>
-              <Link
-                to="/rides/$rideId"
-                params={{ rideId: n.ride_request_id }}
-                className="text-link"
-              >
-                View booking <ArrowRight size={15} />
-              </Link>
-            </div>
-            {!n.read_at && (
-              <ActionButton
-                onClick={() => mutate(`/notifications/${n.id}/read`)}
-              >
-                Mark as read
-              </ActionButton>
-            )}
-          </article>
-        ))}
+          {notices.map((n) => (
+            <article
+              key={n.id}
+              className={`notice ${n.read_at ? "" : "unread"}`}
+            >
+              <div>
+                <h3>
+                  {n.message ??
+                    {
+                      confirmation: "Your ride request is confirmed",
+                      driver_assigned: "A driver has accepted your ride",
+                      completed: "Your client has arrived",
+                      cancelled: "Ride cancelled",
+                    }[n.type] ??
+                    "Ride update"}
+                </h3>
+                <p>
+                  {n.sent_at ? dateTime(n.sent_at) : "New update"} · In-app
+                  notification
+                </p>
+                <Link
+                  to="/rides/$rideId"
+                  params={{ rideId: n.ride_request_id }}
+                  className="text-link"
+                >
+                  View booking <ArrowRight size={15} />
+                </Link>
+              </div>
+              {!n.read_at && (
+                <ActionButton
+                  onClick={() => mutate(`/notifications/${n.id}/read`)}
+                >
+                  Mark as read
+                </ActionButton>
+              )}
+            </article>
+          ))}
         </div>
         {!notices.length && (
           <Empty

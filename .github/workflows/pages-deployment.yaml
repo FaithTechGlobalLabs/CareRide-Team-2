@@ -21,6 +21,8 @@ jobs:
         run: npm ci
         working-directory: react-web-careride
       - name: Build React frontend
+        env: 
+          VITE_API_URL: https://care-ride-backend-385995384580.us-central1.run.app/
         run: npm run build
         working-directory: react-web-careride
       - name: Deploy

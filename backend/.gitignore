@@ -39,3 +39,6 @@ data/
 *.tmp
 *.temp
 .cache/
+
+
+Dockerfile

@@ -87,7 +87,12 @@ function knownPoint(
   if (named && Number.isFinite(named.lat) && Number.isFinite(named.lng)) {
     return { lat: named.lat, lng: named.lng }
   }
-  if (lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+  if (
+    lat != null &&
+    lng != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng)
+  ) {
     return { lat, lng }
   }
   return null
@@ -99,7 +104,9 @@ async function resolvePoint(
   address: string,
   named?: Destination
 ) {
-  return knownPoint(lat, lng, named) ?? (address ? cachedGeocode(address) : null)
+  return (
+    knownPoint(lat, lng, named) ?? (address ? cachedGeocode(address) : null)
+  )
 }
 
 export function useDriveTimes(rides: Ride[], destinations: Destination[]) {
@@ -113,8 +120,11 @@ export function useDriveTimes(rides: Ride[], destinations: Destination[]) {
     .join("|")
   const ridesRef = useRef(rides)
   const destinationsRef = useRef(destinations)
-  ridesRef.current = rides
-  destinationsRef.current = destinations
+
+  useEffect(() => {
+    ridesRef.current = rides
+    destinationsRef.current = destinations
+  }, [rides, destinations])
 
   useEffect(() => {
     const current = ridesRef.current
@@ -157,7 +167,10 @@ export function useDriveTimes(rides: Ride[], destinations: Destination[]) {
       const next: Record<string, TravelEstimate> = {}
       await Promise.all(
         [...groups.values()].map(async (group) => {
-          const estimate = await cachedTravelTime(group.origin, group.destination)
+          const estimate = await cachedTravelTime(
+            group.origin,
+            group.destination
+          )
           if (!estimate) return
           for (const id of group.ids) next[id] = estimate
         })

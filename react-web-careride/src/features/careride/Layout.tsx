@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import {
   Bell,
@@ -28,10 +28,8 @@ export function Layout({
   const { session, logout, data, error } = useCare()
   const path = useLocation({ select: (s) => s.pathname })
   const navigate = useNavigate()
-  const [accountOpen, setAccountOpen] = useState(false)
-  useEffect(() => {
-    setAccountOpen(false)
-  }, [path])
+  const [accountOpenPath, setAccountOpenPath] = useState<string | null>(null)
+  const accountOpen = accountOpenPath === path
   if (!session)
     return (
       <main className="access-page">
@@ -82,7 +80,8 @@ export function Layout({
   const unread = data.notifications.filter((n) => !n.read_at).length
   const navActive = (to: string) => {
     if (to === "/") return path === "/"
-    if (to === "/driver") return path === "/driver" || path.startsWith("/rides/")
+    if (to === "/driver")
+      return path === "/driver" || path.startsWith("/rides/")
     return path === to || path.startsWith(`${to}/`)
   }
   const signOut = () => {
@@ -175,7 +174,7 @@ export function Layout({
               aria-label="Account menu"
               aria-expanded={accountOpen}
               aria-haspopup="menu"
-              onClick={() => setAccountOpen((open) => !open)}
+              onClick={() => setAccountOpenPath(accountOpen ? null : path)}
             >
               {session.user.name
                 .split(" ")
@@ -191,7 +190,11 @@ export function Layout({
                     {driver ? "Volunteer driver" : "Organization admin"}
                   </small>
                 </div>
-                <button type="button" className="btn secondary" onClick={signOut}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={signOut}
+                >
                   <LogOut size={16} /> Log out
                 </button>
               </div>

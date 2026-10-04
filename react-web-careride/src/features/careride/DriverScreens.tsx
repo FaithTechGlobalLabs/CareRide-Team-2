@@ -5,6 +5,7 @@ import {
   Clock3,
   MapPin,
   Pause,
+  Pencil,
   Play,
   ShieldCheck,
   Trash2,
@@ -20,6 +21,7 @@ import {
   Form,
   PageTitle,
   Panel,
+  ReviewNote,
   Success,
 } from "./ui"
 import type { Availability } from "./types"
@@ -27,12 +29,27 @@ import type { Availability } from "./types"
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 export function DriverAvailabilityScreen() {
-  const { data, mutate } = useCare()
+  const { data, mutate, session } = useCare()
   const [showForm, setShowForm] = useState(false)
   const [pin, setPin] = useState({ lat: 49.2665, lng: -123.1128 })
   const [radius, setRadius] = useState(25)
-  const [kind, setKind] = useState<"one_time" | "weekly">("weekly")
+  const [kind, setKind] = useState<"one_time" | "weekly" | "monthly">("weekly")
+  const [editing, setEditing] = useState<Availability | null>(null)
   const [success, setSuccess] = useState("")
+  const openNew = () => {
+    setEditing(null)
+    setKind("weekly")
+    setPin({ lat: 49.2665, lng: -123.1128 })
+    setRadius(25)
+    setShowForm(true)
+  }
+  const openEdit = (item: Availability) => {
+    setEditing(item)
+    setKind(item.kind)
+    setPin({ lat: item.centre_lat, lng: item.centre_lng })
+    setRadius(item.radius_km)
+    setShowForm(true)
+  }
 
   return (
     <Layout driver>
@@ -43,7 +60,7 @@ export function DriverAvailabilityScreen() {
         action={
           <button
             className="btn primary"
-            onClick={() => setShowForm((value) => !value)}
+            onClick={() => (showForm ? setShowForm(false) : openNew())}
           >
             <CalendarDays size={18} />{" "}
             {showForm ? "Close form" : "Add availability"}
@@ -53,15 +70,16 @@ export function DriverAvailabilityScreen() {
       {success && <Success>{success}</Success>}
       {showForm && (
         <Panel
-          title="New availability"
+          title={editing ? "Edit availability" : "New availability"}
           description="Ride requests only appear when every rule below matches."
           className="form-panel"
         >
           <Form
-            submit="Save availability"
+            key={editing?.id ?? "new"}
+            submit={editing ? "Save changes" : "Save availability"}
             onSubmit={async (form) => {
               const values = Object.fromEntries(form)
-              await mutate<Availability>("/drivers/me/availability", "POST", {
+              const body = {
                 ...values,
                 kind,
                 centre_lat: pin.lat,
@@ -73,12 +91,26 @@ export function DriverAvailabilityScreen() {
                   kind === "weekly"
                     ? form.getAll("weekdays").map(Number)
                     : undefined,
-                is_active: true,
+                month_days:
+                  kind === "monthly"
+                    ? form.getAll("month_days").map(Number)
+                    : undefined,
+                is_active: editing?.is_active ?? true,
                 timezone: "America/Vancouver",
-              })
+              }
+              await mutate<Availability>(
+                editing
+                  ? `/drivers/me/availability/${editing.id}`
+                  : "/drivers/me/availability",
+                editing ? "PATCH" : "POST",
+                body
+              )
               setShowForm(false)
+              setEditing(null)
               setSuccess(
-                "Availability saved. Matching requests will appear on My rides."
+                editing
+                  ? "Availability updated."
+                  : "Availability saved. Matching requests will appear on My rides."
               )
             }}
           >
@@ -86,10 +118,11 @@ export function DriverAvailabilityScreen() {
               <select
                 value={kind}
                 onChange={(event) =>
-                  setKind(event.target.value as "one_time" | "weekly")
+                  setKind(event.target.value as "one_time" | "weekly" | "monthly")
                 }
               >
                 <option value="weekly">Weekly schedule</option>
+                <option value="monthly">Monthly schedule</option>
                 <option value="one_time">One-time availability</option>
               </select>
             </Field>
@@ -103,23 +136,55 @@ export function DriverAvailabilityScreen() {
                         type="checkbox"
                         name="weekdays"
                         value={index}
-                        defaultChecked={index > 0 && index < 6}
+                        defaultChecked={
+                          editing?.kind === "weekly"
+                            ? editing.weekdays?.includes(index)
+                            : index > 0 && index < 6
+                        }
                       />
                       <span>{day}</span>
                     </label>
                   ))}
                 </div>
               </div>
+            ) : kind === "monthly" ? (
+              <div className="wide">
+                <h3 className="form-section">Days of the month</h3>
+                <div className="weekday-grid month-day-grid">
+                  {Array.from({ length: 31 }, (_, index) => index + 1).map(
+                    (day) => (
+                      <label className="weekday" key={day}>
+                        <input
+                          type="checkbox"
+                          name="month_days"
+                          value={day}
+                          defaultChecked={
+                            editing?.kind === "monthly"
+                              ? editing.month_days?.includes(day)
+                              : day <= 28 && day % 7 === 1
+                          }
+                        />
+                        <span>{day}</span>
+                      </label>
+                    )
+                  )}
+                </div>
+              </div>
             ) : (
               <Field label="Available date" wide>
-                <input name="on_date" type="date" required />
+                <input
+                  name="on_date"
+                  type="date"
+                  required
+                  defaultValue={editing?.on_date}
+                />
               </Field>
             )}
             <Field label="Start time">
               <input
                 name="start_time"
                 type="time"
-                defaultValue="09:00"
+                defaultValue={editing?.start_time ?? "09:00"}
                 required
               />
             </Field>
@@ -127,7 +192,7 @@ export function DriverAvailabilityScreen() {
               <input
                 name="end_time"
                 type="time"
-                defaultValue="17:00"
+                defaultValue={editing?.end_time ?? "17:00"}
                 required
               />
             </Field>
@@ -136,7 +201,7 @@ export function DriverAvailabilityScreen() {
                 name="minimum_notice_minutes"
                 type="number"
                 min="0"
-                defaultValue="60"
+                defaultValue={editing?.minimum_notice_minutes ?? 60}
                 required
               />
             </Field>
@@ -145,7 +210,7 @@ export function DriverAvailabilityScreen() {
                 name="max_wait_minutes"
                 type="number"
                 min="0"
-                defaultValue="15"
+                defaultValue={editing?.max_wait_minutes ?? 15}
                 required
               />
             </Field>
@@ -175,7 +240,11 @@ export function DriverAvailabilityScreen() {
         description="Pause a rule without deleting it, or remove it when you no longer need it."
       >
         <div className="availability-list">
-          {data.availability.map((item) => (
+          {data.availability
+            .filter(
+              (item) => !item.driver_id || item.driver_id === session?.user.id
+            )
+            .map((item) => (
             <article className="availability-card" key={item.id}>
               <div className="availability-icon">
                 <Clock3 size={22} />
@@ -185,7 +254,9 @@ export function DriverAvailabilityScreen() {
                   <h3>
                     {item.kind === "weekly"
                       ? "Weekly availability"
-                      : "One-time availability"}
+                      : item.kind === "monthly"
+                        ? "Monthly availability"
+                        : "One-time availability"}
                   </h3>
                   <Badge status={item.is_active ? "approved" : "pending"} />
                 </div>
@@ -195,7 +266,9 @@ export function DriverAvailabilityScreen() {
                 <small>
                   {item.kind === "weekly"
                     ? item.weekdays?.map((day) => WEEKDAYS[day]).join(", ")
-                    : item.on_date}{" "}
+                    : item.kind === "monthly"
+                      ? `Days ${item.month_days?.join(", ")}`
+                      : item.on_date}{" "}
                   · {item.timezone}
                 </small>
                 <small>
@@ -204,6 +277,13 @@ export function DriverAvailabilityScreen() {
                 </small>
               </div>
               <div className="action-row">
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => openEdit(item)}
+                >
+                  <Pencil size={16} /> Edit
+                </button>
                 <ActionButton
                   onClick={() =>
                     mutate(`/drivers/me/availability/${item.id}`, "PATCH", {
@@ -311,6 +391,7 @@ export function DriverVerificationScreen() {
             </Field>
           </Form>
         </Panel>
+        <div>
         <Panel
           title="Your approval records"
           description="Approved records unlock matching requests from that organization."
@@ -328,7 +409,9 @@ export function DriverVerificationScreen() {
                 <div>
                   <div className="section-line">
                     <h3>
-                      {record.organization?.name ?? "Partner organization"}
+                      {record.organization?.name ??
+                        record.organization_name ??
+                        "Partner organization"}
                     </h3>
                     <Badge status={record.status} />
                   </div>
@@ -342,6 +425,7 @@ export function DriverVerificationScreen() {
                   {record.reject_reason && (
                     <p className="error-box">{record.reject_reason}</p>
                   )}
+                  <ReviewNote record={record} />
                 </div>
               </article>
             ))}
@@ -353,6 +437,50 @@ export function DriverVerificationScreen() {
             />
           )}
         </Panel>
+        <Panel
+          title="Organizations you can apply to"
+          description="Submit a verification to any partner organization below."
+        >
+          <div className="approval-list">
+            {partnerOrganizations.map((organization) => {
+              const record = data.verifications.find(
+                (item) =>
+                  item.approved_by_org_id === organization.id ||
+                  item.organization?.id === organization.id
+              )
+              return (
+                <article className="approval-card" key={organization.id}>
+                  <span className="approval-icon">
+                    <ShieldCheck size={20} />
+                  </span>
+                  <div>
+                    <div className="section-line">
+                      <h3>{organization.name}</h3>
+                      {record ? (
+                        <Badge status={record.status} />
+                      ) : (
+                        <span className="badge">Open</span>
+                      )}
+                    </div>
+                    {organization.address && <p>{organization.address}</p>}
+                    <small>
+                      {record
+                        ? "You already have a record with this organization."
+                        : "Use the form to send a verification."}
+                    </small>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          {!partnerOrganizations.length && (
+            <Empty
+              title="No partner organizations yet"
+              description="Organizations appear here once they join CareRide."
+            />
+          )}
+        </Panel>
+        </div>
       </div>
       <p className="info-box">
         <MapPin size={16} /> Approval alone does not reveal rides. Your vehicle,

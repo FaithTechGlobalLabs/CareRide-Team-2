@@ -11,6 +11,8 @@ import {
   Panel,
   ReasonAction,
   dateTime,
+  passengerName,
+  placeLabel,
 } from "./ui"
 export function RideDetail({ rideId }: { rideId: string }) {
   const { data, session, mutate } = useCare()
@@ -75,23 +77,35 @@ export function RideDetail({ rideId }: { rideId: string }) {
             action={<span className="free-tag">Free ride</span>}
           >
             <div className="detail-route">
-              <div>
-                <span className="route-point" />
-                <small>PICKUP</small>
-                <h3>{ride.pickup_address}</h3>
-              </div>
-              <div>
-                <MapPin size={20} />
-                <small>DESTINATION</small>
-                <h3>{ride.destination_address}</h3>
-              </div>
+              {(
+                [
+                  ["PICKUP", "pickup", ride.pickup_address],
+                  ["DESTINATION", "destination", ride.destination_address],
+                ] as const
+              ).map(([label, kind, address]) => {
+                const name = placeLabel(ride, kind, data.destinations)
+                return (
+                  <div key={label}>
+                    {kind === "pickup" ? (
+                      <span className="route-point" />
+                    ) : (
+                      <MapPin size={20} />
+                    )}
+                    <div>
+                      <small>{label}</small>
+                      <h3>{name}</h3>
+                      {name !== address && <p>{address}</p>}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
             <div className="detail-grid">
               <div>
                 <small>Primary client</small>
                 <strong>
-                  {client
-                    ? `${client.first_name} ${client.last_name}`
+                  {client || ride.client_name
+                    ? passengerName(ride, client, driver)
                     : "Passenger information at assignment"}
                 </strong>
               </div>
@@ -124,15 +138,27 @@ export function RideDetail({ rideId }: { rideId: string }) {
               </Link>
             )}
             {driver && (
-              <a
-                className="btn secondary"
-                href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${ride.pickup_lat}%2C${ride.pickup_lng}%3B${ride.destination_lat}%2C${ride.destination_lng}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <MapPin size={17} />
-                Open directions
-              </a>
+              <div className="action-row">
+                <a
+                  className="btn secondary"
+                  href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${ride.pickup_lat}%2C${ride.pickup_lng}%3B${ride.destination_lat}%2C${ride.destination_lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <MapPin size={17} />
+                  Open directions
+                </a>
+                {ride.organization_phone && (
+                  <a
+                    className="btn secondary"
+                    href={`tel:${ride.organization_phone.replace(/[^\d+]/g, "")}`}
+                  >
+                    <Phone size={17} />
+                    Call {ride.organization_name ?? "organization"} ·{" "}
+                    {ride.organization_phone}
+                  </a>
+                )}
+              </div>
             )}
           </Panel>
           <Panel title={driver ? "Ride actions" : "Booking details"}>

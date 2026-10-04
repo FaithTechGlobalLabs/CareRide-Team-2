@@ -14,13 +14,14 @@ import { useCare } from "./context"
 import { Layout } from "./Layout"
 import {
   AddLink,
-  Badge,
   Empty,
   PageTitle,
   Panel,
+  GroupedRideList,
   RideList,
   RideSearch,
 } from "./ui"
+import { RideSchedule } from "./WeekCalendar"
 export function Dashboard() {
   const { data, session } = useCare()
   const upcoming = data.rides
@@ -39,12 +40,6 @@ export function Dashboard() {
         action={<AddLink to="/book">Book a ride</AddLink>}
       />
       <div className="stats-grid">
-        <Stat
-          icon={<CalendarDays size={21} />}
-          title="Upcoming rides"
-          value={upcoming.length}
-          note="Journeys still ahead"
-        />
         <Stat
           icon={<Clock3 size={21} />}
           title="Awaiting a driver"
@@ -77,7 +72,7 @@ export function Dashboard() {
             }
           >
             {upcoming.length ? (
-              <RideList rides={upcoming.slice(0, 5)} />
+              <GroupedRideList rides={upcoming} />
             ) : (
               <Empty
                 title="A clear road ahead"
@@ -226,6 +221,12 @@ export function RidesScreen() {
         description="Search bookings and follow each ride from request to arrival."
         action={<AddLink to="/book">Book a ride</AddLink>}
       />
+      <Panel
+        title="Schedule"
+        description="Week and month views of committed and requested rides."
+      >
+        <RideSchedule rides={data.rides} />
+      </Panel>
       <Panel>
         <RideSearch rides={data.rides} />
       </Panel>
@@ -295,13 +296,19 @@ export function DriverDashboard() {
         description="The people counting on you for their next journey."
       >
         {active.length ? (
-          <RideList rides={active} driver />
+          <GroupedRideList rides={active} driver hideStatuses={["accepted"]} />
         ) : (
           <Empty
             title="Your next journey is waiting"
             description="Accept an eligible ride below to help someone get to care."
           />
         )}
+      </Panel>
+      <Panel
+        title="Your schedule"
+        description="Switch between the week and the month. Each block includes a 15-minute buffer after the ride."
+      >
+        <RideSchedule rides={data.rides} />
       </Panel>
       <Panel title="Past journeys">
         <RideList
@@ -311,10 +318,6 @@ export function DriverDashboard() {
           driver
         />
       </Panel>
-      <div className="info-box">
-        <Badge status={approved.length ? "approved" : "pending"} /> Only the
-        organization that books a ride can approve you to provide it.
-      </div>
     </Layout>
   )
 }

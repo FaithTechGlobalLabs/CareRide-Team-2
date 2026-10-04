@@ -3,7 +3,6 @@ import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 import {
   ArrowRight,
-  ArrowLeft,
   Check,
   HeartHandshake,
   Plus,
@@ -11,7 +10,8 @@ import {
   X,
 } from "lucide-react"
 import { useCare } from "./context"
-import type { Ride, Status } from "./types"
+import { relativeDateLabel, vancouverYmd } from "./dates"
+import type { Destination, Ride, Status, Verification } from "./types"
 
 export function Brand() {
   return (
@@ -194,12 +194,50 @@ export function dateTime(value: string) {
     timeZone: "America/Vancouver",
   }).format(new Date(value))
 }
+export function placeLabel(
+  ride: Ride,
+  kind: "pickup" | "destination",
+  destinations: Destination[]
+) {
+  const named = kind === "pickup" ? ride.pickup_name : ride.destination_name
+  if (named) return named
+  const id = kind === "pickup" ? ride.pickup_id : ride.destination_id
+  const address =
+    kind === "pickup" ? ride.pickup_address : ride.destination_address
+  const match = destinations.find(
+    (destination) =>
+      (id && destination.id === id) ||
+      (address && destination.address === address)
+  )
+  return match?.name || address || "Location"
+}
+
+export function passengerName(
+  ride: Ride,
+  client: { first_name?: string; last_name?: string } | undefined,
+  driver: boolean
+) {
+  if (driver) {
+    return (
+      client?.first_name ||
+      ride.client_name?.split(" ")[0] ||
+      `${ride.passenger_count} passenger${ride.passenger_count > 1 ? "s" : ""}`
+    )
+  }
+  if (client?.first_name) {
+    return [client.first_name, client.last_name].filter(Boolean).join(" ")
+  }
+  return ride.client_name || "Client ride"
+}
+
 export function RideList({
   rides,
   driver = false,
+  hideStatuses = [],
 }: {
   rides: Ride[]
   driver?: boolean
+  hideStatuses?: Status[]
 }) {
   const { data } = useCare()
   return (
@@ -207,6 +245,8 @@ export function RideList({
       {rides.map((ride) => {
         const client =
           ride.client ?? data.clients.find((c) => c.id === ride.client_id)
+        const pickup = placeLabel(ride, "pickup", data.destinations)
+        const destination = placeLabel(ride, "destination", data.destinations)
         return (
           <Link
             key={ride.id}
@@ -230,11 +270,7 @@ export function RideList({
             </div>
             <div className="ride-main">
               <strong>
-                {client
-                  ? `${client.first_name} ${client.last_name}`
-                  : driver
-                    ? `${ride.passenger_count} passenger${ride.passenger_count > 1 ? "s" : ""}`
-                    : "Client ride"}
+                {passengerName(ride, client, driver)}
                 {ride.sample && <small className="sample-tag">Sample</small>}
               </strong>
               <span>
@@ -242,21 +278,51 @@ export function RideList({
                 passenger{ride.passenger_count > 1 ? "s" : ""}
               </span>
               <div className="route-line">
-                {ride.pickup_address}
+                {pickup}
                 <ArrowRight size={13} />
-                {ride.destination_address}
+                {destination}
               </div>
-              { <div className="route-line">
-                {ride.pickup_address}
-                <ArrowLeft size={13} />
-                {ride.destination_address}
-              </div>}
             </div>
-            <Badge status={ride.status} />
+            {!hideStatuses.includes(ride.status) && (
+              <Badge status={ride.status} />
+            )}
             <ArrowRight className="row-arrow" size={18} />
           </Link>
         )
       })}
+    </div>
+  )
+}
+
+export function GroupedRideList({
+  rides,
+  driver = false,
+  hideStatuses = [],
+}: {
+  rides: Ride[]
+  driver?: boolean
+  hideStatuses?: Status[]
+}) {
+  const groups = new Map<string, { label: string; rides: Ride[] }>()
+  ;[...rides]
+    .sort((a, b) => a.requested_pickup_at.localeCompare(b.requested_pickup_at))
+    .forEach((ride) => {
+      const key = vancouverYmd(new Date(ride.requested_pickup_at))
+      const group = groups.get(key) ?? {
+        label: relativeDateLabel(ride.requested_pickup_at),
+        rides: [],
+      }
+      group.rides.push(ride)
+      groups.set(key, group)
+    })
+  return (
+    <div className="ride-groups">
+      {[...groups.entries()].map(([key, group]) => (
+        <section key={key} className="ride-group">
+          <h3 className="ride-group-label">{group.label}</h3>
+          <RideList rides={group.rides} driver={driver} hideStatuses={hideStatuses} />
+        </section>
+      ))}
     </div>
   )
 }
@@ -274,7 +340,7 @@ export function RideSearch({
     const client = data.clients.find((c) => c.id === r.client_id)
     return (
       (filter === "all" || r.status === filter) &&
-      `${client?.first_name ?? ""} ${client?.last_name ?? ""} ${r.pickup_address} ${r.destination_address}`
+      `${client?.first_name ?? ""} ${client?.last_name ?? ""} ${r.client_name ?? ""} ${placeLabel(r, "pickup", data.destinations)} ${placeLabel(r, "destination", data.destinations)} ${r.pickup_address} ${r.destination_address}`
         .toLowerCase()
         .includes(query.toLowerCase())
     )
@@ -411,6 +477,22 @@ export function AddLink({
       <Plus size={18} />
       {children}
     </Link>
+  )
+}
+export function ReviewNote({ record }: { record: Verification }) {
+  if (!record.reviewed_by_name && !record.reviewed_at) return null
+  const action =
+    record.status === "approved"
+      ? "Approved"
+      : record.status === "rejected"
+        ? "Rejected"
+        : "Reviewed"
+  return (
+    <p className="muted">
+      {action}
+      {record.reviewed_by_name ? ` by ${record.reviewed_by_name}` : ""}
+      {record.reviewed_at ? ` · ${dateTime(record.reviewed_at)}` : ""}
+    </p>
   )
 }
 export function Success({ children }: { children: ReactNode }) {

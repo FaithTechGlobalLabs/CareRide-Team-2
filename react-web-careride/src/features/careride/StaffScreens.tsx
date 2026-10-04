@@ -551,7 +551,6 @@ function BookingForm({
               const body = {
                 ...Object.fromEntries(f),
                 pickup_destination_id: p.id,
-                pickup_id: p.id,
                 pickup_address: p.address,
                 pickup_lat: p.lat,
                 pickup_lng: p.lng,

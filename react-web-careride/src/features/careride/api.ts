@@ -47,6 +47,16 @@ function normalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalize)
   if (!value || typeof value !== "object") return value
   const record = { ...(value as Record<string, unknown>) }
+  if (typeof record.document_type === "string") {
+    record.check_type ??= record.document_type
+    record.document_ref ??= record.document_filename
+    if (typeof record.organization_name === "string" && !record.organization) {
+      record.organization = {
+        id: record.approved_by_org_id,
+        name: record.organization_name,
+      }
+    }
+  }
   if (typeof record.token === "string" && record.user && typeof record.user === "object") {
     const user = { ...(record.user as Record<string, unknown>) }
     if (!user.role && user.kind === "driver") user.role = "driver"

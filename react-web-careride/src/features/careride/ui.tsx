@@ -13,6 +13,7 @@ import { useCare } from "./context"
 import { relativeDateLabel, vancouverYmd } from "./dates"
 import { formatKm, useDriveTimes } from "./travel"
 import type { Destination, Ride, Status, Verification } from "./types"
+import { groupRideAppointments } from "./rideGroups"
 
 export function Brand() {
   return (
@@ -245,55 +246,86 @@ export function RideList({
   const driveTimes = useDriveTimes(driver ? rides : [], data.destinations)
   return (
     <div className="ride-list">
-      {rides.map((ride) => {
-        const client =
-          ride.client ?? data.clients.find((c) => c.id === ride.client_id)
-        const pickup = placeLabel(ride, "pickup", data.destinations)
-        const destination = placeLabel(ride, "destination", data.destinations)
+      {groupRideAppointments(rides).map((appointment) => {
+        const roundTrip = appointment.length > 1
         return (
-          <Link
-            key={ride.id}
-            to="/rides/$rideId"
-            params={{ rideId: ride.id }}
-            className="ride-row"
+          <div
+            key={appointment[0].id}
+            className={roundTrip ? "round-trip-card" : "ride-appointment"}
           >
-            <div className="ride-date">
-              <strong>
-                {new Date(ride.requested_pickup_at).toLocaleDateString(
-                  "en-CA",
-                  { day: "numeric", timeZone: "America/Vancouver" }
-                )}
-              </strong>
-              <span>
-                {new Date(ride.requested_pickup_at).toLocaleDateString(
-                  "en-CA",
-                  { month: "short", timeZone: "America/Vancouver" }
-                )}
-              </span>
-            </div>
-            <div className="ride-main">
-              <strong>
-                {passengerName(ride, client, driver)}
-                {ride.sample && <small className="sample-tag">Sample</small>}
-              </strong>
-              <span>
-                {dateTime(ride.requested_pickup_at)} · {ride.passenger_count}{" "}
-                passenger{ride.passenger_count > 1 ? "s" : ""}
-                {driveTimes[ride.id]
-                  ? ` · ${driveTimes[ride.id].minutes} min · ${formatKm(driveTimes[ride.id].kilometers)}`
-                  : ""}
-              </span>
-              <div className="route-line">
-                {pickup}
-                <ArrowRight size={13} />
-                {destination}
+            {roundTrip && (
+              <div className="round-trip-heading">
+                <strong>Round-trip appointment</strong>
               </div>
-            </div>
-            {!hideStatuses.includes(ride.status) && (
-              <Badge status={ride.status} />
             )}
-            <ArrowRight className="row-arrow" size={18} />
-          </Link>
+            {appointment.map((ride) => {
+              const client =
+                ride.client ?? data.clients.find((c) => c.id === ride.client_id)
+              const pickup = placeLabel(ride, "pickup", data.destinations)
+              const destination = placeLabel(
+                ride,
+                "destination",
+                data.destinations
+              )
+              return (
+                <Link
+                  key={ride.id}
+                  to="/rides/$rideId"
+                  params={{ rideId: ride.id }}
+                  className="ride-row"
+                >
+                  <div className="ride-date">
+                    <strong>
+                      {new Date(ride.requested_pickup_at).toLocaleDateString(
+                        "en-CA",
+                        { day: "numeric", timeZone: "America/Vancouver" }
+                      )}
+                    </strong>
+                    <span>
+                      {new Date(ride.requested_pickup_at).toLocaleDateString(
+                        "en-CA",
+                        { month: "short", timeZone: "America/Vancouver" }
+                      )}
+                    </span>
+                  </div>
+                  <div className="ride-main">
+                    {!roundTrip &&
+                      ride.status === "requested" &&
+                      ["accepted", "in_progress", "completed"].includes(
+                        ride.linked_leg_status ?? ""
+                      ) && (
+                        <small className="single-trip-note">
+                          One leg already accepted
+                        </small>
+                      )}
+                    <strong>
+                      {passengerName(ride, client, driver)}
+                      {ride.sample && (
+                        <small className="sample-tag">Sample</small>
+                      )}
+                    </strong>
+                    <span>
+                      {dateTime(ride.requested_pickup_at)} ·{" "}
+                      {ride.passenger_count} passenger
+                      {ride.passenger_count > 1 ? "s" : ""}
+                      {driveTimes[ride.id]
+                        ? ` · ${driveTimes[ride.id].minutes} min · ${formatKm(driveTimes[ride.id].kilometers)}`
+                        : ""}
+                    </span>
+                    <div className="route-line">
+                      {pickup}
+                      <ArrowRight size={13} />
+                      {destination}
+                    </div>
+                  </div>
+                  {!hideStatuses.includes(ride.status) && (
+                    <Badge status={ride.status} />
+                  )}
+                  <ArrowRight className="row-arrow" size={18} />
+                </Link>
+              )
+            })}
+          </div>
         )
       })}
     </div>
@@ -310,15 +342,18 @@ export function GroupedRideList({
   hideStatuses?: Status[]
 }) {
   const groups = new Map<string, { label: string; rides: Ride[] }>()
-  ;[...rides]
-    .sort((a, b) => a.requested_pickup_at.localeCompare(b.requested_pickup_at))
-    .forEach((ride) => {
+  groupRideAppointments(rides)
+    .sort((a, b) =>
+      a[0].requested_pickup_at.localeCompare(b[0].requested_pickup_at)
+    )
+    .forEach((appointment) => {
+      const ride = appointment[0]
       const key = vancouverYmd(new Date(ride.requested_pickup_at))
       const group = groups.get(key) ?? {
         label: relativeDateLabel(ride.requested_pickup_at),
         rides: [],
       }
-      group.rides.push(ride)
+      group.rides.push(...appointment)
       groups.set(key, group)
     })
   return (
@@ -326,7 +361,11 @@ export function GroupedRideList({
       {[...groups.entries()].map(([key, group]) => (
         <section key={key} className="ride-group">
           <h3 className="ride-group-label">{group.label}</h3>
-          <RideList rides={group.rides} driver={driver} hideStatuses={hideStatuses} />
+          <RideList
+            rides={group.rides}
+            driver={driver}
+            hideStatuses={hideStatuses}
+          />
         </section>
       ))}
     </div>

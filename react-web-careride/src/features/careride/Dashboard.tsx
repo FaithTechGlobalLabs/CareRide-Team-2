@@ -25,6 +25,7 @@ import {
 } from "./ui"
 import { RideSchedule, TodayColumn } from "./WeekCalendar"
 import { usePersonalText } from "./personalText"
+import { NotificationControls } from "./NotificationControls"
 export function Dashboard() {
   const { data, session } = useCare()
   const copy = usePersonalText(session?.user.name.split(" ")[0] ?? "there")
@@ -261,7 +262,7 @@ export function DriverDashboard() {
     true
   )
   return (
-    <Layout driver>
+    <Layout driver showNotificationPrompt={!confirmation}>
       <PageTitle
         eyebrow={copy.eyebrow}
         title={copy.title}
@@ -276,6 +277,7 @@ export function DriverDashboard() {
       {confirmation && (
         <div className="driver-confirmation">
           <Success>{confirmation}</Success>
+          <NotificationControls gentle afterAcceptance />
         </div>
       )}
       <div className="my-rides-layout">

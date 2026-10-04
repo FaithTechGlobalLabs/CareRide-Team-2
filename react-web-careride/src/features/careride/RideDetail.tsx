@@ -9,6 +9,7 @@ import {
   Pencil,
   Phone,
   Users,
+  Plus,
 } from "lucide-react"
 import { ConfettiButton } from "../../components/ui/confetti"
 import { BookingDayCard } from "./BookingDay"
@@ -99,7 +100,20 @@ export function RideDetail({ rideId }: { rideId: string }) {
             America/Vancouver
           </span>
         }
-        action={<Badge status={ride.status} />}
+        action={
+          <div className="booking-heading-actions">
+            <Badge status={ride.status} />
+            {!driver && (
+              <Link
+                to="/book"
+                search={{ client: undefined, edit: undefined }}
+                className="btn primary"
+              >
+                <Plus size={16} /> New booking
+              </Link>
+            )}
+          </div>
+        }
       />
       <div className="booking-columns">
         <div>
@@ -155,28 +169,43 @@ export function RideDetail({ rideId }: { rideId: string }) {
                 </div>
               </Panel>
             )}
-          {driver && !ride.driver_id && ride.status === "requested" && (
-            <Panel
-              title="Ride actions"
-              description="Review the route and confirm that you can take this ride."
-            >
-              <ConfettiButton
-                onClick={async () => {
-                  await mutate(`/rides/${ride.id}/accept`)
-                  if (session?.user.id)
-                    queueInstallHelpAfterFirstRideAcceptance(session.user.id)
-                  sessionStorage.setItem(
-                    "careride-driver-confirmation",
-                    "You’re good to go. The ride is now in your upcoming rides."
-                  )
-                  await navigate({ to: "/driver" })
-                }}
-                className="btn primary"
+          {driver &&
+            !ride.driver_id &&
+            ride.status === "requested" &&
+            ride.can_accept !== false && (
+              <Panel
+                title="Ride actions"
+                description="Review the route and confirm that you can take this ride."
               >
-                Confirm ride
-              </ConfettiButton>
-            </Panel>
-          )}
+                <ConfettiButton
+                  onClick={async () => {
+                    await mutate(`/rides/${ride.id}/accept`)
+                    if (session?.user.id)
+                      queueInstallHelpAfterFirstRideAcceptance(session.user.id)
+                    sessionStorage.setItem(
+                      "careride-driver-confirmation",
+                      "You’re good to go. The ride is now in your upcoming rides."
+                    )
+                    await navigate({ to: "/driver" })
+                  }}
+                  className="btn primary"
+                >
+                  Confirm ride
+                </ConfettiButton>
+              </Panel>
+            )}
+          {driver &&
+            !ride.driver_id &&
+            ride.status === "requested" &&
+            ride.can_accept === false && (
+              <Panel title="Other leg of this appointment">
+                <p className="muted">
+                  This leg is shown with the round trip, but it does not
+                  currently match your availability or vehicle requirements. You
+                  can accept the eligible leg separately.
+                </p>
+              </Panel>
+            )}
           {!driver && (
             <Panel title="Booking details">
               <>
@@ -185,23 +214,25 @@ export function RideDetail({ rideId }: { rideId: string }) {
                     ? "Your request is waiting for an eligible driver. You can edit it until a driver is assigned."
                     : "This screen shows the booking snapshot saved when the ride was requested."}
                 </p>
-                {ride.status === "requested" && (
-                  <Link
-                    to="/book"
-                    search={{ edit: ride.id, client: ride.client_id }}
-                    className="btn secondary"
-                  >
-                    <Pencil size={16} /> Edit booking
-                  </Link>
-                )}
-                {["requested", "accepted"].includes(ride.status) && (
-                  <ReasonAction
-                    title="Cancel booking"
-                    onSubmit={(reason) =>
-                      mutate(`/rides/${ride.id}/cancel`, "POST", { reason })
-                    }
-                  />
-                )}
+                <div className="staff-booking-actions">
+                  {ride.status === "requested" && (
+                    <Link
+                      to="/book"
+                      search={{ edit: ride.id, client: ride.client_id }}
+                      className="btn secondary"
+                    >
+                      <Pencil size={16} /> Edit booking
+                    </Link>
+                  )}
+                  {["requested", "accepted"].includes(ride.status) && (
+                    <ReasonAction
+                      title="Cancel booking"
+                      onSubmit={(reason) =>
+                        mutate(`/rides/${ride.id}/cancel`, "POST", { reason })
+                      }
+                    />
+                  )}
+                </div>
               </>
               {ride.cancelled_reason && (
                 <p>Cancellation reason: {ride.cancelled_reason}</p>

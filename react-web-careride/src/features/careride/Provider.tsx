@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { Context, emptyData } from "./context"
 import { request, IS_DEMO } from "./api"
 import type { Data, Session } from "./types"
+import { disableDevice } from "./NotificationControls"
 const KEY = "careride-session"
 export function CareProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => {
@@ -27,6 +28,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
             "/drivers/me/availability",
             "/drivers/me/verifications",
             "/organizations",
+            "/notifications",
           ]
         : [
             "/clients",
@@ -43,6 +45,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
             "availability",
             "verifications",
             "organizations",
+            "notifications",
           ]
         : [
             "clients",
@@ -98,7 +101,8 @@ export function CareProvider({ children }: { children: ReactNode }) {
     setData(emptyData)
     setSession(value)
   }
-  function logout() {
+  async function logout() {
+    if (session && !IS_DEMO) await disableDevice(session).catch(() => {})
     sessionStorage.removeItem(KEY)
     setSession(null)
     setData(emptyData)

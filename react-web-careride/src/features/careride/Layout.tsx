@@ -15,6 +15,7 @@ import {
   Plus,
   Share,
   SquarePlus,
+  Settings,
   Users,
   X,
 } from "lucide-react"
@@ -28,13 +29,16 @@ import {
   isIOSSafari,
   isStandaloneWebApp,
 } from "./iosInstall"
+import { NotificationControls } from "./NotificationControls"
 
 export function Layout({
   children,
   driver = false,
+  showNotificationPrompt = true,
 }: {
   children: ReactNode
   driver?: boolean
+  showNotificationPrompt?: boolean
 }) {
   const { session, logout, data, error } = useCare()
   const path = useLocation({ select: (s) => s.pathname })
@@ -85,6 +89,7 @@ export function Layout({
           title: "Organization approvals",
           icon: ClipboardCheck,
         },
+        { to: "/notifications", title: "Notifications", icon: Bell },
       ]
     : [
         { to: "/", title: "Overview", icon: LayoutDashboard },
@@ -101,8 +106,8 @@ export function Layout({
       return path === "/driver" || path.startsWith("/rides/")
     return path === to || path.startsWith(`${to}/`)
   }
-  const signOut = () => {
-    logout()
+  const signOut = async () => {
+    await logout()
     void navigate({ to: "/login" })
   }
   return (
@@ -177,12 +182,15 @@ export function Layout({
           <div className="breadcrumb">
             Your workspace <span>/</span>{" "}
             <strong>
-              {nav.find((n) => n.to === path)?.title ?? "Ride coordination"}
+              {path === "/settings"
+                ? "Settings"
+                : (nav.find((n) => n.to === path)?.title ??
+                  "Ride coordination")}
             </strong>
           </div>
           <div className="topbar-actions">
             {IS_DEMO && <span className="demo-pill">Screen demo</span>}
-            {!driver && (
+            {
               <Link
                 to="/notifications"
                 className="icon-button notification-button"
@@ -191,7 +199,7 @@ export function Layout({
                 <Bell size={19} />
                 {unread > 0 && <i />}
               </Link>
-            )}
+            }
             <button
               type="button"
               className="user-avatar"
@@ -211,9 +219,17 @@ export function Layout({
                 <div>
                   <strong>{session.user.name}</strong>
                   <small>
-                    {driver ? "Volunteer driver" : "Organization admin"}
+                    {driver ? "Volunteer driver" : "Organization staff"}
                   </small>
                 </div>
+                <Link
+                  to="/settings"
+                  className="btn secondary"
+                  role="menuitem"
+                  onClick={() => setAccountOpenPath(null)}
+                >
+                  <Settings size={16} /> Settings
+                </Link>
                 <button
                   type="button"
                   className="btn secondary"
@@ -238,7 +254,7 @@ export function Layout({
             <div className="user-info">
               <strong>{session.user.name}</strong>
               <small>
-                {driver ? "Volunteer driver" : "Organization admin"}
+                {driver ? "Volunteer driver" : "Organization staff"}
               </small>
             </div>
           </div>
@@ -251,6 +267,9 @@ export function Layout({
         )}
         <main id="main-content" className="page-content">
           <ErrorBox error={error} />
+          {showNotificationPrompt &&
+            path !== "/settings" &&
+            path !== "/notifications" && <NotificationControls gentle />}
           {children}
         </main>
         <div className="mobile-community-signoff">

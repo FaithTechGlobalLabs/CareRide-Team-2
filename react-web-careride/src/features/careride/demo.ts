@@ -432,6 +432,9 @@ function presentDemoRide(ride: Ride, data: Data, driverView: boolean): Ride {
     data.organizations.find((item) => item.id === ride.organization_id) ?? org
   return {
     ...ride,
+    linked_leg_status: data.rides.find(
+      (other) => other.id === ride.linked_ride_id
+    )?.status,
     pickup_name: pickup?.name,
     destination_name: destination?.name,
     organization_name: organization.name,
@@ -525,11 +528,27 @@ export async function demoRequest(
       const activeDriver = demoDrivers.find(
         (item) => item.id === session?.user.id
       )
-      return activeDriver
-        ? data.rides
-            .filter((r) => eligible(r, data, activeDriver))
-            .map((ride) => presentDemoRide(ride, data, true))
-        : []
+      if (!activeDriver) return []
+      const available = data.rides.filter((r) =>
+        eligible(r, data, activeDriver)
+      )
+      return data.rides
+        .filter((r) =>
+          available.some(
+            (anchor) =>
+              anchor.id === r.id ||
+              (r.status === "requested" &&
+                !r.driver_id &&
+                r.client_id === anchor.client_id &&
+                r.organization_id === anchor.organization_id &&
+                (anchor.linked_ride_id === r.id ||
+                  r.linked_ride_id === anchor.id))
+          )
+        )
+        .map((ride) => ({
+          ...presentDemoRide(ride, data, true),
+          can_accept: eligible(ride, data, activeDriver),
+        }))
     }
     if (path === "/drivers/me/availability")
       return session?.user.id === driver.id ? data.availability : []

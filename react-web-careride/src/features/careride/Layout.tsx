@@ -24,6 +24,7 @@ import { IS_DEMO } from "./api"
 import {
   clearPendingInstallHelp,
   hasPendingInstallHelp,
+  isAndroidBrowser,
   isIOSSafari,
   isStandaloneWebApp,
 } from "./iosInstall"
@@ -41,7 +42,8 @@ export function Layout({
   const [accountOpenPath, setAccountOpenPath] = useState<string | null>(null)
   const [installHelpOpen, setInstallHelpOpen] = useState(hasPendingInstallHelp)
   const accountOpen = accountOpenPath === path
-  const showIOSInstall = isIOSSafari() && !isStandaloneWebApp()
+  const android = isAndroidBrowser()
+  const showInstallHelp = (isIOSSafari() || android) && !isStandaloneWebApp()
   useEffect(() => {
     if (installHelpOpen) clearPendingInstallHelp()
   }, [installHelpOpen])
@@ -212,7 +214,7 @@ export function Layout({
                 >
                   <LogOut size={16} /> Log out
                 </button>
-                {showIOSInstall && (
+                {showInstallHelp && (
                   <button
                     type="button"
                     className="btn secondary install-menu-button"
@@ -296,13 +298,34 @@ export function Layout({
             <span className="install-dialog-icon" aria-hidden="true">
               <SquarePlus size={26} />
             </span>
-            <p className="eyebrow">IPHONE WEB APP</p>
-            <h2 id="install-dialog-title">Add CareRide to your Home Screen</h2>
+            <p className="eyebrow">{android ? "ANDROID WEB APP" : "IPHONE WEB APP"}</p>
+            <h2 id="install-dialog-title">Add CareRide to your Home Screen!</h2>
             <p className="install-dialog-intro">
-              Apple requires this final step from Safari. It only takes a few
-              taps.
+              {android
+                ? "Android requires this final step from your browser. It only takes a few taps."
+                : "Apple requires this final step from Safari. It only takes a few taps."}
             </p>
             <ol className="install-steps">
+              {android ? (
+                <>
+                  <li>
+                    <span>1</span>
+                    <div><strong>Tap the three-dot menu in the top-right corner.</strong></div>
+                  </li>
+                  <li>
+                    <span>2</span>
+                    <div>
+                      <strong>Tap ‘Install and Create shortcut’ or Install app or Add to Home screen.</strong>
+                      <p>The wording depends on your device.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>3</span>
+                    <div><strong>Tap Install or Add.</strong></div>
+                  </li>
+                </>
+              ) : (
+                <>
               <li>
                 <span><Share size={20} /></span>
                 <div>
@@ -328,6 +351,8 @@ export function Layout({
                   </p>
                 </div>
               </li>
+                </>
+              )}
             </ol>
           </section>
         </div>

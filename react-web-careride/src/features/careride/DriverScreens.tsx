@@ -366,9 +366,9 @@ export function DriverVerificationScreen() {
                 ))}
               </select>
             </Field>
-            <Field label="Check type" wide>
-              <select name="check_type" required>
-                <option value="identity">Identity check</option>
+            <Field label="Document type" wide>
+              <select name="check_type" className="document-type-select" required defaultValue="">
+                <option value="" disabled>Select a document type</option>
                 <option value="drivers_licence">Driver’s licence</option>
                 <option value="criminal_record">Criminal record check</option>
               </select>
@@ -384,9 +384,6 @@ export function DriverVerificationScreen() {
                 accept="application/pdf,image/*"
                 required
               />
-            </Field>
-            <Field label="Issue date">
-              <input name="issued_on" type="date" />
             </Field>
             <Field label="Expiry date">
               <input name="expires_on" type="date" />

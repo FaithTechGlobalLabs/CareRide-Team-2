@@ -8,6 +8,10 @@ export function isIOSSafari() {
   return isIOS && isSafari
 }
 
+export function isAndroidBrowser() {
+  return /Android/i.test(navigator.userAgent)
+}
+
 export function isStandaloneWebApp() {
   const iosNavigator = navigator as Navigator & { standalone?: boolean }
   return (
@@ -25,7 +29,7 @@ export function queueInstallHelpAfterFirstRideAcceptance(driverId: string) {
     if (localStorage.getItem(handledKey)) return
     localStorage.setItem(handledKey, "true")
     if (
-      isIOSSafari() &&
+      (isIOSSafari() || isAndroidBrowser()) &&
       !isStandaloneWebApp() &&
       window.matchMedia("(max-width: 760px)").matches
     ) {

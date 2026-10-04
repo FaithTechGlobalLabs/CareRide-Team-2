@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { ArrowRight, Check, Clock3, MapPin, Phone, Users } from "lucide-react"
+import { ConfettiButton } from "../../components/ui/confetti"
 import { useCare } from "./context"
 import { Layout } from "./Layout"
 import {
@@ -59,7 +60,12 @@ export function RideDetail({ rideId }: { rideId: string }) {
       </Link>
       <PageTitle
         title={client ? `${client.first_name}’s journey` : "A journey to care."}
-        description={`Scheduled pickup: ${dateTime(ride.requested_pickup_at)} · America/Vancouver`}
+        description={
+          <span>
+            Scheduled pickup:{" "}
+            <strong>{dateTime(ride.requested_pickup_at)} </strong>· America/Vancouver
+          </span>
+        }
         action={<Badge status={ride.status} />}
       />
       <div className="booking-columns">
@@ -144,12 +150,13 @@ export function RideDetail({ rideId }: { rideId: string }) {
               <>
                 <div className="action-row">
                   {!ride.driver_id && ride.status === "requested" && (
-                    <ActionButton
-                      className="primary"
-                      onClick={() => mutate(`/rides/${ride.id}/accept`)}
-                    >
-                      Accept this ride <ArrowRight size={17} />
-                    </ActionButton>
+                    // <ActionButton
+                    //   className="primary"
+                    //   onClick={() => mutate(`/rides/${ride.id}/accept`)}
+                    // >
+                    //   Accept this ride <ArrowRight size={17} />
+                    // </ActionButton>
+                    <ConfettiButton onClick={() => mutate(`/rides/${ride.id}/accept`)} className = "btn secondary">Accept this ride</ConfettiButton>
                   )}
                   {assigned && ride.status === "accepted" && (
                     <ActionButton

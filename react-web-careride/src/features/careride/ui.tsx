@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 import {
   ArrowRight,
+  ArrowLeft,
   Check,
   HeartHandshake,
   Plus,
@@ -30,7 +31,7 @@ export function PageTitle({
 }: {
   eyebrow?: string
   title: string
-  description: string
+  description: string | React.ReactNode
   action?: ReactNode
 }) {
   return (
@@ -245,6 +246,11 @@ export function RideList({
                 <ArrowRight size={13} />
                 {ride.destination_address}
               </div>
+              { <div className="route-line">
+                {ride.pickup_address}
+                <ArrowLeft size={13} />
+                {ride.destination_address}
+              </div>}
             </div>
             <Badge status={ride.status} />
             <ArrowRight className="row-arrow" size={18} />

@@ -265,21 +265,9 @@ export function DriverDashboard() {
           Manage approvals <ArrowRight size={15} />
         </Link>
       </div>
+     
       <Panel
-        title="Your upcoming rides"
-        description="The people counting on you for their next journey."
-      >
-        {active.length ? (
-          <RideList rides={active} driver />
-        ) : (
-          <Empty
-            title="Your next journey is waiting"
-            description="Accept an eligible ride below to help someone get to care."
-          />
-        )}
-      </Panel>
-      <Panel
-        title="Available rides"
+        title="Ride Requests"
         description="Requests that match your organization approval, vehicle, schedule, and service area."
         action={
           <span className="count-pill">
@@ -298,6 +286,20 @@ export function DriverDashboard() {
                 Review availability
               </Link>
             }
+          />
+        )}
+      </Panel>
+
+      <Panel
+        title="Your upcoming rides"
+        description="The people counting on you for their next journey."
+      >
+        {active.length ? (
+          <RideList rides={active} driver />
+        ) : (
+          <Empty
+            title="Your next journey is waiting"
+            description="Accept an eligible ride below to help someone get to care."
           />
         )}
       </Panel>

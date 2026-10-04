@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type FocusEvent } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { ArrowRight, MapPin, Search, Users } from "lucide-react"
 import { useCare } from "./context"
@@ -400,6 +400,15 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
   const [destination, setDestination] = useState("")
   const [roundTrip, setRoundTrip] = useState(false)
   const locations = data.destinations.filter((d) => d.is_active)
+  const openDatePicker = (event: FocusEvent<HTMLInputElement>) => {
+    try {
+      event.currentTarget.showPicker?.()
+    } catch (error) {
+      // Programmatic focus may lack the user activation required by the browser.
+      if (!(error instanceof DOMException && error.name === "NotAllowedError"))
+        throw error
+    }
+  }
   return (
     <Layout>
       <PageTitle
@@ -407,6 +416,10 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
         title="Let’s get them there."
         description="Arrange a free ride to the places that matter."
       />
+      <p className="info-box">
+        For emergencies, call 911. CareRide helps with planned trips to
+        essential services.
+      </p>
       <div className="booking-columns">
         <Panel title="Book a ride" className="form-panel">
           <Form
@@ -531,16 +544,23 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               <input
                 name="requested_pickup_at"
                 type="datetime-local"
+                step={15 * 60}
+                onFocus={openDatePicker}
                 required
               />
             </Field>
             {roundTrip && (
               <Field
                 label="Return pickup date & time"
-                wide
                 hint="Each direction is accepted separately."
               >
-                <input name="return_pickup_at" type="datetime-local" required />
+                <input
+                  name="return_pickup_at"
+                  type="datetime-local"
+                  step={15 * 60}
+                  onFocus={openDatePicker}
+                  required
+                />
               </Field>
             )}
             <Field label="Passengers" hint="Include accompanying passengers.">
@@ -588,10 +608,6 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               $0<span>for the client</span>
             </div>
           </Panel>
-          <p className="info-box">
-            For emergencies, call 911. CareRide helps with planned trips to
-            essential services.
-          </p>
         </div>
       </div>
     </Layout>

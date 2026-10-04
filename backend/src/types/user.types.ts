@@ -7,7 +7,6 @@ export interface Staff {
   email: string;
   phone: string;
   password_hash: string;
-  role: StaffRole;
   is_active: boolean;
 }
 

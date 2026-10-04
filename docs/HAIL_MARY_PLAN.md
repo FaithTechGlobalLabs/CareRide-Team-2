@@ -137,11 +137,11 @@ Mounted from `src/index.ts`. JSON bodies. Auth header `Authorization: Bearer`.
 
 ## Explicitly out of this pass
 
-- PostgreSQL and PostGIS.
+- PostgreSQL and PostGIS were added after this pass. See `docs/POSTGRES.md`.
 - Google address autocomplete. Map pins use OpenStreetMap tiles, not a paid geocoder.
 - Client portal, paid ride links, SMS, email, phone calls.
 - Forgot-password reset, staff invite, multi-role identity.
-- Dispatcher workflow and offer rows. Acceptance writes `driver_id` directly.
+- A full dispatcher offer workflow. Acceptance still assigns the driver, and the same transaction records one accepted dispatch row.
 - Overlap locking, overnight availability, monthly availability beyond storing the fields.
 - React Native.
 

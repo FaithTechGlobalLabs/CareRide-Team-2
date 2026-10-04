@@ -44,6 +44,8 @@ Demo logins (synthetic, not the proposal contacts):
 - [x] Demo summary API with labeled sample savings
 - [x] Browser pass of the staff-to-driver script (frontend)
 
-Backend contract: `docs/BACKEND_API.md`. Checked on October 3, 2026 against `http://localhost:3011`: login, book, competing accepts, pickup, drop-off, notifications, round trip, organization registration, driver upload, and admin approval. The store was reset to seed data afterward. PostgreSQL is not called.
+Backend contract: `docs/BACKEND_API.md`. Database: `docs/POSTGRES.md` and `backend/db/001_schema.sql`.
+
+October 3, 2026, evening: the JSON store was replaced with PostgreSQL. Organizations have no type. Claimed rides use status `approved`. Driver claims lock the ride row and write the dispatch record in one transaction. PostGIS stores the service-area circle. The schema is written for Cloud SQL or a Vercel / Neon backup. It was typechecked. It was not applied to a server here because Docker and a local Postgres socket were unavailable.
 
 Frontend browser pass on October 3, 2026: staff login, one-way booking, approved-driver login, eligible ride acceptance, pickup, drop-off, staff dashboard completion count, and unread notifications. Responsive layouts were visually checked at mobile width and 1440px desktop width. The frontend defaults to a browser-persisted screen demo when `VITE_API_URL` is unset and uses the JSON API when it is set.

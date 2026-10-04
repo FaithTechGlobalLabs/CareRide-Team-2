@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_USER: careride
+      POSTGRES_PASSWORD: careride
+      POSTGRES_DB: careride
+    ports:
+      - "5432:5432"
+    volumes:
+      - careride_pg:/var/lib/postgresql/data
+
+volumes:
+  careride_pg:

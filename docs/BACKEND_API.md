@@ -1,8 +1,8 @@
-# CareRide JSON API
+# CareRide API
 
 Updated: October 3, 2026.
 
-The hail-mary backend is Express in `backend/`. It does not open PostgreSQL. `src/api/routes.ts` reads and writes `backend/data/store.json`, created from seed data on first use. Uploads go in `backend/data/uploads/` and are not public.
+The backend is Express in `backend/`. It reads and writes PostgreSQL. Schema, local setup, and the Cloud SQL / Vercel backup notes are in `docs/POSTGRES.md`. Uploaded verification documents are stored in the database.
 
 Start it from `backend/` with `npm run dev`. Default origin is `http://localhost:3000`. Send `Authorization: Bearer <token>` after login. Errors use `{ "message": "..." }`. Unknown routes still return `{ "error": "Route not found" }`.
 
@@ -19,13 +19,13 @@ Seed records: Belkin Communities of Hope (`org_belkin`), clients Jamie Chen, Cho
 
 `GET /auth/me` returns `{ user }`.
 
-Staff `user.kind` is `"staff"`. Driver `user.kind` is `"driver"`. Staff users include `organization_id`, `organization_name`, `organization_type`, and `role`.
+Staff `user.kind` is `"staff"`. Driver `user.kind` is `"driver"`. Both include `role` for the existing screens (`staff` or `driver`). Organizations no longer have a type.
 
 ## Organizations
 
-`GET /organizations` is public. It returns active `{ id, name, type }`.
+`GET /organizations` is public. It returns `{ id, name }`.
 
-`POST /organizations/register` creates an active organization and its admin, then returns `{ token, user }`. Body: `name`, `type` (`partner_org` or `transport_provider`), `address`, `contact_name`, `email`, `phone`, `admin_name`, `admin_email`, `admin_password` (at least 8 characters). Optional `admin_phone`.
+`POST /organizations/register` creates the organization and its first staff login, then returns `{ token, user }`. Body: `name`, `email`, `phone`, `admin_name`, `admin_email`, `admin_password` (at least 8 characters). Optional `admin_phone`. A `type` field is ignored.
 
 ## Clients
 
@@ -59,11 +59,13 @@ Driver:
 
 - `GET /drivers/me/rides/available` — requested rides this driver can claim.
 - `GET /drivers/me/rides` — rides already assigned to this driver.
-- `POST /rides/:id/accept` — first claim wins. The loser gets `409` and `{ message: "Already assigned" }`.
-- `POST /rides/:id/pickup` — `accepted` to `in_progress`.
-- `POST /rides/:id/dropoff` — `in_progress` to `completed`. Fills sample distance, duration, and cost fields and sets `sample: true`.
-- `POST /rides/:id/no-show` — from `accepted`.
-- `POST /rides/:id/withdraw` — from `accepted`, body `{ reason }`, returns the ride to `requested`.
+- `POST /rides/:id/accept` — locks the row and assigns it only if it is still `requested` and the driver is eligible. Status becomes `approved`. The loser gets `409` and `{ message: "Already assigned" }`.
+- `POST /rides/:id/pickup` — `approved` to `in_progress`, and sets `is_client_picked_up`.
+- `POST /rides/:id/dropoff` — `in_progress` to `completed`, and sets `is_client_dropped_off`.
+- `POST /rides/:id/no-show` — from `approved`.
+- `POST /rides/:id/withdraw` — from `approved`, body `{ reason }`, returns the ride to `requested`.
+
+The screens still look for status `accepted`. The database and API now use `approved` for a claimed ride. Pickup, no-show, and withdraw start from `approved`.
 
 A driver can claim when Belkin (the booking's partner org) has approved them, the vehicle has enough seats, wheelchair rides have a wheelchair vehicle, and the pickup is inside an active availability window and radius. Olive's seed rule is weekly 06:00–22:00 `America/Vancouver`, 25 km around Belkin House, no minimum notice.
 

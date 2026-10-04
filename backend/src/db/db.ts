@@ -3,22 +3,19 @@ import { fileURLToPath } from "node:url";
 
 import dotenv from "dotenv";
 import { Pool, type PoolClient } from "pg";
+import { databaseConfig } from "./config.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, "../../../.env"), quiet: true });
 dotenv.config({ path: path.resolve(here, "../../.env"), quiet: true });
 
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+export const pool = new Pool(databaseConfig(process.env));
 
-export const pool = connectionString
-  ? new Pool({ connectionString })
-  : new Pool({
-      host: process.env.POSTGRES_HOST,
-      port: Number(process.env.POSTGRES_PORT) || 5432,
-      user: process.env.POSTGRES_USER,
-      password: process.env.POSTGRES_PASSWORD,
-      database: process.env.POSTGRES_DB,
-    });
+pool.on("error", (error: Error & { code?: string }) => {
+  // An idle connection can fail during a restart or network interruption.
+  // Avoid logging connection strings or credentials.
+  console.error("PostgreSQL idle connection failed", { code: error.code ?? "UNKNOWN" });
+});
 
 export async function withTransaction<T>(
   fn: (client: PoolClient) => Promise<T>,

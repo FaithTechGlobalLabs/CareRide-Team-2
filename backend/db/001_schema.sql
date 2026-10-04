@@ -1,10 +1,9 @@
 -- CareRide schema
 -- PostgreSQL 15+ with PostGIS.
 -- Apply on Google Cloud SQL for PostgreSQL, or on Neon / Vercel Postgres as a backup.
--- Enable postgis on the instance before running this file. Cloud SQL: database flag
--- cloudsql.enable_postgis or CREATE EXTENSION as a user allowed to install extensions.
--- Neon and Vercel Postgres: CREATE EXTENSION postgis is supported on current plans.
--- Connect with DATABASE_URL or POSTGRES_URL, and sslmode=require off localhost.
+-- Run as a database user allowed to create the PostGIS and pgcrypto extensions.
+-- Cloud Run connects through the attached Cloud SQL Unix socket; its proxy handles TLS.
+-- Direct remote DATABASE_URL / POSTGRES_URL connections need the provider's TLS settings.
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

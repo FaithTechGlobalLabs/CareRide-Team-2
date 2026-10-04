@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import bcrypt from "bcrypt";
 
-import { pool } from "./db.js";
+import { pool, withTransaction } from "./db.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const schemaPath = path.resolve(here, "../../db/001_schema.sql");
@@ -148,13 +148,19 @@ async function seed(): Promise<void> {
   }
 }
 
-const schema = fs.readFileSync(schemaPath, "utf8");
-const exists = await pool.query("SELECT to_regclass('public.organizations') AS name");
-if (!exists.rows[0]?.name) {
-  await pool.query(schema);
-  console.log("Applied backend/db/001_schema.sql");
-} else {
-  console.log("Schema already present.");
+try {
+  const schema = fs.readFileSync(schemaPath, "utf8");
+  const exists = await pool.query("SELECT to_regclass('public.organizations') AS name");
+  if (!exists.rows[0]?.name) {
+    // Install the initial schema atomically, so a failure does not leave half the tables.
+    await withTransaction(async (client) => {
+      await client.query(schema);
+    });
+    console.log("Applied backend/db/001_schema.sql");
+  } else {
+    console.log("Schema already present.");
+  }
+  if (!process.argv.includes("--schema-only")) await seed();
+} finally {
+  await pool.end();
 }
-await seed();
-await pool.end();

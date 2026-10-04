@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { registerApi } from "./api/routes.js";
+import { pool } from "./db/db.js";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -17,10 +18,13 @@ app.get("/", (_req, res) => {
   });
 });
 
-app.get("/health", (_req, res) => {
-  res.status(200).json({
-    status: "ok",
-  });
+app.get("/health", async (_req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.status(200).json({ status: "ok", database: "ok" });
+  } catch {
+    res.status(503).json({ status: "degraded", database: "unavailable" });
+  }
 });
 
 app.get("/health/live", (_req, res) => {

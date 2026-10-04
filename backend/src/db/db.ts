@@ -2,12 +2,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import dotenv from "dotenv";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { databaseConfig } from "./config.js";
 
-// .env is at the repo root but dotenv looks in cwd, so running anything from backend/ found
-// nothing and pg quietly connected somewhere else. point it at the file instead.
-// docker still wins since dotenv won't overwrite vars that are already set.
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, "../../../.env"), quiet: true });
 dotenv.config({ path: path.resolve(here, "../../.env"), quiet: true });

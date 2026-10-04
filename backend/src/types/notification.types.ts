@@ -16,10 +16,12 @@ export type NotificationStatus = "pending" | "sent" | "failed";
 
 export interface Notification {
   id: string;
-  ride_request_id: string;
-  recipient_user_id: string;
-
-  recipient: NotificationRecipient;
+  driver_id?: string;
+  staff_id?: string;
+  ride_request_id?: string;
+  title: string;
+  message: string;
+  action_url?: string;
   channel: NotificationChannel;
   type: NotificationType;
   destination?: string;

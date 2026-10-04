@@ -1,11 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
-
-import bcrypt from "bcrypt";
 import type { NextFunction, Request, Response } from "express";
 import type { Express } from "express";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import type { PoolClient } from "pg";
 
 import { driverCanClaim } from "../store/eligibility.js";
 import {
@@ -28,8 +26,13 @@ import type {
 import type { RideRequest } from "../types/ride.types.js";
 import type { Client, Staff } from "../types/user.types.js";
 import { registerPersonalApi } from "./personal.js";
+import { pool } from "../db/db.js";
 
 const secret = process.env.JWT_SECRET || "careride-dev-secret";
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5_000_000 },
+});
 
 interface Auth {
   sub: string;
@@ -42,7 +45,54 @@ interface AuthedRequest extends Request {
   auth?: Auth;
 }
 
-const upload = multer({ dest: uploadsDir() });
+const eligibleSql = `
+  r.status = 'requested'
+  AND r.driver_id IS NULL
+  AND r.requested_pickup_at > now()
+  AND EXISTS (
+    SELECT 1 FROM driver_verifications v
+    WHERE v.driver_id = $DRIVER
+      AND v.approved_by_org_id = r.organization_id
+      AND v.status = 'approved'
+      AND (v.expires_on IS NULL OR v.expires_on >= CURRENT_DATE)
+  )
+  AND EXISTS (
+    SELECT 1 FROM vehicles veh
+    WHERE veh.driver_id = $DRIVER
+      AND veh.seats >= r.passenger_count
+      AND (
+        veh.wheelchair_accessible
+        OR NOT EXISTS (
+          SELECT 1 FROM unnest(r.accessibility_needs) need
+          WHERE lower(need) LIKE '%wheelchair%'
+        )
+      )
+  )
+  AND EXISTS (
+    SELECT 1 FROM driver_availabilities a
+    WHERE a.driver_id = $DRIVER
+      AND a.is_active
+      AND (r.requested_pickup_at AT TIME ZONE a.timezone)::time BETWEEN a.start_time AND a.end_time
+      AND (a.starts_on IS NULL OR (r.requested_pickup_at AT TIME ZONE a.timezone)::date >= a.starts_on)
+      AND (a.ends_on IS NULL OR (r.requested_pickup_at AT TIME ZONE a.timezone)::date <= a.ends_on)
+      AND (
+        (a.kind = 'one_time' AND a.on_date = (r.requested_pickup_at AT TIME ZONE a.timezone)::date)
+        OR (
+          a.kind = 'weekly'
+          AND EXTRACT(DOW FROM r.requested_pickup_at AT TIME ZONE a.timezone)::int = ANY (a.weekdays::int[])
+        )
+        OR (
+          a.kind = 'monthly'
+          AND EXTRACT(DAY FROM r.requested_pickup_at AT TIME ZONE a.timezone)::int = ANY (a.month_days::int[])
+        )
+      )
+      AND ST_DWithin(
+        a.centre,
+        ST_SetSRID(ST_MakePoint(r.pickup_lng, r.pickup_lat), 4326)::geography,
+        a.radius_m
+      )
+  )
+`;
 
 function sign(auth: Auth): string {
   return jwt.sign(auth, secret, { expiresIn: "12h" });
@@ -64,9 +114,7 @@ function requireAuth(kind?: Auth["kind"]) {
         : db.staff.some(s => s.id === auth.sub && s.is_active && s.organization_id === auth.organizationId && db.organizations.some(o => o.id === s.organization_id));
       if (!exists) { res.status(401).json({ message: "This account no longer has access. Please log in again." }); return; }
       if (kind && auth.kind !== kind) {
-        res
-          .status(403)
-          .json({ message: "This account cannot open that page." });
+        res.status(403).json({ message: "This account cannot open that page." });
         return;
       }
       req.auth = auth;
@@ -83,84 +131,102 @@ function asyncRoute(fn: (req: AuthedRequest, res: Response) => Promise<void>) {
   };
 }
 
-function failure(value: object): { error: string; status: number } | null {
-  if (!("error" in value) || !("status" in value)) return null;
-  const row = value as { error: unknown; status: unknown };
-  if (typeof row.error !== "string" || typeof row.status !== "number")
-    return null;
-  return { error: row.error, status: row.status };
-}
-
 function param(req: Request, name: string): string {
   const value = req.params[name];
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-function publicStaff(staff: Staff) {
-  return {
-    id: staff.id,
-    organization_id: staff.organization_id,
-    name: staff.name,
-    email: staff.email,
-    phone: staff.phone,
-    role: staff.role,
-    is_active: staff.is_active,
-  };
+function iso(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
 }
 
-function publicDriver(driver: Driver, vehicle?: Vehicle) {
-  return {
-    id: driver.id,
-    name: driver.name,
-    dob: driver.dob,
-    email: driver.email,
-    phone: driver.phone,
-    organization_id: driver.organization_id ?? null,
-    license_verified: driver.license_verified,
-    vehicle: vehicle ?? null,
-  };
+function clock(value: unknown): string {
+  return String(value).slice(0, 5);
 }
 
-function notify(db: Db, ride: RideRequest, type: NotificationType): void {
-  const staff = db.staff.find((row) => row.id === ride.requested_by_user_id);
-  const note = {
-    id: newId("note"),
-    ride_request_id: ride.id,
-    recipient_user_id: ride.requested_by_user_id,
-    recipient: "staff" as const,
-    channel: "in_app" as const,
-    type,
-    status: "sent" as const,
-    sent_at: new Date().toISOString(),
-  };
-  db.notifications.unshift(
-    staff?.email ? { ...note, destination: staff.email } : note,
+function needs(body: unknown): string[] {
+  if (Array.isArray(body)) return body.map(String).map((item) => item.trim()).filter(Boolean);
+  const text = String(body ?? "").trim();
+  if (!text) return [];
+  return text.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function rideMessage(input: {
+  firstName: string;
+  when: string;
+  pickup: string;
+  destination: string;
+  passengers: number;
+  leg?: string;
+}): string {
+  const when = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Vancouver",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(input.when));
+  const people = input.passengers === 1 ? "1 passenger" : `${input.passengers} passengers`;
+  const way = input.leg === "return" ? "Return leg" : "One way";
+  return `${input.firstName}: ${when}: ${input.pickup} to ${input.destination}. ${way}, ${people}.`;
+}
+
+async function notifyStaff(
+  client: PoolClient,
+  rideId: string,
+  title: string,
+): Promise<void> {
+  const ride = await client.query(
+    `SELECT r.id, r.organization_id, r.pickup_address, r.destination_id, r.requested_by_staff_id,
+            r.passenger_count, r.requested_pickup_at, r.trip_leg, c.first_name,
+            dest.name AS destination_name,
+            COALESCE(pickup.name, r.pickup_address) AS pickup_name
+     FROM ride_requests r
+     JOIN clients c ON c.id = r.client_id
+     JOIN addresses dest ON dest.id = r.destination_id
+     LEFT JOIN addresses pickup
+       ON pickup.organization_id = r.organization_id AND pickup.address = r.pickup_address
+     WHERE r.id = $1`,
+    [rideId],
   );
-}
-
-function locationName(
-  db: Db,
-  id: string | undefined,
-  address: string | undefined,
-): string | null {
-  const match =
-    (id ? db.destinations.find((row) => row.id === id) : undefined) ??
-    (address
-      ? db.destinations.find((row) => row.address === address)
-      : undefined);
-  return match?.name ?? null;
-}
-
-function presentRide(
-  db: Db,
-  ride: RideRequest,
-  audience: "staff" | "driver" = "staff",
-) {
-  const client = db.clients.find((row) => row.id === ride.client_id);
-  const driver = db.drivers.find((row) => row.id === ride.driver_id);
-  const vehicle = db.vehicles.find((row) => row.driver_id === driver?.id);
-  const organization = db.organizations.find(
-    (row) => row.id === ride.organization_id,
+  const row = ride.rows[0] as
+    | {
+        requested_by_staff_id: string;
+        passenger_count: number;
+        requested_pickup_at: Date;
+        trip_leg: string | null;
+        first_name: string;
+        destination_name: string;
+        pickup_name: string;
+      }
+    | undefined;
+  if (!row) return;
+  const message = rideMessage({
+    firstName: row.first_name,
+    when: row.requested_pickup_at.toISOString(),
+    pickup: row.pickup_name,
+    destination: row.destination_name,
+    passengers: row.passenger_count,
+    ...(row.trip_leg ? { leg: row.trip_leg } : {}),
+  });
+  await client.query(
+    `INSERT INTO notifications
+       (staff_id, ride_request_id, title, message, action_url, channel, metadata)
+     VALUES ($1, $2, $3, $4, $5, 'in_app', $6::jsonb)`,
+    [
+      row.requested_by_staff_id,
+      rideId,
+      title,
+      message,
+      `/rides/${rideId}`,
+      JSON.stringify({
+        passenger_count: row.passenger_count,
+        trip_leg: row.trip_leg,
+      }),
+    ],
   );
   const shared = {
     ...ride,
@@ -176,98 +242,171 @@ function presentRide(
     driver_name: driver?.name ?? null,
     driver_phone: driver?.phone ?? null,
     vehicle: vehicle
+}
+
+async function presentRide(client: PoolClient | typeof pool, id: string) {
+  const result = await client.query(
+    `SELECT r.*,
+            c.first_name, c.last_name,
+            d.first_name AS driver_first_name,
+            d.last_name AS driver_last_name,
+            d.phone AS driver_phone,
+            v.make, v.model, v.plate_number, v.seats
+     FROM ride_requests r
+     JOIN clients c ON c.id = r.client_id
+     LEFT JOIN drivers d ON d.id = r.driver_id
+     LEFT JOIN LATERAL (
+       SELECT make, model, plate_number, seats
+       FROM vehicles
+       WHERE driver_id = d.id
+       LIMIT 1
+     ) v ON true
+     WHERE r.id = $1`,
+    [id],
+  );
+  const row = result.rows[0] as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return shapeRide(row);
+}
+
+function shapeRide(row: Record<string, unknown>) {
+  const needsList = Array.isArray(row.accessibility_needs)
+    ? (row.accessibility_needs as string[])
+    : [];
+  const driverName = row.driver_first_name
+    ? `${row.driver_first_name} ${row.driver_last_name}`
+    : null;
+  return {
+    id: row.id,
+    client_id: row.client_id,
+    requested_by_staff_id: row.requested_by_staff_id,
+    organization_id: row.organization_id,
+    pickup_address: row.pickup_address,
+    pickup_lat: row.pickup_lat,
+    pickup_lng: row.pickup_lng,
+    destination_id: row.destination_id,
+    destination_address: row.destination_address,
+    destination_lat: row.destination_lat,
+    destination_lng: row.destination_lng,
+    requested_pickup_at: iso(row.requested_pickup_at),
+    passenger_count: row.passenger_count,
+    accessibility_needs: needsList.join(", "),
+    accessibility_need_list: needsList,
+    notes: row.notes,
+    status: row.status,
+    driver_id: row.driver_id,
+    approved_by_user_id: row.approved_by_user_id,
+    approved_at: iso(row.approved_at),
+    ride_option: row.ride_option,
+    created_at: iso(row.created_at),
+    updated_at: iso(row.updated_at),
+    completed_at: iso(row.completed_at),
+    cancelled_reason: row.cancelled_reason,
+    is_client_picked_up: row.is_client_picked_up,
+    is_client_dropped_off: row.is_client_dropped_off,
+    trip_group_id: row.trip_group_id,
+    linked_ride_id: row.linked_ride_id,
+    trip_leg: row.trip_leg,
+    client_name: `${row.first_name} ${row.last_name}`,
+    driver_name: driverName,
+    driver_phone: row.driver_phone ?? null,
+    vehicle: row.plate_number
       ? {
-          make: vehicle.make,
-          model: vehicle.model,
-          plate: vehicle.plate,
-          seats: vehicle.seats,
+          make: row.make,
+          model: row.model,
+          plate: row.plate_number,
+          seats: row.seats,
         }
       : null,
-  };
-  if (audience === "driver") {
-    return {
-      ...shared,
-      client_name: client?.first_name ?? "Passenger",
-      client: client
-        ? {
-            id: client.id,
-            first_name: client.first_name,
-            notes: client.notes,
-          }
-        : null,
-    };
-  }
-  return {
-    ...shared,
-    client: client ?? null,
-    client_name: client
-      ? `${client.first_name} ${client.last_name}`
-      : "Unknown client",
+    sample: row.id === "66666666-6666-4666-8666-666666666601",
   };
 }
 
-function reviewerName(db: Db, userId?: string): string | null {
-  if (!userId) return null;
-  return db.staff.find((row) => row.id === userId)?.name ?? null;
+async function markTimedOut(): Promise<void> {
+  await pool.query(
+    `UPDATE ride_requests
+     SET status = 'timed_out', updated_at = now()
+     WHERE status = 'requested'
+       AND driver_id IS NULL
+       AND requested_pickup_at <= now()`,
+  );
 }
 
-function applySampleMetrics(ride: RideRequest): void {
-  ride.sample = true;
-  ride.distance_km = ride.distance_km ?? 6.5;
-  ride.duration_minutes = ride.duration_minutes ?? 20;
-  ride.estimated_cost_saved = ride.estimated_cost_saved ?? 28;
-  ride.staff_minutes_spent = ride.staff_minutes_spent ?? 15;
-}
+const rideListSql = `
+  SELECT r.*,
+         c.first_name, c.last_name,
+         d.first_name AS driver_first_name,
+         d.last_name AS driver_last_name,
+         d.phone AS driver_phone,
+         v.make, v.model, v.plate_number, v.seats
+  FROM ride_requests r
+  JOIN clients c ON c.id = r.client_id
+  LEFT JOIN drivers d ON d.id = r.driver_id
+  LEFT JOIN LATERAL (
+    SELECT make, model, plate_number, seats FROM vehicles WHERE driver_id = d.id LIMIT 1
+  ) v ON true
+`;
 
 export function registerApi(app: Express): void {
   registerPersonalApi(app, requireAuth());
   app.post(
     "/auth/login",
     asyncRoute(async (req, res) => {
-      const email = String(req.body.email ?? "")
-        .trim()
-        .toLowerCase();
+      const email = String(req.body.email ?? "").trim().toLowerCase();
       const password = String(req.body.password ?? "");
-      const db = readDb();
-      const staff = db.staff.find(
-        (row) => row.email.toLowerCase() === email && row.is_active,
+      const staff = await pool.query(
+        `SELECT s.*, o.name AS organization_name
+         FROM staff s
+         JOIN organizations o ON o.id = s.organization_id
+         WHERE lower(s.email) = $1 AND s.is_active`,
+        [email],
       );
-      if (staff && (await bcrypt.compare(password, staff.password_hash))) {
-        const org = db.organizations.find(
-          (row) => row.id === staff.organization_id,
-        );
+      const staffRow = staff.rows[0] as
+        | { id: string; organization_id: string; name: string; email: string; phone: string; password_hash: string; organization_name: string }
+        | undefined;
+      if (staffRow && (await bcrypt.compare(password, staffRow.password_hash))) {
         const auth: Auth = {
-          sub: staff.id,
+          sub: staffRow.id,
           kind: "staff",
-          role: staff.role,
-          organizationId: staff.organization_id,
+          role: "staff",
+          organizationId: staffRow.organization_id,
         };
         res.json({
           token: sign(auth),
           user: {
-            ...publicStaff(staff),
+            id: staffRow.id,
+            organization_id: staffRow.organization_id,
+            name: staffRow.name,
+            email: staffRow.email,
+            phone: staffRow.phone,
             kind: "staff",
-            organization_name: org?.name ?? "",
-            organization_type: org?.type ?? null,
+            role: "staff",
+            organization_name: staffRow.organization_name,
           },
         });
         return;
       }
-      const driver = db.drivers.find(
-        (row) => row.email.toLowerCase() === email,
+      const driver = await pool.query(
+        `SELECT * FROM drivers WHERE lower(email) = $1`,
+        [email],
       );
-      if (driver && (await bcrypt.compare(password, driver.password_hash))) {
-        const auth: Auth = { sub: driver.id, kind: "driver", role: "driver" };
-        if (driver.organization_id)
-          auth.organizationId = driver.organization_id;
+      const driverRow = driver.rows[0] as
+        | { id: string; first_name: string; last_name: string; email: string; phone: string; password_hash: string; dob: string }
+        | undefined;
+      if (driverRow && (await bcrypt.compare(password, driverRow.password_hash))) {
+        const auth: Auth = { sub: driverRow.id, kind: "driver", role: "driver" };
         res.json({
           token: sign(auth),
           user: {
-            ...publicDriver(
-              driver,
-              db.vehicles.find((row) => row.driver_id === driver.id),
-            ),
+            id: driverRow.id,
+            name: `${driverRow.first_name} ${driverRow.last_name}`,
+            first_name: driverRow.first_name,
+            last_name: driverRow.last_name,
+            email: driverRow.email,
+            phone: driverRow.phone,
+            dob: iso(driverRow.dob),
             kind: "driver",
+            role: "driver",
           },
         });
         return;
@@ -285,145 +424,101 @@ export function registerApi(app: Express): void {
         res.status(401).json({ message: "Login required." });
         return;
       }
-      const db = readDb();
       if (auth.kind === "staff") {
-        const staff = db.staff.find((row) => row.id === auth.sub);
-        if (!staff) {
+        const staff = await pool.query(
+          `SELECT s.id, s.organization_id, s.name, s.email, s.phone, o.name AS organization_name
+           FROM staff s JOIN organizations o ON o.id = s.organization_id
+           WHERE s.id = $1`,
+          [auth.sub],
+        );
+        const row = staff.rows[0];
+        if (!row) {
           res.status(401).json({ message: "Login required." });
           return;
         }
-        const org = db.organizations.find(
-          (row) => row.id === staff.organization_id,
-        );
-        res.json({
-          user: {
-            ...publicStaff(staff),
-            kind: "staff",
-            organization_name: org?.name ?? "",
-            organization_type: org?.type ?? null,
-          },
-        });
+        res.json({ user: { ...row, kind: "staff", role: "staff" } });
         return;
       }
-      const driver = db.drivers.find((row) => row.id === auth.sub);
-      if (!driver) {
+      const driver = await pool.query(
+        `SELECT id, first_name, last_name, email, phone, dob FROM drivers WHERE id = $1`,
+        [auth.sub],
+      );
+      const row = driver.rows[0] as { first_name: string; last_name: string } | undefined;
+      if (!row) {
         res.status(401).json({ message: "Login required." });
         return;
       }
       res.json({
-        user: {
-          ...publicDriver(
-            driver,
-            db.vehicles.find((row) => row.driver_id === driver.id),
-          ),
-          kind: "driver",
-        },
+        user: { ...row, name: `${row.first_name} ${row.last_name}`, kind: "driver", role: "driver" },
       });
     }),
   );
 
-  app.get("/organizations", (_req, res) => {
-    const db = readDb();
-    res.json({
-      organizations: db.organizations
-        .filter((row) => row.status === "active")
-        .map((row) => ({ id: row.id, name: row.name, type: row.type })),
-    });
+  app.get("/organizations", async (_req, res) => {
+    const result = await pool.query(
+      `SELECT id, name FROM organizations ORDER BY name`,
+    );
+    res.json({ organizations: result.rows });
   });
 
   app.post(
     "/organizations/register",
     asyncRoute(async (req, res) => {
       const name = String(req.body.name ?? "").trim();
-      const type = String(req.body.type ?? "") as OrganizationType;
-      const address = String(req.body.address ?? "").trim();
-      const contactName = String(req.body.contact_name ?? "").trim();
-      const email = String(req.body.email ?? "")
-        .trim()
-        .toLowerCase();
+      const email = String(req.body.email ?? "").trim().toLowerCase();
       const phone = String(req.body.phone ?? "").trim();
       const adminName = String(req.body.admin_name ?? "").trim();
-      const adminEmail = String(req.body.admin_email ?? "")
-        .trim()
-        .toLowerCase();
+      const adminEmail = String(req.body.admin_email ?? "").trim().toLowerCase();
       const adminPassword = String(req.body.admin_password ?? "");
       const adminPhone = String(req.body.admin_phone ?? phone).trim();
-      if (
-        !name ||
-        !address ||
-        !contactName ||
-        !email ||
-        !phone ||
-        !adminName ||
-        !adminEmail ||
-        adminPassword.length < 8
-      ) {
-        res.status(400).json({
-          message:
-            "Fill in the organization and a password of at least 8 characters.",
-        });
+      if (!name || !email || !phone || !adminName || !adminEmail || adminPassword.length < 8) {
+        res.status(400).json({ message: "Fill in the organization and a password of at least 8 characters." });
         return;
       }
-      if (type !== "partner_org" && type !== "transport_provider") {
-        res.status(400).json({
-          message: "Choose partner organization or transportation provider.",
-        });
-        return;
-      }
-      const created = await update((db) => {
-        if (db.organizations.some((row) => row.email.toLowerCase() === email)) {
-          return { error: "An organization with this email already exists." };
-        }
-        if (
-          db.staff.some((row) => row.email.toLowerCase() === adminEmail) ||
-          db.drivers.some((row) => row.email.toLowerCase() === adminEmail)
-        ) {
-          return { error: "That administrator email is already in use." };
-        }
-        const organization = {
-          id: newId("org"),
-          name,
-          type,
-          contact_name: contactName,
-          email,
-          phone,
-          address,
-          status: "active" as const,
-          created_at: new Date().toISOString(),
+      const passwordHash = await bcrypt.hash(adminPassword, 10);
+      try {
+        const created = await pool.query(
+          `WITH org AS (
+             INSERT INTO organizations (name, email, phone)
+             VALUES ($1, $2, $3)
+             RETURNING id, name, email, phone
+           )
+           INSERT INTO staff (organization_id, name, email, phone, password_hash)
+           SELECT id, $4, $5, $6, $7 FROM org
+           RETURNING id, organization_id, name, email, phone`,
+          [name, email, phone, adminName, adminEmail, adminPhone, passwordHash],
+        );
+        const staff = created.rows[0] as {
+          id: string;
+          organization_id: string;
+          name: string;
+          email: string;
+          phone: string;
         };
-        const staff: Staff = {
-          id: newId("staff"),
-          organization_id: organization.id,
-          name: adminName,
-          email: adminEmail,
-          phone: adminPhone,
-          password_hash: bcrypt.hashSync(adminPassword, 10),
-          role: "admin",
-          is_active: true,
-        };
-        db.organizations.push(organization);
-        db.staff.push(staff);
-        return { organization, staff };
-      });
-      if ("error" in created) {
-        res.status(409).json({ message: created.error });
-        return;
-      }
-      const auth: Auth = {
-        sub: created.staff.id,
-        kind: "staff",
-        role: "admin",
-        organizationId: created.organization.id,
-      };
-      res.status(201).json({
-        token: sign(auth),
-        user: {
-          ...publicStaff(created.staff),
+        const org = await pool.query(`SELECT name FROM organizations WHERE id = $1`, [staff.organization_id]);
+        const auth: Auth = {
+          sub: staff.id,
           kind: "staff",
-          organization_name: created.organization.name,
-          organization_type: created.organization.type,
-        },
-      });
+          role: "staff",
+          organizationId: staff.organization_id,
+        };
+        res.status(201).json({
+          token: sign(auth),
+          user: {
+            ...staff,
+            kind: "staff",
+            role: "staff",
+            organization_name: org.rows[0]?.name ?? name,
+          },
+        });
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code === "23505") {
+          res.status(409).json({ message: "That email is already registered." });
+          return;
+        }
+        throw error;
+      }
     }),
   );
 
@@ -431,17 +526,19 @@ export function registerApi(app: Express): void {
     "/clients",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const q = String(req.query.q ?? "")
-        .trim()
-        .toLowerCase();
-      const db = readDb();
-      const clients = db.clients.filter((row) => {
-        if (row.organization_id !== orgId) return false;
-        if (!q) return true;
-        return `${row.first_name} ${row.last_name}`.toLowerCase().includes(q);
+      const q = String(req.query.q ?? "").trim().toLowerCase();
+      const result = await pool.query(
+        `SELECT id, organization_id, first_name, last_name, dob::text, address, has_smartphone,
+                phone, email, emergency_contact_name, emergency_contact_phone, notes, created_at
+         FROM clients
+         WHERE organization_id = $1
+           AND ($2 = '' OR lower(first_name || ' ' || last_name) LIKE '%' || $2 || '%')
+         ORDER BY last_name, first_name`,
+        [req.auth?.organizationId, q],
+      );
+      res.json({
+        clients: result.rows.map((row) => ({ ...row, created_at: iso(row.created_at) })),
       });
-      res.json({ clients });
     }),
   );
 
@@ -449,52 +546,40 @@ export function registerApi(app: Express): void {
     "/clients",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
       const first = String(req.body.first_name ?? "").trim();
       const last = String(req.body.last_name ?? "").trim();
       const dob = String(req.body.dob ?? "").trim();
       const notes = String(req.body.notes ?? "").trim();
       if (!first || !last || !dob) {
-        res.status(400).json({
-          message: "First name, last name, and date of birth are required.",
-        });
+        res.status(400).json({ message: "First name, last name, and date of birth are required." });
         return;
       }
       if (notes.length > 50) {
-        res
-          .status(400)
-          .json({ message: "Accommodations must be 50 characters or fewer." });
+        res.status(400).json({ message: "Accommodations must be 50 characters or fewer." });
         return;
       }
-      const client = await update((db) => {
-        const row: Client = {
-          id: newId("client"),
-          organization_id: orgId,
-          first_name: first,
-          last_name: last,
+      const result = await pool.query(
+        `INSERT INTO clients
+           (organization_id, first_name, last_name, dob, address, has_smartphone, phone, email,
+            emergency_contact_name, emergency_contact_phone, notes)
+         VALUES ($1,$2,$3,$4, NULLIF($5,''), $6, NULLIF($7,''), NULLIF($8,''), NULLIF($9,''), NULLIF($10,''), NULLIF($11,''))
+         RETURNING id, organization_id, first_name, last_name, dob::text, address, has_smartphone,
+                   phone, email, emergency_contact_name, emergency_contact_phone, notes, created_at`,
+        [
+          req.auth?.organizationId,
+          first,
+          last,
           dob,
-          has_smartphone: Boolean(req.body.has_smartphone),
-          created_at: new Date().toISOString(),
-        };
-        const address = String(req.body.address ?? "").trim();
-        const phone = String(req.body.phone ?? "").trim();
-        const email = String(req.body.email ?? "").trim();
-        const emergencyName = String(
-          req.body.emergency_contact_name ?? "",
-        ).trim();
-        const emergencyPhone = String(
-          req.body.emergency_contact_phone ?? "",
-        ).trim();
-        if (address) row.address = address;
-        if (phone) row.phone = phone;
-        if (email) row.email = email;
-        if (emergencyName) row.emergency_contact_name = emergencyName;
-        if (emergencyPhone) row.emergency_contact_phone = emergencyPhone;
-        if (notes) row.notes = notes;
-        db.clients.push(row);
-        return row;
-      });
-      res.status(201).json({ client });
+          String(req.body.address ?? "").trim(),
+          Boolean(req.body.has_smartphone),
+          String(req.body.phone ?? "").trim(),
+          String(req.body.email ?? "").trim(),
+          String(req.body.emergency_contact_name ?? "").trim(),
+          String(req.body.emergency_contact_phone ?? "").trim(),
+          notes,
+        ],
+      );
+      res.status(201).json({ client: { ...result.rows[0], created_at: iso(result.rows[0]?.created_at) } });
     }),
   );
 
@@ -502,52 +587,47 @@ export function registerApi(app: Express): void {
     "/clients/:id",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const notes =
-        req.body.notes === undefined
-          ? undefined
-          : String(req.body.notes).trim();
+      const notes = req.body.notes === undefined ? null : String(req.body.notes).trim();
       if (notes && notes.length > 50) {
-        res
-          .status(400)
-          .json({ message: "Accommodations must be 50 characters or fewer." });
+        res.status(400).json({ message: "Accommodations must be 50 characters or fewer." });
         return;
       }
-      const client = await update((db) => {
-        const row = db.clients.find(
-          (item) =>
-            item.id === param(req, "id") && item.organization_id === orgId,
-        );
-        if (!row) return null;
-        if (req.body.first_name)
-          row.first_name = String(req.body.first_name).trim();
-        if (req.body.last_name)
-          row.last_name = String(req.body.last_name).trim();
-        if (req.body.dob) row.dob = String(req.body.dob).trim();
-        if (req.body.address !== undefined)
-          row.address = String(req.body.address).trim();
-        if (req.body.phone !== undefined)
-          row.phone = String(req.body.phone).trim();
-        if (req.body.email !== undefined)
-          row.email = String(req.body.email).trim();
-        if (req.body.emergency_contact_name !== undefined)
-          row.emergency_contact_name = String(
-            req.body.emergency_contact_name,
-          ).trim();
-        if (req.body.emergency_contact_phone !== undefined)
-          row.emergency_contact_phone = String(
-            req.body.emergency_contact_phone,
-          ).trim();
-        if (notes !== undefined) row.notes = notes;
-        if (req.body.has_smartphone !== undefined)
-          row.has_smartphone = Boolean(req.body.has_smartphone);
-        return row;
-      });
-      if (!client) {
+      const result = await pool.query(
+        `UPDATE clients SET
+           first_name = COALESCE(NULLIF($3, ''), first_name),
+           last_name = COALESCE(NULLIF($4, ''), last_name),
+           dob = COALESCE(NULLIF($5, '')::date, dob),
+           address = CASE WHEN $6::text IS NULL THEN address ELSE NULLIF($6, '') END,
+           phone = CASE WHEN $7::text IS NULL THEN phone ELSE NULLIF($7, '') END,
+           email = CASE WHEN $8::text IS NULL THEN email ELSE NULLIF($8, '') END,
+           emergency_contact_name = CASE WHEN $9::text IS NULL THEN emergency_contact_name ELSE NULLIF($9, '') END,
+           emergency_contact_phone = CASE WHEN $10::text IS NULL THEN emergency_contact_phone ELSE NULLIF($10, '') END,
+           notes = CASE WHEN $11::boolean THEN NULLIF($12, '') ELSE notes END,
+           has_smartphone = COALESCE($13, has_smartphone)
+         WHERE id = $1 AND organization_id = $2
+         RETURNING id, organization_id, first_name, last_name, dob::text, address, has_smartphone,
+                   phone, email, emergency_contact_name, emergency_contact_phone, notes, created_at`,
+        [
+          param(req, "id"),
+          req.auth?.organizationId,
+          String(req.body.first_name ?? ""),
+          String(req.body.last_name ?? ""),
+          String(req.body.dob ?? ""),
+          req.body.address === undefined ? null : String(req.body.address),
+          req.body.phone === undefined ? null : String(req.body.phone),
+          req.body.email === undefined ? null : String(req.body.email),
+          req.body.emergency_contact_name === undefined ? null : String(req.body.emergency_contact_name),
+          req.body.emergency_contact_phone === undefined ? null : String(req.body.emergency_contact_phone),
+          req.body.notes !== undefined,
+          notes ?? "",
+          req.body.has_smartphone === undefined ? null : Boolean(req.body.has_smartphone),
+        ],
+      );
+      if (!result.rows[0]) {
         res.status(404).json({ message: "Client not found." });
         return;
       }
-      res.json({ client });
+      res.json({ client: { ...result.rows[0], created_at: iso(result.rows[0].created_at) } });
     }),
   );
 
@@ -555,19 +635,19 @@ export function registerApi(app: Express): void {
     "/destinations",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const q = String(req.query.q ?? "")
-        .trim()
-        .toLowerCase();
+      const q = String(req.query.q ?? "").trim().toLowerCase();
       const type = String(req.query.type ?? "");
-      const db = readDb();
-      const destinations = db.destinations.filter((row) => {
-        if (row.organization_id !== orgId) return false;
-        if (type && row.type !== type) return false;
-        if (!q) return true;
-        return `${row.name} ${row.address}`.toLowerCase().includes(q);
-      });
-      res.json({ destinations });
+      const result = await pool.query(
+        `SELECT id, organization_id, name, location_type AS type, address,
+                latitude AS lat, longitude AS lng, is_active
+         FROM addresses
+         WHERE organization_id = $1
+           AND ($2 = '' OR location_type = $2)
+           AND ($3 = '' OR lower(name || ' ' || address) LIKE '%' || $3 || '%')
+         ORDER BY name`,
+        [req.auth?.organizationId, type === "all" ? "" : type, q],
+      );
+      res.json({ destinations: result.rows });
     }),
   );
 
@@ -575,41 +655,26 @@ export function registerApi(app: Express): void {
     "/destinations",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
       const name = String(req.body.name ?? "").trim();
-      const type = String(req.body.type ?? "");
+      const type = String(req.body.type ?? "service");
       const address = String(req.body.address ?? "").trim();
       const lat = Number(req.body.lat);
       const lng = Number(req.body.lng);
-      if (
-        !name ||
-        !address ||
-        !["hospital", "shelter", "service"].includes(type)
-      ) {
-        res
-          .status(400)
-          .json({ message: "Name, type, and address are required." });
+      if (!name || !address || !["hospital", "shelter", "service"].includes(type)) {
+        res.status(400).json({ message: "Name, type, and address are required." });
         return;
       }
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         res.status(400).json({ message: "Drop a map pin for this location." });
         return;
       }
-      const destination = await update((db) => {
-        const row: Destination = {
-          id: newId("dest"),
-          organization_id: orgId,
-          name,
-          type: type as Destination["type"],
-          address,
-          lat,
-          lng,
-          is_active: req.body.is_active !== false,
-        };
-        db.destinations.push(row);
-        return row;
-      });
-      res.status(201).json({ destination });
+      const result = await pool.query(
+        `INSERT INTO addresses (organization_id, name, address, latitude, longitude, location_type, is_active)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id, organization_id, name, location_type AS type, address, latitude AS lat, longitude AS lng, is_active`,
+        [req.auth?.organizationId, name, address, lat, lng, type, req.body.is_active !== false],
+      );
+      res.status(201).json({ destination: result.rows[0] });
     }),
   );
 
@@ -617,34 +682,35 @@ export function registerApi(app: Express): void {
     "/destinations/:id",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const destination = await update((db) => {
-        const row = db.destinations.find(
-          (item) =>
-            item.id === param(req, "id") && item.organization_id === orgId,
-        );
-        if (!row) return null;
-        if (req.body.name) row.name = String(req.body.name).trim();
-        if (req.body.address) row.address = String(req.body.address).trim();
-        if (
-          req.body.type &&
-          ["hospital", "shelter", "service"].includes(String(req.body.type))
-        ) {
-          row.type = req.body.type;
-        }
-        if (req.body.lat !== undefined && req.body.lng !== undefined) {
-          row.lat = Number(req.body.lat);
-          row.lng = Number(req.body.lng);
-        }
-        if (req.body.is_active !== undefined)
-          row.is_active = Boolean(req.body.is_active);
-        return row;
-      });
-      if (!destination) {
+      const result = await pool.query(
+        `UPDATE addresses SET
+           name = COALESCE(NULLIF($3, ''), name),
+           address = COALESCE(NULLIF($4, ''), address),
+           location_type = CASE
+             WHEN $5 IN ('hospital', 'shelter', 'service') THEN $5
+             ELSE location_type
+           END,
+           latitude = COALESCE($6, latitude),
+           longitude = COALESCE($7, longitude),
+           is_active = COALESCE($8, is_active)
+         WHERE id = $1 AND organization_id = $2
+         RETURNING id, organization_id, name, location_type AS type, address, latitude AS lat, longitude AS lng, is_active`,
+        [
+          param(req, "id"),
+          req.auth?.organizationId,
+          String(req.body.name ?? ""),
+          String(req.body.address ?? ""),
+          String(req.body.type ?? ""),
+          req.body.lat === undefined ? null : Number(req.body.lat),
+          req.body.lng === undefined ? null : Number(req.body.lng),
+          req.body.is_active === undefined ? null : Boolean(req.body.is_active),
+        ],
+      );
+      if (!result.rows[0]) {
         res.status(404).json({ message: "Location not found." });
         return;
       }
-      res.json({ destination });
+      res.json({ destination: result.rows[0] });
     }),
   );
 
@@ -652,23 +718,21 @@ export function registerApi(app: Express): void {
     "/rides",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
+      await markTimedOut();
       const status = String(req.query.status ?? "");
-      const q = String(req.query.q ?? "")
-        .trim()
-        .toLowerCase();
-      const db = readDb();
-      const rides = db.rides
-        .filter((ride) => ride.organization_id === orgId)
-        .filter((ride) => !status || ride.status === status)
-        .map((ride) => presentRide(db, ride))
-        .filter((ride) => {
-          if (!q) return true;
-          return `${ride.client_name} ${ride.pickup_address} ${ride.destination_address ?? ""}`
-            .toLowerCase()
-            .includes(q);
-        });
-      res.json({ rides });
+      const q = String(req.query.q ?? "").trim().toLowerCase();
+      const result = await pool.query(
+        `${rideListSql}
+         WHERE r.organization_id = $1
+           AND ($2 = '' OR r.status = $2)
+           AND (
+             $3 = ''
+             OR lower(c.first_name || ' ' || c.last_name || ' ' || r.pickup_address || ' ' || r.destination_address) LIKE '%' || $3 || '%'
+           )
+         ORDER BY r.requested_pickup_at`,
+        [req.auth?.organizationId, status, q],
+      );
+      res.json({ rides: result.rows.map((row) => shapeRide(row as Record<string, unknown>)) });
     }),
   );
 
@@ -676,16 +740,15 @@ export function registerApi(app: Express): void {
     "/rides/:id",
     requireAuth(),
     asyncRoute(async (req, res) => {
-      const db = readDb();
-      const ride = db.rides.find((row) => row.id === param(req, "id"));
+      await markTimedOut();
+      const ride = await presentRide(pool, param(req, "id"));
       if (!ride) {
         res.status(404).json({ message: "Ride not found." });
         return;
       }
       const auth = req.auth;
       const allowed =
-        (auth?.kind === "staff" &&
-          auth.organizationId === ride.organization_id) ||
+        (auth?.kind === "staff" && auth.organizationId === ride.organization_id) ||
         (auth?.kind === "driver" && ride.driver_id === auth.sub) ||
         (auth?.kind === "driver" && ride.status === "requested");
       if (!allowed) {
@@ -707,215 +770,103 @@ export function registerApi(app: Express): void {
       const staffId = req.auth?.sub ?? "";
       const clientId = String(req.body.client_id ?? "");
       const pickupId = String(req.body.pickup_destination_id ?? "");
-      const destinationId = String(
-        req.body.destination_destination_id ?? req.body.destination_id ?? "",
-      );
+      const destinationId = String(req.body.destination_id ?? "");
       const pickupAt = String(req.body.requested_pickup_at ?? "");
       const passengers = Number(req.body.passenger_count);
       const tripType = String(req.body.trip_type ?? "one_way");
       const returnAt = String(req.body.return_pickup_at ?? "");
-      if (
-        !clientId ||
-        !pickupId ||
-        !destinationId ||
-        !pickupAt ||
-        !Number.isFinite(passengers) ||
-        passengers < 1
-      ) {
-        res.status(400).json({
-          message:
-            "Client, pickup, destination, pickup time, and passenger count are required.",
-        });
+      if (!clientId || !pickupId || !destinationId || !pickupAt || !Number.isFinite(passengers) || passengers < 1) {
+        res.status(400).json({ message: "Client, pickup, destination, pickup time, and passenger count are required." });
         return;
       }
       if (tripType === "round_trip" && !returnAt) {
-        res
-          .status(400)
-          .json({ message: "Round trips need a return pickup time." });
+        res.status(400).json({ message: "Round trips need a return pickup time." });
         return;
       }
-      const result = await update((db) => {
-        const client = db.clients.find(
-          (row) => row.id === clientId && row.organization_id === orgId,
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const client = await db.query(
+          `SELECT id, first_name FROM clients WHERE id = $1 AND organization_id = $2`,
+          [clientId, orgId],
         );
-        const pickup = db.destinations.find(
-          (row) =>
-            row.id === pickupId &&
-            row.organization_id === orgId &&
-            row.is_active,
+        const pickup = await db.query(
+          `SELECT id, name, address, latitude, longitude FROM addresses
+           WHERE id = $1 AND organization_id = $2 AND is_active`,
+          [pickupId, orgId],
         );
-        const destination = db.destinations.find(
-          (row) =>
-            row.id === destinationId &&
-            row.organization_id === orgId &&
-            row.is_active,
+        const destination = await db.query(
+          `SELECT id, name, address, latitude, longitude FROM addresses
+           WHERE id = $1 AND organization_id = $2 AND is_active`,
+          [destinationId, orgId],
         );
-        if (!client || !pickup || !destination)
-          return {
-            error: "Choose an active client and address-book locations.",
-          };
-        if (pickup.id === destination.id)
-          return { error: "Pickup and destination must be different places." };
-        const now = new Date().toISOString();
-        const needs = Array.isArray(req.body.accessibility_needs)
-          ? req.body.accessibility_needs.map(String).join(", ")
-          : String(req.body.accessibility_needs ?? "");
-        const notes = String(req.body.notes ?? "").trim();
-        const urgency = String(req.body.urgency ?? "routine");
-        const appointment = String(req.body.appointment_at ?? "").trim();
-        const groupId = tripType === "round_trip" ? newId("trip") : undefined;
-        const outboundId = newId("ride");
-        const returnId = tripType === "round_trip" ? newId("ride") : undefined;
-        const outbound: RideRequest = {
-          id: outboundId,
-          client_id: client.id,
-          requested_by_user_id: staffId,
-          organization_id: orgId,
-          pickup_address: pickup.address,
-          pickup_lat: pickup.lat,
-          pickup_lng: pickup.lng,
-          destination_id: destination.id,
-          destination_address: destination.address,
-          destination_lat: destination.lat,
-          destination_lng: destination.lng,
-          requested_pickup_at: pickupAt,
-          passenger_count: passengers,
-          status: "requested",
-          ride_option: "free",
-          created_at: now,
-          updated_at: now,
-          trip_leg: "outbound",
-        };
-        if (needs) outbound.accessibility_needs = needs;
-        if (notes) outbound.notes = notes;
-        if (
-          urgency === "routine" ||
-          urgency === "soon" ||
-          urgency === "time_sensitive"
-        )
-          outbound.urgency = urgency;
-        if (appointment) outbound.appointment_at = appointment;
-        if (groupId) outbound.trip_group_id = groupId;
-        if (returnId) outbound.linked_ride_id = returnId;
-        db.rides.unshift(outbound);
-        notify(db, outbound, "confirmation");
-        const created = [outbound];
-        if (returnId && groupId) {
-          const inbound: RideRequest = {
-            ...outbound,
-            id: returnId,
-            linked_ride_id: outboundId,
-            trip_leg: "return",
-            pickup_address: destination.address,
-            pickup_lat: destination.lat,
-            pickup_lng: destination.lng,
-            destination_id: pickup.id,
-            destination_address: pickup.address,
-            destination_lat: pickup.lat,
-            destination_lng: pickup.lng,
-            requested_pickup_at: returnAt,
-          };
-          delete inbound.appointment_at;
-          db.rides.unshift(inbound);
-          notify(db, inbound, "confirmation");
-          created.push(inbound);
+        const pickupRow = pickup.rows[0] as { name: string; address: string; latitude: number; longitude: number } | undefined;
+        const destinationRow = destination.rows[0] as { id: string; name: string; address: string; latitude: number; longitude: number } | undefined;
+        if (!client.rows[0] || !pickupRow || !destinationRow) {
+          await db.query("ROLLBACK");
+          res.status(400).json({ message: "Choose an active client and address-book locations." });
+          return;
         }
-        return { rides: created.map((ride) => presentRide(db, ride)) };
-      });
-      if ("error" in result) {
-        res.status(400).json({ message: result.error });
-        return;
+        const needList = needs(req.body.accessibility_needs);
+        const notes = String(req.body.notes ?? "").trim();
+        const group = tripType === "round_trip";
+        const inserted = await db.query(
+          `INSERT INTO ride_requests (
+             client_id, requested_by_staff_id, organization_id,
+             pickup_address, pickup_lat, pickup_lng,
+             destination_id, destination_address, destination_lat, destination_lng,
+             requested_pickup_at, passenger_count, accessibility_needs, notes,
+             status, ride_option, trip_leg, trip_group_id
+           ) VALUES (
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULLIF($14,''),'requested','free','outbound',
+             CASE WHEN $15 THEN gen_random_uuid() ELSE NULL END
+           )
+           RETURNING id, trip_group_id`,
+          [
+            clientId, staffId, orgId,
+            pickupRow.address, pickupRow.latitude, pickupRow.longitude,
+            destinationRow.id, destinationRow.address, destinationRow.latitude, destinationRow.longitude,
+            pickupAt, passengers, needList, notes, group,
+          ],
+        );
+        const outbound = inserted.rows[0] as { id: string; trip_group_id: string | null };
+        const ids = [outbound.id];
+        if (group && outbound.trip_group_id) {
+          const inbound = await db.query(
+            `INSERT INTO ride_requests (
+               client_id, requested_by_staff_id, organization_id,
+               pickup_address, pickup_lat, pickup_lng,
+               destination_id, destination_address, destination_lat, destination_lng,
+               requested_pickup_at, passenger_count, accessibility_needs, notes,
+               status, ride_option, trip_leg, trip_group_id, linked_ride_id
+             ) VALUES (
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULLIF($14,''),'requested','free','return',$15,$16
+             ) RETURNING id`,
+            [
+              clientId, staffId, orgId,
+              destinationRow.address, destinationRow.latitude, destinationRow.longitude,
+              pickupId, pickupRow.address, pickupRow.latitude, pickupRow.longitude,
+              returnAt, passengers, needList, notes, outbound.trip_group_id, outbound.id,
+            ],
+          );
+          const returnId = (inbound.rows[0] as { id: string }).id;
+          await db.query(`UPDATE ride_requests SET linked_ride_id = $2 WHERE id = $1`, [outbound.id, returnId]);
+          ids.push(returnId);
+        }
+        for (const id of ids) await notifyStaff(db, id, "Ride booked");
+        await db.query("COMMIT");
+        const rides = [];
+        for (const id of ids) {
+          const ride = await presentRide(pool, id);
+          if (ride) rides.push(ride);
+        }
+        res.status(201).json({ rides });
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
       }
-      res.status(201).json(result);
-    }),
-  );
-
-  app.patch(
-    "/rides/:id",
-    requireAuth("staff"),
-    asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const clientId = String(req.body.client_id ?? "");
-      const pickupId = String(
-        req.body.pickup_destination_id ?? req.body.pickup_id ?? "",
-      );
-      const destinationId = String(
-        req.body.destination_destination_id ?? req.body.destination_id ?? "",
-      );
-      const pickupAt = String(req.body.requested_pickup_at ?? "");
-      const passengers = Number(req.body.passenger_count);
-      if (
-        !clientId ||
-        !pickupId ||
-        !destinationId ||
-        !pickupAt ||
-        !Number.isFinite(passengers) ||
-        passengers < 1
-      ) {
-        res.status(400).json({
-          message:
-            "Client, pickup, destination, pickup time, and passenger count are required.",
-        });
-        return;
-      }
-      const result = await update((db) => {
-        const ride = db.rides.find(
-          (row) => row.id === param(req, "id") && row.organization_id === orgId,
-        );
-        if (!ride) return { error: "Ride not found.", status: 404 };
-        if (ride.status !== "requested")
-          return {
-            error:
-              "This booking can no longer be edited after a driver is assigned.",
-            status: 409,
-          };
-        const client = db.clients.find(
-          (row) => row.id === clientId && row.organization_id === orgId,
-        );
-        const pickup = db.destinations.find(
-          (row) =>
-            row.id === pickupId &&
-            row.organization_id === orgId &&
-            row.is_active,
-        );
-        const destination = db.destinations.find(
-          (row) =>
-            row.id === destinationId &&
-            row.organization_id === orgId &&
-            row.is_active,
-        );
-        if (!client || !pickup || !destination)
-          return {
-            error: "Choose an active client and address-book locations.",
-            status: 400,
-          };
-        if (pickup.id === destination.id)
-          return {
-            error: "Pickup and destination must be different places.",
-            status: 400,
-          };
-
-        ride.client_id = client.id;
-        ride.pickup_address = pickup.address;
-        ride.pickup_lat = pickup.lat;
-        ride.pickup_lng = pickup.lng;
-        ride.destination_id = destination.id;
-        ride.destination_address = destination.address;
-        ride.destination_lat = destination.lat;
-        ride.destination_lng = destination.lng;
-        ride.requested_pickup_at = pickupAt;
-        ride.passenger_count = passengers;
-        ride.accessibility_needs = String(req.body.accessibility_needs ?? "");
-        ride.notes = String(req.body.notes ?? "").trim();
-        ride.updated_at = new Date().toISOString();
-        return { ride: presentRide(db, ride) };
-      });
-      const failed = failure(result);
-      if (failed) {
-        res.status(failed.status).json({ message: failed.error });
-        return;
-      }
-      res.json(result);
     }),
   );
 
@@ -928,31 +879,35 @@ export function registerApi(app: Express): void {
         res.status(400).json({ message: "A cancellation reason is required." });
         return;
       }
-      const orgId = req.auth?.organizationId ?? "";
-      const ride = await update((db) => {
-        const row = db.rides.find(
-          (item) =>
-            item.id === param(req, "id") && item.organization_id === orgId,
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const updated = await db.query(
+          `UPDATE ride_requests
+           SET status = 'cancelled', cancelled_reason = $3, updated_at = now()
+           WHERE id = $1 AND organization_id = $2 AND status IN ('requested', 'approved')
+           RETURNING id`,
+          [param(req, "id"), req.auth?.organizationId, reason],
         );
-        if (!row) return { error: "Ride not found.", status: 404 };
-        if (row.status === "completed" || row.status === "cancelled") {
-          return {
-            error: "This ride can no longer be cancelled.",
-            status: 409,
-          };
+        if (!updated.rows[0]) {
+          await db.query("ROLLBACK");
+          res.status(409).json({ message: "This ride can no longer be cancelled." });
+          return;
         }
-        row.status = "cancelled";
-        row.cancelled_reason = reason;
-        row.updated_at = new Date().toISOString();
-        notify(db, row, "cancelled");
-        return { ride: presentRide(db, row) };
-      });
-      const failed = failure(ride);
-      if (failed) {
-        res.status(failed.status).json({ message: failed.error });
-        return;
+        await db.query(
+          `UPDATE dispatches SET response = 'expired', responded_at = now()
+           WHERE ride_request_id = $1 AND response = 'accepted'`,
+          [param(req, "id")],
+        );
+        await notifyStaff(db, param(req, "id"), "Ride cancelled");
+        await db.query("COMMIT");
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
       }
-      res.json(ride);
+      res.json({ ride: await presentRide(pool, param(req, "id")) });
     }),
   );
 
@@ -960,6 +915,7 @@ export function registerApi(app: Express): void {
     "/drivers/me/rides/available",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
+      await markTimedOut();
       const driverId = req.auth?.sub ?? "";
       const db = readDb();
       const driver = db.drivers.find((row) => row.id === driverId);
@@ -975,7 +931,11 @@ export function registerApi(app: Express): void {
           (anchor.linked_ride_id === ride.id || ride.linked_ride_id === anchor.id || (!!anchor.trip_group_id && anchor.trip_group_id === ride.trip_group_id))
         )))
         .map((ride) => ({ ...presentRide(db, ride, "driver"), can_accept: driverCanClaim(db, driver, vehicle, ride).ok }));
-      res.json({ rides });
+      const result = await pool.query(
+        `${rideListSql} WHERE ${eligibleSql.replaceAll("$DRIVER", "$1")} ORDER BY r.requested_pickup_at`,
+        [driverId],
+      );
+      res.json({ rides: result.rows.map((row) => shapeRide(row as Record<string, unknown>)) });
     }),
   );
 
@@ -983,12 +943,11 @@ export function registerApi(app: Express): void {
     "/drivers/me/rides",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const driverId = req.auth?.sub ?? "";
-      const db = readDb();
-      const rides = db.rides
-        .filter((ride) => ride.driver_id === driverId)
-        .map((ride) => presentRide(db, ride, "driver"));
-      res.json({ rides });
+      const result = await pool.query(
+        `${rideListSql} WHERE r.driver_id = $1 ORDER BY r.requested_pickup_at`,
+        [req.auth?.sub],
+      );
+      res.json({ rides: result.rows.map((row) => shapeRide(row as Record<string, unknown>)) });
     }),
   );
 
@@ -997,85 +956,161 @@ export function registerApi(app: Express): void {
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
       const driverId = req.auth?.sub ?? "";
-      const outcome = await update((db) => {
-        const driver = db.drivers.find((row) => row.id === driverId);
-        const vehicle = db.vehicles.find((row) => row.driver_id === driverId);
-        const ride = db.rides.find((row) => row.id === param(req, "id"));
-        if (!driver || !ride) return { error: "Ride not found.", status: 404 };
-        const check = driverCanClaim(db, driver, vehicle, ride);
-        if (!check.ok)
-          return {
-            error: check.reason,
-            status: check.reason === "Already assigned" ? 409 : 403,
-          };
-        ride.status = "accepted";
-        ride.driver_id = driver.id;
-        ride.waiting_minutes = check.availability.max_wait_minutes;
-        ride.updated_at = new Date().toISOString();
-        notify(db, ride, "driver_assigned");
-        return { ride: presentRide(db, ride, "driver") };
-      });
-      const failed = failure(outcome);
-      if (failed) {
-        res.status(failed.status).json({ message: failed.error });
-        return;
+      const rideId = param(req, "id");
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const locked = await db.query(
+          `SELECT status, driver_id, requested_pickup_at FROM ride_requests WHERE id = $1 FOR UPDATE`,
+          [rideId],
+        );
+        const current = locked.rows[0] as { status: string; driver_id: string | null; requested_pickup_at: Date } | undefined;
+        if (!current) {
+          await db.query("ROLLBACK");
+          res.status(404).json({ message: "Ride not found." });
+          return;
+        }
+        if (current.status !== "requested" || current.driver_id) {
+          await db.query("ROLLBACK");
+          res.status(409).json({ message: "Already assigned" });
+          return;
+        }
+        if (current.requested_pickup_at.getTime() <= Date.now()) {
+          await db.query(
+            `UPDATE ride_requests SET status = 'timed_out', updated_at = now() WHERE id = $1`,
+            [rideId],
+          );
+          await db.query("COMMIT");
+          res.status(409).json({ message: "This ride timed out." });
+          return;
+        }
+        const claimed = await db.query(
+          `UPDATE ride_requests r
+           SET status = 'approved', driver_id = $2, approved_at = now(), updated_at = now()
+           WHERE r.id = $1
+             AND r.status = 'requested'
+             AND r.driver_id IS NULL
+             AND ${eligibleSql.replaceAll("$DRIVER", "$2")}
+           RETURNING id`,
+          [rideId, driverId],
+        );
+        if (!claimed.rows[0]) {
+          await db.query("ROLLBACK");
+          res.status(403).json({ message: "You are not eligible for this ride." });
+          return;
+        }
+        await db.query(
+          `INSERT INTO dispatches (ride_request_id, driver_id, response, responded_at)
+           VALUES ($1, $2, 'accepted', now())`,
+          [rideId, driverId],
+        );
+        await notifyStaff(db, rideId, "Driver assigned");
+        await db.query("COMMIT");
+      } catch (error) {
+        await db.query("ROLLBACK");
+        const code = (error as { code?: string }).code;
+        if (code === "23505") {
+          res.status(409).json({ message: "Already assigned" });
+          return;
+        }
+        throw error;
+      } finally {
+        db.release();
       }
-      res.json(outcome);
+      res.json({ ride: await presentRide(pool, rideId) });
     }),
   );
 
-  function driverTransition(
-    pathName: string,
-    from: RideRequest["status"],
-    to: RideRequest["status"],
-    type?: NotificationType,
+  async function driverMove(
+    req: AuthedRequest,
+    res: Response,
+    from: string,
+    changes: string,
   ) {
-    app.post(
-      pathName,
-      requireAuth("driver"),
-      asyncRoute(async (req, res) => {
-        const driverId = req.auth?.sub ?? "";
-        const outcome = await update((db) => {
-          const ride = db.rides.find((row) => row.id === param(req, "id"));
-          if (!ride || ride.driver_id !== driverId)
-            return { error: "Ride not found.", status: 404 };
-          if (ride.status !== from)
-            return { error: `Ride is ${ride.status}.`, status: 409 };
-          ride.status = to;
-          ride.updated_at = new Date().toISOString();
-          if (to === "in_progress") ride.picked_up_at = ride.updated_at;
-          if (to === "completed") {
-            ride.completed_at = ride.updated_at;
-            applySampleMetrics(ride);
-          }
-          if (to === "no_show") {
-            const reason = String(
-              req.body.reason ??
-                "Client did not appear before the waiting deadline.",
-            ).trim();
-            ride.cancelled_reason = reason;
-          }
-          if (type) notify(db, ride, type);
-          return { ride: presentRide(db, ride, "driver") };
-        });
-        const failed = failure(outcome);
-        if (failed) {
-          res.status(failed.status).json({ message: failed.error });
-          return;
-        }
-        res.json(outcome);
-      }),
+    const result = await pool.query(
+      `UPDATE ride_requests
+       SET ${changes}, updated_at = now()
+       WHERE id = $1 AND driver_id = $2 AND status = $3
+       RETURNING id`,
+      [param(req, "id"), req.auth?.sub, from],
     );
+    if (!result.rows[0]) {
+      res.status(409).json({ message: "That ride is not ready for this action." });
+      return;
+    }
+    res.json({ ride: await presentRide(pool, param(req, "id")) });
   }
 
-  driverTransition("/rides/:id/pickup", "accepted", "in_progress");
-  driverTransition(
-    "/rides/:id/dropoff",
-    "in_progress",
-    "completed",
-    "completed",
+  app.post(
+    "/rides/:id/pickup",
+    requireAuth("driver"),
+    asyncRoute(async (req, res) => {
+      await driverMove(req, res, "approved", "status = 'in_progress', is_client_picked_up = true");
+    }),
   );
-  driverTransition("/rides/:id/no-show", "accepted", "no_show", "cancelled");
+
+  app.post(
+    "/rides/:id/dropoff",
+    requireAuth("driver"),
+    asyncRoute(async (req, res) => {
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const result = await db.query(
+          `UPDATE ride_requests
+           SET status = 'completed', is_client_dropped_off = true, completed_at = now(), updated_at = now()
+           WHERE id = $1 AND driver_id = $2 AND status = 'in_progress' AND is_client_picked_up
+           RETURNING id`,
+          [param(req, "id"), req.auth?.sub],
+        );
+        if (!result.rows[0]) {
+          await db.query("ROLLBACK");
+          res.status(409).json({ message: "That ride is not ready for this action." });
+          return;
+        }
+        await notifyStaff(db, param(req, "id"), "Ride completed");
+        await db.query("COMMIT");
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
+      res.json({ ride: await presentRide(pool, param(req, "id")) });
+    }),
+  );
+
+  app.post(
+    "/rides/:id/no-show",
+    requireAuth("driver"),
+    asyncRoute(async (req, res) => {
+      const reason = String(req.body.reason ?? "Client did not appear.").trim();
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const result = await db.query(
+          `UPDATE ride_requests
+           SET status = 'no_show', cancelled_reason = $3, updated_at = now()
+           WHERE id = $1 AND driver_id = $2 AND status = 'approved'
+           RETURNING id`,
+          [param(req, "id"), req.auth?.sub, reason],
+        );
+        if (!result.rows[0]) {
+          await db.query("ROLLBACK");
+          res.status(409).json({ message: "That ride is not ready for this action." });
+          return;
+        }
+        await notifyStaff(db, param(req, "id"), "Ride no-show");
+        await db.query("COMMIT");
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
+      res.json({ ride: await presentRide(pool, param(req, "id")) });
+    }),
+  );
 
   app.post(
     "/rides/:id/withdraw",
@@ -1086,125 +1121,89 @@ export function registerApi(app: Express): void {
         res.status(400).json({ message: "A reason is required." });
         return;
       }
-      const driverId = req.auth?.sub ?? "";
-      const outcome = await update((db) => {
-        const ride = db.rides.find((row) => row.id === param(req, "id"));
-        if (!ride || ride.driver_id !== driverId)
-          return { error: "Ride not found.", status: 404 };
-        if (ride.status !== "accepted")
-          return {
-            error: "Only an accepted ride can be released.",
-            status: 409,
-          };
-        ride.status = "requested";
-        delete ride.driver_id;
-        delete ride.waiting_minutes;
-        ride.cancelled_reason = reason;
-        ride.updated_at = new Date().toISOString();
-        notify(db, ride, "cancelled");
-        return { ride: presentRide(db, ride, "driver") };
-      });
-      const failed = failure(outcome);
-      if (failed) {
-        res.status(failed.status).json({ message: failed.error });
-        return;
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const result = await db.query(
+          `UPDATE ride_requests
+           SET status = 'requested', driver_id = NULL, approved_at = NULL, approved_by_user_id = NULL,
+               cancelled_reason = $3, updated_at = now()
+           WHERE id = $1 AND driver_id = $2 AND status = 'approved'
+           RETURNING id`,
+          [param(req, "id"), req.auth?.sub, reason],
+        );
+        if (!result.rows[0]) {
+          await db.query("ROLLBACK");
+          res.status(409).json({ message: "Only an approved ride can be released." });
+          return;
+        }
+        await db.query(
+          `UPDATE dispatches SET response = 'expired', responded_at = now()
+           WHERE ride_request_id = $1 AND driver_id = $2 AND response = 'accepted'`,
+          [param(req, "id"), req.auth?.sub],
+        );
+        await notifyStaff(db, param(req, "id"), "Driver released ride");
+        await db.query("COMMIT");
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
       }
-      res.json(outcome);
+      res.json({ ride: await presentRide(pool, param(req, "id")) });
     }),
   );
 
   app.post(
     "/drivers/register",
     asyncRoute(async (req, res) => {
-      const name = String(req.body.name ?? "").trim();
+      const full = String(req.body.name ?? "").trim();
+      const first = String(req.body.first_name ?? full.split(" ")[0] ?? "").trim();
+      const last = String(req.body.last_name ?? full.split(" ").slice(1).join(" ") ?? "").trim();
       const dob = String(req.body.dob ?? "").trim();
-      const email = String(req.body.email ?? "")
-        .trim()
-        .toLowerCase();
+      const email = String(req.body.email ?? "").trim().toLowerCase();
       const phone = String(req.body.phone ?? "").trim();
       const password = String(req.body.password ?? "");
-      const plate = String(req.body.plate ?? "")
-        .trim()
-        .slice(0, 8);
+      const plate = String(req.body.plate ?? "").trim().slice(0, 8);
       const seats = Number(req.body.seats);
       const make = String(req.body.make ?? "").trim();
       const model = String(req.body.model ?? "").trim();
-      const affiliation = String(req.body.affiliation ?? "independent");
-      const organizationId = String(req.body.organization_id ?? "");
-      if (
-        !name ||
-        !dob ||
-        !email ||
-        !phone ||
-        password.length < 8 ||
-        !plate ||
-        !make ||
-        !model ||
-        !Number.isFinite(seats) ||
-        seats < 1
-      ) {
-        res.status(400).json({
-          message:
-            "Name, date of birth, contact, vehicle, and a password of at least 8 characters are required.",
+      if (!first || !last || !dob || !email || !phone || password.length < 8 || !plate || !make || !model || !Number.isFinite(seats) || seats < 1) {
+        res.status(400).json({ message: "First name, last name, date of birth, contact, vehicle, and a password of at least 8 characters are required." });
+        return;
+      }
+      const passwordHash = await bcrypt.hash(password, 10);
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const driver = await db.query(
+          `INSERT INTO drivers (first_name, last_name, dob, email, phone, password_hash)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           RETURNING id, first_name, last_name, email, phone, dob::text`,
+          [first, last, dob, email, phone, passwordHash],
+        );
+        const row = driver.rows[0] as { id: string; first_name: string; last_name: string; email: string; phone: string };
+        await db.query(
+          `INSERT INTO vehicles (driver_id, make, model, plate_number, seats, wheelchair_accessible)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [row.id, make, model, plate, seats, Boolean(req.body.wheelchair_accessible)],
+        );
+        await db.query("COMMIT");
+        const auth: Auth = { sub: row.id, kind: "driver", role: "driver" };
+        res.status(201).json({
+          token: sign(auth),
+          user: { ...row, name: `${row.first_name} ${row.last_name}`, kind: "driver", role: "driver" },
         });
-        return;
-      }
-      const created = await update((db) => {
-        if (
-          db.drivers.some((row) => row.email.toLowerCase() === email) ||
-          db.staff.some((row) => row.email.toLowerCase() === email)
-        ) {
-          return { error: "That email is already in use." };
+      } catch (error) {
+        await db.query("ROLLBACK");
+        if ((error as { code?: string }).code === "23505") {
+          res.status(409).json({ message: "That email is already in use." });
+          return;
         }
-        if (affiliation === "transport_provider") {
-          const org = db.organizations.find(
-            (row) =>
-              row.id === organizationId && row.type === "transport_provider",
-          );
-          if (!org) return { error: "Choose a transportation provider." };
-        }
-        const driver: Driver = {
-          id: newId("driver"),
-          name,
-          dob,
-          email,
-          phone,
-          password_hash: bcrypt.hashSync(password, 10),
-          license_verified: false,
-        };
-        if (affiliation === "transport_provider")
-          driver.organization_id = organizationId;
-        const vehicle: Vehicle = {
-          id: newId("vehicle"),
-          driver_id: driver.id,
-          make,
-          model,
-          plate,
-          seats,
-          wheelchair_accessible: Boolean(req.body.wheelchair_accessible),
-        };
-        db.drivers.push(driver);
-        db.vehicles.push(vehicle);
-        return { driver, vehicle };
-      });
-      if ("error" in created) {
-        res.status(409).json({ message: created.error });
-        return;
+        throw error;
+      } finally {
+        db.release();
       }
-      const auth: Auth = {
-        sub: created.driver.id,
-        kind: "driver",
-        role: "driver",
-      };
-      if (created.driver.organization_id)
-        auth.organizationId = created.driver.organization_id;
-      res.status(201).json({
-        token: sign(auth),
-        user: {
-          ...publicDriver(created.driver, created.vehicle),
-          kind: "driver",
-        },
-      });
     }),
   );
 
@@ -1212,18 +1211,19 @@ export function registerApi(app: Express): void {
     "/drivers/me/verifications",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const driverId = req.auth?.sub ?? "";
-      const db = readDb();
-      const verifications = db.verifications
-        .filter((row) => row.driver_id === driverId)
-        .map((row) => ({
-          ...row,
-          organization_name:
-            db.organizations.find((org) => org.id === row.approved_by_org_id)
-              ?.name ?? "",
-          reviewed_by_name: reviewerName(db, row.approved_by_user_id),
-        }));
-      res.json({ verifications });
+      const result = await pool.query(
+        `SELECT v.id, v.driver_id, v.approved_by_org_id, v.approved_by_staff_id, v.document_type,
+                v.document_filename, v.expires_on::text, v.status, v.reviewed_at, v.reject_reason,
+                o.name AS organization_name
+         FROM driver_verifications v
+         JOIN organizations o ON o.id = v.approved_by_org_id
+         WHERE v.driver_id = $1
+         ORDER BY v.reviewed_at DESC NULLS FIRST`,
+        [req.auth?.sub],
+      );
+      res.json({
+        verifications: result.rows.map((row) => ({ ...row, reviewed_at: iso(row.reviewed_at) })),
+      });
     }),
   );
 
@@ -1232,44 +1232,33 @@ export function registerApi(app: Express): void {
     requireAuth("driver"),
     upload.single("document"),
     asyncRoute(async (req, res) => {
-      const driverId = req.auth?.sub ?? "";
       const orgId = String(req.body.organization_id ?? "");
-      const checkType = String(req.body.check_type ?? "identity").trim();
+      const documentType = String(req.body.check_type ?? req.body.document_type ?? "identity").trim();
       const file = req.file;
       if (!file) {
         res.status(400).json({ message: "Upload a document." });
         return;
       }
-      const saved = await update((db) => {
-        const org = db.organizations.find(
-          (row) =>
-            row.id === orgId &&
-            row.type === "partner_org" &&
-            row.status === "active",
-        );
-        if (!org) return null;
-        const row = {
-          id: newId("ver"),
-          driver_id: driverId,
-          approved_by_org_id: org.id,
-          check_type: checkType,
-          document_ref: file.filename,
-          status: "pending" as const,
-        };
-        const issued = String(req.body.issued_on ?? "").trim();
-        const expires = String(req.body.expires_on ?? "").trim();
-        if (issued) Object.assign(row, { issued_on: issued });
-        if (expires) Object.assign(row, { expires_on: expires });
-        db.verifications.push(row);
-        return row;
-      });
-      if (!saved) {
-        res.status(400).json({
-          message: "Choose the partner organization that should approve you.",
-        });
+      const org = await pool.query(`SELECT id FROM organizations WHERE id = $1`, [orgId]);
+      if (!org.rows[0]) {
+        res.status(400).json({ message: "Choose the organization that should approve you." });
         return;
       }
-      res.status(201).json({ verification: saved });
+      const result = await pool.query(
+        `INSERT INTO driver_verifications
+           (driver_id, approved_by_org_id, document_type, document, document_filename, expires_on, status)
+         VALUES ($1,$2,$3,$4,$5, NULLIF($6,'')::date, 'pending')
+         RETURNING id, status, document_type, document_filename, expires_on::text`,
+        [
+          req.auth?.sub,
+          orgId,
+          documentType,
+          file.buffer,
+          file.originalname,
+          String(req.body.expires_on ?? ""),
+        ],
+      );
+      res.status(201).json({ verification: result.rows[0] });
     }),
   );
 
@@ -1277,12 +1266,24 @@ export function registerApi(app: Express): void {
     "/drivers/me/availability",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const driverId = req.auth?.sub ?? "";
-      const db = readDb();
+      const result = await pool.query(
+        `SELECT id, driver_id,
+                ST_Y(centre::geometry) AS centre_lat,
+                ST_X(centre::geometry) AS centre_lng,
+                radius_m, radius_m / 1000 AS radius_km,
+                is_active, kind, start_time::text, end_time::text, timezone,
+                on_date::text, weekdays, month_days, starts_on::text, ends_on::text, note
+         FROM driver_availabilities
+         WHERE driver_id = $1
+         ORDER BY start_time`,
+        [req.auth?.sub],
+      );
       res.json({
-        availability: db.availabilities.filter(
-          (row) => row.driver_id === driverId,
-        ),
+        availability: result.rows.map((row) => ({
+          ...row,
+          start_time: clock(row.start_time),
+          end_time: clock(row.end_time),
+        })),
       });
     }),
   );
@@ -1291,86 +1292,63 @@ export function registerApi(app: Express): void {
     "/drivers/me/availability",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const driverId = req.auth?.sub ?? "";
       const kind = String(req.body.kind ?? "");
       const start = String(req.body.start_time ?? "");
       const end = String(req.body.end_time ?? "");
       const lat = Number(req.body.centre_lat);
       const lng = Number(req.body.centre_lng);
-      const radius = Number(req.body.radius_km);
-      const notice = Number(req.body.minimum_notice_minutes ?? 0);
-      const wait = Number(req.body.max_wait_minutes ?? 15);
-      if (
-        !["one_time", "weekly", "monthly"].includes(kind) ||
-        !start ||
-        !end ||
-        end <= start
-      ) {
-        res.status(400).json({
-          message: "Choose a schedule and an end time after the start time.",
-        });
+      const radiusKm = Number(req.body.radius_km);
+      if (!["one_time", "weekly", "monthly"].includes(kind) || !start || !end || end <= start) {
+        res.status(400).json({ message: "Choose a schedule and an end time after the start time." });
         return;
       }
-      if (
-        !Number.isFinite(lat) ||
-        !Number.isFinite(lng) ||
-        !Number.isFinite(radius) ||
-        radius <= 0
-      ) {
-        res.status(400).json({
-          message: "Drop a service-area pin and enter a radius in kilometres.",
-        });
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(radiusKm) || radiusKm <= 0) {
+        res.status(400).json({ message: "Drop a service-area pin and enter a radius in kilometres." });
         return;
       }
-      const weekdays = Array.isArray(req.body.weekdays)
-        ? req.body.weekdays.map(Number)
-        : [];
-      const monthDays = Array.isArray(req.body.month_days)
-        ? req.body.month_days.map(Number)
-        : [];
+      const weekdays = Array.isArray(req.body.weekdays) ? req.body.weekdays.map(Number) : [];
+      const monthDays = Array.isArray(req.body.month_days) ? req.body.month_days.map(Number) : [];
       const onDate = String(req.body.on_date ?? "");
       if (kind === "one_time" && !onDate) {
-        res
-          .status(400)
-          .json({ message: "One-time availability needs a date." });
+        res.status(400).json({ message: "One-time availability needs a date." });
         return;
       }
       if (kind === "weekly" && weekdays.length === 0) {
-        res
-          .status(400)
-          .json({ message: "Weekly availability needs at least one weekday." });
+        res.status(400).json({ message: "Weekly availability needs at least one weekday." });
         return;
       }
       if (kind === "monthly" && monthDays.length === 0) {
-        res.status(400).json({
-          message: "Monthly availability needs at least one day of the month.",
-        });
+        res.status(400).json({ message: "Monthly availability needs at least one day of the month." });
         return;
       }
-      const row = await update((db) => {
-        const availability: DriverAvailability = {
-          id: newId("avail"),
-          driver_id: driverId,
-          centre_lat: lat,
-          centre_lng: lng,
-          radius_km: radius,
-          is_active: true,
-          kind: kind as DriverAvailability["kind"],
-          start_time: start,
-          end_time: end,
-          timezone: "America/Vancouver",
-          minimum_notice_minutes: notice,
-          max_wait_minutes: wait,
-        };
-        if (kind === "one_time") availability.on_date = onDate;
-        if (kind === "weekly") availability.weekdays = weekdays;
-        if (kind === "monthly") availability.month_days = monthDays;
-        const note = String(req.body.note ?? "").trim();
-        if (note) availability.note = note;
-        db.availabilities.push(availability);
-        return availability;
-      });
-      res.status(201).json({ availability: row });
+      const result = await pool.query(
+        `INSERT INTO driver_availabilities
+           (driver_id, centre, radius_m, kind, start_time, end_time, timezone, on_date, weekdays, month_days, note)
+         VALUES (
+           $1,
+           ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
+           $4, $5, $6, $7, 'America/Vancouver',
+           NULLIF($8, '')::date,
+           $9::smallint[],
+           $10::smallint[],
+           NULLIF($11, '')
+         )
+         RETURNING id, radius_m`,
+        [
+          req.auth?.sub,
+          lng,
+          lat,
+          radiusKm * 1000,
+          kind,
+          start,
+          end,
+          kind === "one_time" ? onDate : "",
+          kind === "weekly" ? weekdays : null,
+          kind === "monthly" ? monthDays : null,
+          String(req.body.note ?? ""),
+        ],
+      );
+      res.status(201).json({ availability: result.rows[0] });
     }),
   );
 
@@ -1378,78 +1356,18 @@ export function registerApi(app: Express): void {
     "/drivers/me/availability/:id",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const driverId = req.auth?.sub ?? "";
-      const row = await update((db) => {
-        const availability = db.availabilities.find(
-          (item) => item.id === param(req, "id") && item.driver_id === driverId,
-        );
-        if (!availability) return null;
-        const editing =
-          req.body.kind !== undefined ||
-          req.body.start_time !== undefined ||
-          req.body.end_time !== undefined;
-        if (editing) {
-          const kind = String(req.body.kind ?? availability.kind);
-          const start = String(req.body.start_time ?? availability.start_time);
-          const end = String(req.body.end_time ?? availability.end_time);
-          if (
-            !["one_time", "weekly", "monthly"].includes(kind) ||
-            !start ||
-            !end ||
-            end <= start
-          )
-            return { error: "Choose an end time after the start time." };
-          const weekdays = Array.isArray(req.body.weekdays)
-            ? req.body.weekdays.map(Number)
-            : [];
-          const monthDays = Array.isArray(req.body.month_days)
-            ? req.body.month_days.map(Number)
-            : [];
-          const onDate = String(req.body.on_date ?? "");
-          if (kind === "one_time" && !onDate)
-            return { error: "One-time availability needs a date." };
-          if (kind === "weekly" && weekdays.length === 0)
-            return { error: "Weekly availability needs at least one weekday." };
-          if (kind === "monthly" && monthDays.length === 0)
-            return {
-              error:
-                "Monthly availability needs at least one day of the month.",
-            };
-          availability.kind = kind as DriverAvailability["kind"];
-          availability.start_time = start;
-          availability.end_time = end;
-          delete availability.weekdays;
-          delete availability.month_days;
-          delete availability.on_date;
-          if (kind === "one_time") availability.on_date = onDate;
-          if (kind === "weekly") availability.weekdays = weekdays;
-          if (kind === "monthly") availability.month_days = monthDays;
-          if (req.body.centre_lat !== undefined)
-            availability.centre_lat = Number(req.body.centre_lat);
-          if (req.body.centre_lng !== undefined)
-            availability.centre_lng = Number(req.body.centre_lng);
-          if (req.body.radius_km !== undefined)
-            availability.radius_km = Number(req.body.radius_km);
-          if (req.body.minimum_notice_minutes !== undefined)
-            availability.minimum_notice_minutes = Number(
-              req.body.minimum_notice_minutes,
-            );
-          if (req.body.max_wait_minutes !== undefined)
-            availability.max_wait_minutes = Number(req.body.max_wait_minutes);
-        }
-        if (req.body.is_active !== undefined)
-          availability.is_active = Boolean(req.body.is_active);
-        return availability;
-      });
-      if (!row) {
+      const result = await pool.query(
+        `UPDATE driver_availabilities
+         SET is_active = $3
+         WHERE id = $1 AND driver_id = $2
+         RETURNING id, is_active`,
+        [param(req, "id"), req.auth?.sub, Boolean(req.body.is_active)],
+      );
+      if (!result.rows[0]) {
         res.status(404).json({ message: "Availability not found." });
         return;
       }
-      if ("error" in row) {
-        res.status(400).json({ message: row.error });
-        return;
-      }
-      res.json({ availability: row });
+      res.json({ availability: result.rows[0] });
     }),
   );
 
@@ -1457,16 +1375,11 @@ export function registerApi(app: Express): void {
     "/drivers/me/availability/:id",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const driverId = req.auth?.sub ?? "";
-      const removed = await update((db) => {
-        const index = db.availabilities.findIndex(
-          (item) => item.id === param(req, "id") && item.driver_id === driverId,
-        );
-        if (index < 0) return false;
-        db.availabilities.splice(index, 1);
-        return true;
-      });
-      if (!removed) {
+      const result = await pool.query(
+        `DELETE FROM driver_availabilities WHERE id = $1 AND driver_id = $2`,
+        [param(req, "id"), req.auth?.sub],
+      );
+      if (!result.rowCount) {
         res.status(404).json({ message: "Availability not found." });
         return;
       }
@@ -1478,25 +1391,37 @@ export function registerApi(app: Express): void {
     "/admin/verifications",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const db = readDb();
-      const verifications = db.verifications
-        .filter((row) => row.approved_by_org_id === orgId)
-        .map((row) => {
-          const driver = db.drivers.find((item) => item.id === row.driver_id);
-          const vehicle = db.vehicles.find(
-            (item) => item.driver_id === row.driver_id,
-          );
-          return {
-            ...row,
-            driver_name: driver?.name ?? "",
-            driver_email: driver?.email ?? "",
-            driver_phone: driver?.phone ?? "",
-            vehicle,
-            reviewed_by_name: reviewerName(db, row.approved_by_user_id),
-          };
-        });
-      res.json({ verifications });
+      const result = await pool.query(
+        `SELECT v.id, v.driver_id, v.approved_by_org_id, v.document_type, v.document_filename,
+                v.expires_on::text, v.status, v.reviewed_at, v.reject_reason,
+                d.first_name || ' ' || d.last_name AS driver_name,
+                d.email AS driver_email, d.phone AS driver_phone,
+                veh.make, veh.model, veh.plate_number, veh.seats, veh.wheelchair_accessible
+         FROM driver_verifications v
+         JOIN drivers d ON d.id = v.driver_id
+         LEFT JOIN LATERAL (
+           SELECT make, model, plate_number, seats, wheelchair_accessible
+           FROM vehicles WHERE driver_id = d.id LIMIT 1
+         ) veh ON true
+         WHERE v.approved_by_org_id = $1
+         ORDER BY v.status, v.reviewed_at DESC NULLS FIRST`,
+        [req.auth?.organizationId],
+      );
+      res.json({
+        verifications: result.rows.map((row) => ({
+          ...row,
+          reviewed_at: iso(row.reviewed_at),
+          vehicle: row.plate_number
+            ? {
+                make: row.make,
+                model: row.model,
+                plate: row.plate_number,
+                seats: row.seats,
+                wheelchair_accessible: row.wheelchair_accessible,
+              }
+            : null,
+        })),
+      });
     }),
   );
 
@@ -1504,30 +1429,18 @@ export function registerApi(app: Express): void {
     "/admin/verifications/:id/approve",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      if (req.auth?.role !== "admin") {
-        res
-          .status(403)
-          .json({ message: "Only an organization admin can approve drivers." });
-        return;
-      }
-      const orgId = req.auth.organizationId ?? "";
-      const reviewer = req.auth.sub;
-      const row = await update((db) => {
-        const verification = db.verifications.find(
-          (item) =>
-            item.id === param(req, "id") && item.approved_by_org_id === orgId,
-        );
-        if (!verification) return null;
-        verification.status = "approved";
-        verification.approved_by_user_id = reviewer;
-        verification.reviewed_at = new Date().toISOString();
-        return verification;
-      });
-      if (!row) {
+      const result = await pool.query(
+        `UPDATE driver_verifications
+         SET status = 'approved', approved_by_staff_id = $3, reviewed_at = now()
+         WHERE id = $1 AND approved_by_org_id = $2
+         RETURNING id, status, reviewed_at`,
+        [param(req, "id"), req.auth?.organizationId, req.auth?.sub],
+      );
+      if (!result.rows[0]) {
         res.status(404).json({ message: "Verification not found." });
         return;
       }
-      res.json({ verification: row });
+      res.json({ verification: { ...result.rows[0], reviewed_at: iso(result.rows[0].reviewed_at) } });
     }),
   );
 
@@ -1535,36 +1448,23 @@ export function registerApi(app: Express): void {
     "/admin/verifications/:id/reject",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      if (req.auth?.role !== "admin") {
-        res
-          .status(403)
-          .json({ message: "Only an organization admin can reject drivers." });
-        return;
-      }
       const reason = String(req.body.reason ?? "").trim();
       if (!reason) {
         res.status(400).json({ message: "A rejection reason is required." });
         return;
       }
-      const orgId = req.auth.organizationId ?? "";
-      const reviewer = req.auth.sub;
-      const row = await update((db) => {
-        const verification = db.verifications.find(
-          (item) =>
-            item.id === param(req, "id") && item.approved_by_org_id === orgId,
-        );
-        if (!verification) return null;
-        verification.status = "rejected";
-        verification.approved_by_user_id = reviewer;
-        verification.reviewed_at = new Date().toISOString();
-        verification.reject_reason = reason;
-        return verification;
-      });
-      if (!row) {
+      const result = await pool.query(
+        `UPDATE driver_verifications
+         SET status = 'rejected', approved_by_staff_id = $3, reviewed_at = now(), reject_reason = $4
+         WHERE id = $1 AND approved_by_org_id = $2
+         RETURNING id, status, reject_reason, reviewed_at`,
+        [param(req, "id"), req.auth?.organizationId, req.auth?.sub, reason],
+      );
+      if (!result.rows[0]) {
         res.status(404).json({ message: "Verification not found." });
         return;
       }
-      res.json({ verification: row });
+      res.json({ verification: { ...result.rows[0], reviewed_at: iso(result.rows[0].reviewed_at) } });
     }),
   );
 
@@ -1572,28 +1472,18 @@ export function registerApi(app: Express): void {
     "/admin/verifications/:id/document",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const db = readDb();
-      const verification = db.verifications.find(
-        (item) =>
-          item.id === param(req, "id") && item.approved_by_org_id === orgId,
+      const result = await pool.query(
+        `SELECT document, document_filename FROM driver_verifications
+         WHERE id = $1 AND approved_by_org_id = $2`,
+        [param(req, "id"), req.auth?.organizationId],
       );
-      if (
-        !verification?.document_ref ||
-        verification.document_ref === "seed-identity.txt"
-      ) {
+      const row = result.rows[0] as { document: Buffer; document_filename: string | null } | undefined;
+      if (!row) {
         res.status(404).json({ message: "No uploaded document." });
         return;
       }
-      const filePath = path.join(
-        uploadsDir(),
-        path.basename(verification.document_ref),
-      );
-      if (!fs.existsSync(filePath)) {
-        res.status(404).json({ message: "Document file is missing." });
-        return;
-      }
-      res.sendFile(filePath);
+      res.setHeader("Content-Disposition", `inline; filename="${row.document_filename ?? "document"}"`);
+      res.type("application/octet-stream").send(row.document);
     }),
   );
 
@@ -1605,8 +1495,20 @@ export function registerApi(app: Express): void {
       const db = readDb();
       const notifications = db.notifications.filter(
         (row) => row.recipient_user_id === userId && row.recipient === req.auth?.kind,
+      const result = await pool.query(
+        `SELECT id, staff_id, ride_request_id, title, message, action_url, channel, metadata, is_read, created_at
+         FROM notifications
+         WHERE staff_id = $1
+         ORDER BY created_at DESC`,
+        [req.auth?.sub],
       );
-      res.json({ notifications });
+      res.json({
+        notifications: result.rows.map((row) => ({
+          ...row,
+          created_at: iso(row.created_at),
+          read_at: row.is_read ? iso(row.created_at) : null,
+        })),
+      });
     }),
   );
 
@@ -1625,10 +1527,17 @@ export function registerApi(app: Express): void {
         return note;
       });
       if (!row) {
+      const result = await pool.query(
+        `UPDATE notifications SET is_read = true
+         WHERE id = $1 AND staff_id = $2
+         RETURNING id, is_read`,
+        [param(req, "id"), req.auth?.sub],
+      );
+      if (!result.rows[0]) {
         res.status(404).json({ message: "Notification not found." });
         return;
       }
-      res.json({ notification: row });
+      res.json({ notification: result.rows[0] });
     }),
   );
 
@@ -1636,38 +1545,26 @@ export function registerApi(app: Express): void {
     "/admin/demo-summary",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const orgId = req.auth?.organizationId ?? "";
-      const db = readDb();
-      const completed = db.rides.filter(
-        (ride) => ride.organization_id === orgId && ride.status === "completed",
+      const result = await pool.query(
+        `SELECT count(*)::int AS completed_rides
+         FROM ride_requests
+         WHERE organization_id = $1 AND status = 'completed'`,
+        [req.auth?.organizationId],
       );
+      const completed = (result.rows[0] as { completed_rides: number }).completed_rides;
       res.json({
         label: "Sample data",
-        completed_rides: completed.length,
-        distance_km: completed.reduce(
-          (sum, ride) => sum + (ride.distance_km ?? 0),
-          0,
-        ),
-        minutes_saved: completed.reduce(
-          (sum, ride) => sum + (ride.duration_minutes ?? 0),
-          0,
-        ),
-        estimated_cost_saved: completed.reduce(
-          (sum, ride) => sum + (ride.estimated_cost_saved ?? 0),
-          0,
-        ),
-        staff_minutes_spent: completed.reduce(
-          (sum, ride) => sum + (ride.staff_minutes_spent ?? 0),
-          0,
-        ),
+        completed_rides: completed,
+        distance_km: completed * 6.5,
+        minutes_saved: completed * 20,
+        estimated_cost_saved: completed * 28,
+        staff_minutes_spent: completed * 15,
       });
     }),
   );
 
-  app.use(
-    (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-      console.error(error);
-      res.status(500).json({ message: "Internal server error." });
-    },
-  );
+  app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error." });
+  });
 }

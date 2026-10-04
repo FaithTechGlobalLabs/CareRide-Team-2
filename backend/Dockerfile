@@ -1,5 +1,5 @@
 #backend
-FROM --platform=linux/amd64 node:22-alpine AS backend
+FROM node:22-alpine AS backend
 
 WORKDIR /app/backend
 
@@ -13,7 +13,7 @@ RUN npm run build
 
 
 #container
-FROM --platform=linux/amd64 node:22-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 

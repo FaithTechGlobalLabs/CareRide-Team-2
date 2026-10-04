@@ -65,7 +65,7 @@ function seed(): Db {
     id: "org_belkin",
     name: "Belkin Communities of Hope",
     email: "belkin@careride.local",
-    phone: "(604) 681-3405",
+    phone: "604-555-0100",
     created_at: now,
   };
 

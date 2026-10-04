@@ -76,7 +76,12 @@ export interface Ride {
   destination_lat?: number
   destination_lng?: number
   destination_id?: string
+  destination_name?: string
   pickup_id?: string
+  pickup_name?: string
+  organization_name?: string
+  organization_phone?: string
+  duration_minutes?: number
   requested_pickup_at: string
   passenger_count: number
   accessibility_needs?: string
@@ -85,6 +90,7 @@ export interface Ride {
   driver_id?: string
   driver?: Driver
   client?: Client
+  client_name?: string
   staff?: { name: string; phone: string }
   waiting_minutes?: number
   linked_ride_id?: string
@@ -125,10 +131,14 @@ export interface Verification {
   status: "pending" | "approved" | "rejected" | "expired"
   driver?: Driver
   organization?: Organization
+  organization_name?: string
   document_ref?: string
   issued_on?: string
   expires_on?: string
   reject_reason?: string
+  approved_by_user_id?: string
+  reviewed_at?: string
+  reviewed_by_name?: string
 }
 export interface Notice {
   id: string

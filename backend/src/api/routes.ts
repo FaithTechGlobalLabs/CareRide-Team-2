@@ -132,15 +132,40 @@ function notify(db: Db, ride: RideRequest, type: NotificationType): void {
   );
 }
 
-function presentRide(db: Db, ride: RideRequest) {
+function locationName(
+  db: Db,
+  id: string | undefined,
+  address: string | undefined,
+): string | null {
+  const match =
+    (id ? db.destinations.find((row) => row.id === id) : undefined) ??
+    (address
+      ? db.destinations.find((row) => row.address === address)
+      : undefined);
+  return match?.name ?? null;
+}
+
+function presentRide(
+  db: Db,
+  ride: RideRequest,
+  audience: "staff" | "driver" = "staff",
+) {
   const client = db.clients.find((row) => row.id === ride.client_id);
   const driver = db.drivers.find((row) => row.id === ride.driver_id);
   const vehicle = db.vehicles.find((row) => row.driver_id === driver?.id);
-  return {
+  const organization = db.organizations.find(
+    (row) => row.id === ride.organization_id,
+  );
+  const shared = {
     ...ride,
-    client_name: client
-      ? `${client.first_name} ${client.last_name}`
-      : "Unknown client",
+    pickup_name: locationName(db, undefined, ride.pickup_address),
+    destination_name: locationName(
+      db,
+      ride.destination_id,
+      ride.destination_address,
+    ),
+    organization_name: organization?.name ?? null,
+    organization_phone: organization?.phone ?? null,
     driver_name: driver?.name ?? null,
     driver_phone: driver?.phone ?? null,
     vehicle: vehicle
@@ -152,6 +177,31 @@ function presentRide(db: Db, ride: RideRequest) {
         }
       : null,
   };
+  if (audience === "driver") {
+    return {
+      ...shared,
+      client_name: client?.first_name ?? "Passenger",
+      client: client
+        ? {
+            id: client.id,
+            first_name: client.first_name,
+            notes: client.notes,
+          }
+        : null,
+    };
+  }
+  return {
+    ...shared,
+    client: client ?? null,
+    client_name: client
+      ? `${client.first_name} ${client.last_name}`
+      : "Unknown client",
+  };
+}
+
+function reviewerName(db: Db, userId?: string): string | null {
+  if (!userId) return null;
+  return db.staff.find((row) => row.id === userId)?.name ?? null;
 }
 
 function applySampleMetrics(ride: RideRequest): void {
@@ -640,7 +690,8 @@ export function registerApi(app: Express): void {
         res.status(403).json({ message: "You cannot view this ride." });
         return;
       }
-      res.json({ ride: presentRide(db, ride) });
+      const audience = auth?.kind === "driver" ? "driver" : "staff";
+      res.json({ ride: presentRide(db, ride, audience) });
     }),
   );
 
@@ -826,7 +877,7 @@ export function registerApi(app: Express): void {
       }
       const rides = db.rides
         .filter((ride) => driverCanClaim(db, driver, vehicle, ride).ok)
-        .map((ride) => presentRide(db, ride));
+        .map((ride) => presentRide(db, ride, "driver"));
       res.json({ rides });
     }),
   );
@@ -839,7 +890,7 @@ export function registerApi(app: Express): void {
       const db = readDb();
       const rides = db.rides
         .filter((ride) => ride.driver_id === driverId)
-        .map((ride) => presentRide(db, ride));
+        .map((ride) => presentRide(db, ride, "driver"));
       res.json({ rides });
     }),
   );
@@ -865,7 +916,7 @@ export function registerApi(app: Express): void {
         ride.waiting_minutes = check.availability.max_wait_minutes;
         ride.updated_at = new Date().toISOString();
         notify(db, ride, "driver_assigned");
-        return { ride: presentRide(db, ride) };
+        return { ride: presentRide(db, ride, "driver") };
       });
       const failed = failure(outcome);
       if (failed) {
@@ -908,7 +959,7 @@ export function registerApi(app: Express): void {
             ride.cancelled_reason = reason;
           }
           if (type) notify(db, ride, type);
-          return { ride: presentRide(db, ride) };
+          return { ride: presentRide(db, ride, "driver") };
         });
         const failed = failure(outcome);
         if (failed) {
@@ -954,7 +1005,7 @@ export function registerApi(app: Express): void {
         ride.cancelled_reason = reason;
         ride.updated_at = new Date().toISOString();
         notify(db, ride, "cancelled");
-        return { ride: presentRide(db, ride) };
+        return { ride: presentRide(db, ride, "driver") };
       });
       const failed = failure(outcome);
       if (failed) {
@@ -1075,6 +1126,7 @@ export function registerApi(app: Express): void {
           organization_name:
             db.organizations.find((org) => org.id === row.approved_by_org_id)
               ?.name ?? "",
+          reviewed_by_name: reviewerName(db, row.approved_by_user_id),
         }));
       res.json({ verifications });
     }),
@@ -1247,12 +1299,69 @@ export function registerApi(app: Express): void {
           (item) => item.id === param(req, "id") && item.driver_id === driverId,
         );
         if (!availability) return null;
+        const editing =
+          req.body.kind !== undefined ||
+          req.body.start_time !== undefined ||
+          req.body.end_time !== undefined;
+        if (editing) {
+          const kind = String(req.body.kind ?? availability.kind);
+          const start = String(req.body.start_time ?? availability.start_time);
+          const end = String(req.body.end_time ?? availability.end_time);
+          if (
+            !["one_time", "weekly", "monthly"].includes(kind) ||
+            !start ||
+            !end ||
+            end <= start
+          )
+            return { error: "Choose an end time after the start time." };
+          const weekdays = Array.isArray(req.body.weekdays)
+            ? req.body.weekdays.map(Number)
+            : [];
+          const monthDays = Array.isArray(req.body.month_days)
+            ? req.body.month_days.map(Number)
+            : [];
+          const onDate = String(req.body.on_date ?? "");
+          if (kind === "one_time" && !onDate)
+            return { error: "One-time availability needs a date." };
+          if (kind === "weekly" && weekdays.length === 0)
+            return { error: "Weekly availability needs at least one weekday." };
+          if (kind === "monthly" && monthDays.length === 0)
+            return {
+              error:
+                "Monthly availability needs at least one day of the month.",
+            };
+          availability.kind = kind as DriverAvailability["kind"];
+          availability.start_time = start;
+          availability.end_time = end;
+          delete availability.weekdays;
+          delete availability.month_days;
+          delete availability.on_date;
+          if (kind === "one_time") availability.on_date = onDate;
+          if (kind === "weekly") availability.weekdays = weekdays;
+          if (kind === "monthly") availability.month_days = monthDays;
+          if (req.body.centre_lat !== undefined)
+            availability.centre_lat = Number(req.body.centre_lat);
+          if (req.body.centre_lng !== undefined)
+            availability.centre_lng = Number(req.body.centre_lng);
+          if (req.body.radius_km !== undefined)
+            availability.radius_km = Number(req.body.radius_km);
+          if (req.body.minimum_notice_minutes !== undefined)
+            availability.minimum_notice_minutes = Number(
+              req.body.minimum_notice_minutes,
+            );
+          if (req.body.max_wait_minutes !== undefined)
+            availability.max_wait_minutes = Number(req.body.max_wait_minutes);
+        }
         if (req.body.is_active !== undefined)
           availability.is_active = Boolean(req.body.is_active);
         return availability;
       });
       if (!row) {
         res.status(404).json({ message: "Availability not found." });
+        return;
+      }
+      if ("error" in row) {
+        res.status(400).json({ message: row.error });
         return;
       }
       res.json({ availability: row });
@@ -1299,6 +1408,7 @@ export function registerApi(app: Express): void {
             driver_email: driver?.email ?? "",
             driver_phone: driver?.phone ?? "",
             vehicle,
+            reviewed_by_name: reviewerName(db, row.approved_by_user_id),
           };
         });
       res.json({ verifications });

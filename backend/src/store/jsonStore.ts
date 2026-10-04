@@ -61,7 +61,7 @@ function seed(): Db {
     type: "partner_org",
     contact_name: "Alvin Demo",
     email: "belkin@careride.local",
-    phone: "604-555-0100",
+    phone: "(604) 681-3405",
     address: "228 W. 5th Ave, Vancouver",
     status: "active",
     created_at: now,

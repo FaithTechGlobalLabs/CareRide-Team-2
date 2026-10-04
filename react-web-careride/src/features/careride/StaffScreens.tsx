@@ -13,6 +13,7 @@ import {
   PageTitle,
   Panel,
   ReasonAction,
+  ReviewNote,
   Success,
   dateTime,
 } from "./ui"
@@ -424,10 +425,6 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
         title="Let’s get them there."
         description="Arrange a free ride to the places that matter."
       />
-      <p className="info-box">
-        For emergencies, call 911. CareRide helps with planned trips to
-        essential services.
-      </p>
       <div className="booking-columns">
         <Panel title="Book a ride" className="form-panel">
           <Form
@@ -655,6 +652,21 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               $0<span>for the client</span>
             </div>
           </Panel>
+          <Panel title="In an emergency" className="emergency-panel">
+            <h3>Call 911.</h3>
+            <p>
+              CareRide is for planned trips to essential services, not
+              emergencies.
+            </p>
+            <a
+              className="btn secondary"
+              href="https://erstat.ca/hospitals/bc/vancouver"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Vancouver ER wait times
+            </a>
+          </Panel>
         </div>
       </div>
     </Layout>
@@ -679,6 +691,7 @@ export function NotificationsScreen() {
           />
           Show unread only
         </label>
+        <div className="notice-list">
         {notices.map((n) => (
           <article key={n.id} className={`notice ${n.read_at ? "" : "unread"}`}>
             <div>
@@ -713,6 +726,7 @@ export function NotificationsScreen() {
             )}
           </article>
         ))}
+        </div>
         {!notices.length && (
           <Empty
             title="You’re all caught up."
@@ -753,6 +767,7 @@ export function ApprovalsScreen() {
               {v.expires_on && ` · Expires ${v.expires_on}`}
             </p>
             {v.reject_reason && <p className="error-box">{v.reject_reason}</p>}
+            <ReviewNote record={v} />
             {v.status === "pending" && (
               <div className="action-row">
                 <ActionButton

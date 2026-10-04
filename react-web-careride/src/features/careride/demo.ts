@@ -6,13 +6,34 @@ import type {
   Availability,
   Verification,
 } from "./types"
+import { addDays, vancouverYmd } from "./dates"
 
-const KEY = "careride-screen-demo-v2"
+const KEY = "careride-screen-demo-v4"
 const org = {
   id: "org_belkin",
   name: "Belkin Communities of Hope",
   type: "partner_org" as const,
   address: "228 W. 5th Ave, Vancouver",
+  phone: "(604) 681-3405",
+}
+
+function wallTime(dayOffset: number, hour: number, minute = 0) {
+  const ymd = addDays(vancouverYmd(new Date()), dayOffset)
+  const [year, month, day] = ymd.split("-").map(Number)
+  const guess = new Date(Date.UTC(year, month - 1, day, hour + 7, minute))
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Vancouver",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(guess)
+  const gotHour = Number(parts.find((part) => part.type === "hour")?.value ?? 0)
+  const gotMinute = Number(
+    parts.find((part) => part.type === "minute")?.value ?? 0
+  )
+  const delta =
+    hour * 60 + minute - ((gotHour === 24 ? 0 : gotHour) * 60 + gotMinute)
+  return new Date(guess.getTime() + delta * 60000).toISOString()
 }
 const demoDrivers: Driver[] = [
   {
@@ -175,6 +196,44 @@ function seed(): Data {
     rides: [
       {
         ...base,
+        id: "ride_today_morning",
+        status: "accepted",
+        client_id: "client_jamie",
+        driver_id: driver.id,
+        driver,
+        requested_pickup_at: wallTime(0, 9, 30),
+        accepted_at: now(),
+        duration_minutes: 40,
+        notes: "Morning clinic visit.",
+        sample: true,
+      },
+      {
+        ...base,
+        id: "ride_today_afternoon",
+        status: "accepted",
+        client_id: "client_chong",
+        driver_id: driver.id,
+        driver,
+        requested_pickup_at: wallTime(0, 13, 15),
+        accepted_at: now(),
+        duration_minutes: 35,
+        notes: "Afternoon appointment.",
+        sample: true,
+      },
+      {
+        ...base,
+        id: "ride_tomorrow",
+        status: "accepted",
+        client_id: "client_winnie",
+        driver_id: driver.id,
+        driver,
+        requested_pickup_at: wallTime(1, 11, 0),
+        accepted_at: now(),
+        duration_minutes: 50,
+        sample: true,
+      },
+      {
+        ...base,
         id: "ride_demo",
         status: "requested",
         requested_pickup_at: pickup.toISOString(),
@@ -183,12 +242,21 @@ function seed(): Data {
       },
       {
         ...base,
+        id: "ride_later",
+        status: "requested",
+        client_id: "client_joe",
+        requested_pickup_at: wallTime(2, 15, 0),
+        sample: true,
+      },
+      {
+        ...base,
         id: "ride_sample",
         status: "completed",
-        requested_pickup_at: new Date(Date.now() - 86400000).toISOString(),
-        completed_at: new Date(Date.now() - 85000000).toISOString(),
+        requested_pickup_at: wallTime(-1, 15, 0),
+        completed_at: wallTime(-1, 15, 40),
         driver_id: driver.id,
         driver,
+        duration_minutes: 25,
         sample: true,
         estimated_cost_saved: 22,
       },
@@ -196,6 +264,13 @@ function seed(): Data {
     availableRides: [],
     organizations: [
       org,
+      {
+        id: "org_raincity",
+        name: "RainCity Housing",
+        type: "partner_org",
+        address: "153 Powell St, Vancouver",
+        phone: "(604) 254-9999",
+      },
       {
         id: "org_provider",
         name: "Community Transport",
@@ -211,6 +286,9 @@ function seed(): Data {
       organization: org,
       check_type: "identity",
       status: "approved",
+      approved_by_user_id: "staff_alvin",
+      reviewed_by_name: "Alvin Demo",
+      reviewed_at: now(),
     })),
     availability: demoDrivers.map((item, index) => ({
       id: `avail_${item.id.replace("driver_", "")}`,
@@ -227,7 +305,30 @@ function seed(): Data {
       max_wait_minutes: 15,
       is_active: true,
     })),
-    notifications: [],
+    notifications: [
+      {
+        id: "note_assigned",
+        ride_request_id: "ride_today_morning",
+        type: "driver_assigned",
+        message: "Olive Demo accepted Jamie’s ride to St. Paul's Hospital.",
+        sent_at: now(),
+      },
+      {
+        id: "note_confirmed",
+        ride_request_id: "ride_demo",
+        type: "confirmation",
+        message: "Jamie’s ride request is confirmed and waiting for a driver.",
+        sent_at: now(),
+      },
+      {
+        id: "note_completed",
+        ride_request_id: "ride_sample",
+        type: "completed",
+        message: "Jamie arrived at St. Paul's Hospital.",
+        sent_at: wallTime(-1, 15, 40),
+        read_at: now(),
+      },
+    ],
     summary: {
       completed_rides: 1,
       estimated_cost_saved: 22,
@@ -236,13 +337,24 @@ function seed(): Data {
   }
 }
 export function readDemo(): Data {
+  let data: Data
   try {
     const saved = localStorage.getItem(KEY)
-    if (saved) return JSON.parse(saved) as Data
+    data = saved ? (JSON.parse(saved) as Data) : seed()
   } catch {
-    /* Start fresh if browser data is unavailable. */
+    data = seed()
   }
-  return seed()
+  if (!data.organizations.some((item) => item.id === "org_raincity")) {
+    data.organizations.push({
+      id: "org_raincity",
+      name: "RainCity Housing",
+      type: "partner_org",
+      address: "153 Powell St, Vancouver",
+      phone: "(604) 254-9999",
+    })
+    save(data)
+  }
+  return data
 }
 function save(data: Data) {
   localStorage.setItem(KEY, JSON.stringify(data))
@@ -299,11 +411,45 @@ function eligible(ride: Ride, data: Data, activeDriver = driver) {
           (!a.starts_on || localDate >= a.starts_on) &&
           (!a.ends_on || localDate <= a.ends_on) &&
           ((a.kind === "one_time" && localDate === a.on_date) ||
-            (a.kind === "weekly" && a.weekdays?.includes(day)))
+            (a.kind === "weekly" && a.weekdays?.includes(day)) ||
+            (a.kind === "monthly" &&
+              a.month_days?.includes(Number(p.day))))
         )
       })
   )
 }
+function presentDemoRide(ride: Ride, data: Data, driverView: boolean): Ride {
+  const client = data.clients.find((item) => item.id === ride.client_id)
+  const pickup = data.destinations.find(
+    (item) => item.id === ride.pickup_id || item.address === ride.pickup_address
+  )
+  const destination = data.destinations.find(
+    (item) =>
+      item.id === ride.destination_id || item.address === ride.destination_address
+  )
+  const organization =
+    data.organizations.find((item) => item.id === ride.organization_id) ?? org
+  return {
+    ...ride,
+    pickup_name: pickup?.name,
+    destination_name: destination?.name,
+    organization_name: organization.name,
+    organization_phone: organization.phone,
+    client: client
+      ? driverView
+        ? {
+            ...client,
+            last_name: "",
+            phone: undefined,
+            email: undefined,
+            address: undefined,
+            dob: "",
+          }
+        : client
+      : undefined,
+  }
+}
+
 export async function demoRequest(
   path: string,
   method: string,
@@ -368,15 +514,20 @@ export async function demoRequest(
     if (path === "/organizations") return data.organizations
     if (path === "/clients") return data.clients
     if (path === "/destinations") return data.destinations
-    if (path === "/rides") return data.rides
+    if (path === "/rides")
+      return data.rides.map((ride) => presentDemoRide(ride, data, false))
     if (path === "/drivers/me/rides")
-      return data.rides.filter((r) => r.driver_id === session?.user.id)
+      return data.rides
+        .filter((r) => r.driver_id === session?.user.id)
+        .map((ride) => presentDemoRide(ride, data, true))
     if (path === "/drivers/me/rides/available") {
       const activeDriver = demoDrivers.find(
         (item) => item.id === session?.user.id
       )
       return activeDriver
-        ? data.rides.filter((r) => eligible(r, data, activeDriver))
+        ? data.rides
+            .filter((r) => eligible(r, data, activeDriver))
+            .map((ride) => presentDemoRide(ride, data, true))
         : []
     }
     if (path === "/drivers/me/availability")
@@ -392,8 +543,12 @@ export async function demoRequest(
         estimated_cost_saved: 22,
         staff_minutes_saved: 12,
       }
-    if (path.startsWith("/rides/"))
-      return data.rides.find((r) => r.id === path.split("/")[2])
+    if (path.startsWith("/rides/")) {
+      const ride = data.rides.find((r) => r.id === path.split("/")[2])
+      return ride
+        ? presentDemoRide(ride, data, session?.user.role === "driver")
+        : ride
+    }
   }
   const notice = (ride: Ride, type: string) =>
     data.notifications.unshift({
@@ -534,6 +689,9 @@ export async function demoRequest(
     if (!record) throw new Error("Verification not found.")
     record.status = path.endsWith("/approve") ? "approved" : "rejected"
     record.reject_reason = String(b.reason || "")
+    record.reviewed_at = now()
+    record.reviewed_by_name = session?.user.name
+    record.approved_by_user_id = session?.user.id
     result = record
   } else if (path.startsWith("/notifications/")) {
     const n = data.notifications.find((n) => n.id === path.split("/")[2])

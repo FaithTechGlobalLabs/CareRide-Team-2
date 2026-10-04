@@ -1,10 +1,9 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import {
   Bell,
   CalendarDays,
   CarFront,
-  ChevronDown,
   CircleHelp,
   ClipboardCheck,
   HeartHandshake,
@@ -25,9 +24,13 @@ export function Layout({
   children: ReactNode
   driver?: boolean
 }) {
-  const { session, logout, data, error, refresh, loading } = useCare()
+  const { session, logout, data, error } = useCare()
   const path = useLocation({ select: (s) => s.pathname })
   const navigate = useNavigate()
+  const [accountOpen, setAccountOpen] = useState(false)
+  useEffect(() => {
+    setAccountOpen(false)
+  }, [path])
   if (!session)
     return (
       <main className="access-page">
@@ -75,6 +78,15 @@ export function Layout({
         { to: "/notifications", title: "Notifications", icon: Bell },
       ]
   const unread = data.notifications.filter((n) => !n.read_at).length
+  const navActive = (to: string) => {
+    if (to === "/") return path === "/"
+    if (to === "/driver") return path === "/driver" || path.startsWith("/rides/")
+    return path === to || path.startsWith(`${to}/`)
+  }
+  const signOut = () => {
+    logout()
+    void navigate({ to: "/login" })
+  }
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
@@ -102,7 +114,6 @@ export function Layout({
                 : "Partner organization"}
             </small>
           </div>
-          <ChevronDown size={14} />
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
@@ -110,7 +121,8 @@ export function Layout({
             <Link
               key={to}
               to={to}
-              className={`nav-link ${(to === "/" ? path === "/" : path === to || path.startsWith(`${to}/`)) ? "active" : ""}`}
+              activeOptions={{ exact: to === "/" || to === "/driver" }}
+              className={`nav-link ${navActive(to) ? "active" : ""}`}
             >
               <Icon size={19} />
               <span>{title}</span>
@@ -129,13 +141,7 @@ export function Layout({
             </strong>
             <p>Connecting people to the care they need.</p>
           </div>
-          <button
-            className="nav-link"
-            onClick={() => {
-              logout()
-              void navigate({ to: "/login" })
-            }}
-          >
+          <button className="nav-link" onClick={signOut}>
             <LogOut size={18} />
             Log out
           </button>
@@ -151,16 +157,6 @@ export function Layout({
           </div>
           <div className="topbar-actions">
             {IS_DEMO && <span className="demo-pill">Screen demo</span>}
-            <button
-              className="icon-button refresh-button"
-              title="Refresh data"
-              aria-label="Refresh data"
-              onClick={() => {
-                void refresh()
-              }}
-            >
-              <span className={loading ? "spinning" : ""}>↻</span>
-            </button>
             {!driver && (
               <Link
                 to="/notifications"
@@ -171,13 +167,33 @@ export function Layout({
                 {unread > 0 && <i />}
               </Link>
             )}
-            <div className="user-avatar">
+            <button
+              type="button"
+              className="user-avatar"
+              aria-label="Account menu"
+              aria-expanded={accountOpen}
+              aria-haspopup="menu"
+              onClick={() => setAccountOpen((open) => !open)}
+            >
               {session.user.name
                 .split(" ")
                 .map((n) => n[0])
                 .slice(0, 2)
                 .join("")}
-            </div>
+            </button>
+            {accountOpen && (
+              <div className="user-menu" role="menu">
+                <div>
+                  <strong>{session.user.name}</strong>
+                  <small>
+                    {driver ? "Volunteer driver" : "Organization admin"}
+                  </small>
+                </div>
+                <button type="button" className="btn secondary" onClick={signOut}>
+                  <LogOut size={16} /> Log out
+                </button>
+              </div>
+            )}
             <div className="user-info">
               <strong>{session.user.name}</strong>
               <small>
@@ -206,7 +222,12 @@ export function Layout({
       </div>
       <nav className="mobile-nav" aria-label="Mobile navigation">
         {nav.slice(0, 4).map(({ to, title, icon: Icon }) => (
-          <Link key={to} to={to} className={path === to ? "active" : ""}>
+          <Link
+            key={to}
+            to={to}
+            activeOptions={{ exact: to === "/" || to === "/driver" }}
+            className={navActive(to) ? "active" : ""}
+          >
             <Icon size={19} />
             <span>{title}</span>
           </Link>

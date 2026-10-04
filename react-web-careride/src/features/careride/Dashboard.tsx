@@ -207,14 +207,14 @@ function Stat({
   tone?: string
 }) {
   return (
-    <div className={`stat-card ${tone}`}>
+    <Link to="/rides" className={`stat-card ${tone}`}>
       <div>
         <span>{title}</span>
         <span className="stat-icon">{icon}</span>
       </div>
       <strong>{value.toString().padStart(2, "0")}</strong>
       <small>{note}</small>
-    </div>
+    </Link>
   )
 }
 export function RidesScreen() {

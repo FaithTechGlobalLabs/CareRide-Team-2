@@ -9,8 +9,7 @@ import bcrypt from "bcrypt";
 import fs from "node:fs";
 import path from "node:path";
 import { readDb, update, uploadsDir } from "../store/jsonStore.js";
-import { preference } from "../notifications/events.js";
-import { pushConfig, flushPush } from "../notifications/push.js";
+import { registerSqlNotificationApi } from "../notifications/sqlApi.js";
 
 type PersonalRequest = Request & {
   auth: { sub: string; kind: "staff" | "driver"; organizationId?: string };
@@ -25,173 +24,7 @@ const route =
   };
 
 export function registerPersonalApi(app: Express, auth: RequestHandler): void {
-  app.get(
-    "/notifications/preferences",
-    auth,
-    route(async (req, res) => {
-      const prefs = await update((db) =>
-        preference(db, req.auth.sub, req.auth.kind),
-      );
-      res.json({ preferences: { ...prefs, ...pushConfig() } });
-    }),
-  );
-  app.patch(
-    "/notifications/preferences",
-    auth,
-    route(async (req, res) => {
-      const prefs = await update((db) => {
-        const p = preference(db, req.auth.sub, req.auth.kind);
-        for (const key of [
-          "push_enabled",
-          "updates_enabled",
-          "available_rides_enabled",
-        ] as const)
-          if (typeof req.body[key] === "boolean") p[key] = req.body[key];
-        if (req.body.prompt === "later") {
-          p.prompt_after = new Date(Date.now() + 7 * 86400000).toISOString();
-          p.prompt_snoozed_until = p.prompt_after;
-        }
-        if (req.body.prompt === "declined") {
-          p.prompt_dismissed = true;
-          p.push_enabled = false;
-        }
-        if (req.body.prompt === "accepted") p.prompt_dismissed = true;
-        if (["later", "declined", "accepted"].includes(req.body.prompt))
-          p.first_ride_prompt_pending = false;
-        return p;
-      });
-      res.json({ preferences: { ...prefs, ...pushConfig() } });
-    }),
-  );
-  app.post(
-    "/notifications/subscriptions",
-    auth,
-    route(async (req, res) => {
-      if (!pushConfig().configured) {
-        res
-          .status(503)
-          .json({
-            message:
-              "Browser notifications are not configured yet. Your inbox still works.",
-          });
-        return;
-      }
-      const { endpoint, keys } = req.body;
-      let url: URL;
-      try {
-        url = new URL(endpoint);
-      } catch {
-        res.status(400).json({ message: "Invalid push subscription." });
-        return;
-      }
-      const hosts = [
-        "fcm.googleapis.com",
-        "updates.push.services.mozilla.com",
-        "web.push.apple.com",
-        "wns.windows.com",
-        "notify.windows.com",
-      ];
-      if (
-        url.protocol !== "https:" ||
-        url.username ||
-        url.password ||
-        (url.port && url.port !== "443") ||
-        !hosts.some(
-          (h) => url.hostname === h || url.hostname.endsWith(`.${h}`),
-        ) ||
-        typeof keys?.p256dh !== "string" ||
-        !/^[A-Za-z0-9_-]{87}=?$/.test(keys.p256dh) ||
-        typeof keys?.auth !== "string" ||
-        !/^[A-Za-z0-9_-]{22}={0,2}$/.test(keys.auth)
-      ) {
-        res
-          .status(400)
-          .json({ message: "Unsupported or invalid push subscription." });
-        return;
-      }
-      await update((db) => {
-        const existing = db.pushSubscriptions?.find(
-          (s) => s.endpoint === endpoint,
-        );
-        const sameOwner =
-          existing?.user_id === req.auth.sub && existing.kind === req.auth.kind;
-        db.pushSubscriptions = (db.pushSubscriptions ?? []).filter(
-          (s) => s.endpoint !== endpoint,
-        );
-        if (!sameOwner)
-          db.pushDeliveries = (db.pushDeliveries ?? []).filter(
-            (d) => d.endpoint !== endpoint,
-          );
-        db.pushSubscriptions.push({
-          user_id: req.auth.sub,
-          kind: req.auth.kind,
-          endpoint,
-          keys: { p256dh: keys.p256dh, auth: keys.auth },
-          created_at: sameOwner
-            ? existing.created_at
-            : new Date().toISOString(),
-        });
-        const p = preference(db, req.auth.sub, req.auth.kind);
-        p.push_enabled = true;
-        p.prompt_dismissed = true;
-      });
-      res.status(201).json({ message: "Browser notifications enabled." });
-    }),
-  );
-  app.delete(
-    "/notifications/subscriptions",
-    auth,
-    route(async (req, res) => {
-      await update((db) => {
-        const endpoints = new Set(
-          (db.pushSubscriptions ?? [])
-            .filter(
-              (s) =>
-                s.user_id === req.auth.sub &&
-                s.kind === req.auth.kind &&
-                (!req.body.endpoint || s.endpoint === req.body.endpoint),
-            )
-            .map((s) => s.endpoint),
-        );
-        db.pushSubscriptions = (db.pushSubscriptions ?? []).filter(
-          (s) => !endpoints.has(s.endpoint),
-        );
-        db.pushDeliveries = (db.pushDeliveries ?? []).filter(
-          (d) => !endpoints.has(d.endpoint),
-        );
-      });
-      res.json({
-        message: "This device will no longer receive notifications.",
-      });
-    }),
-  );
-  app.post(
-    "/notifications/read-all",
-    auth,
-    route(async (req, res) => {
-      await update((db) => {
-        for (const n of db.notifications)
-          if (
-            n.recipient_user_id === req.auth.sub &&
-            n.recipient === req.auth.kind
-          )
-            n.read_at = new Date().toISOString();
-      });
-      res.json({ message: "All notifications marked as read." });
-    }),
-  );
-  app.post(
-    "/internal/notifications/dispatch",
-    route(async (req, res) => {
-      const token = process.env.NOTIFICATION_WORKER_TOKEN;
-      if (!token || req.header("authorization") !== `Bearer ${token}`) {
-        res.status(401).json({ message: "Unauthorized." });
-        return;
-      }
-      await flushPush();
-      res.json({ message: "Delivery batch processed." });
-    }),
-  );
+  registerSqlNotificationApi(app, auth);
 
   for (const target of ["account", "organization"] as const)
     app.delete(
@@ -320,7 +153,7 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
           db.notifications = db.notifications.filter(
             (n) =>
               !users.has(n.recipient_user_id) &&
-              !removedRides.has(n.ride_request_id),
+              !removedRides.has(n.ride_request_id ?? ""),
           );
           db.notificationPreferences = (
             db.notificationPreferences ?? []

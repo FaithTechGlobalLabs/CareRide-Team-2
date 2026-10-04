@@ -1,5 +1,6 @@
 export type RideStatus =
   | "requested"
+  | "accepted"
   | "approved"
   | "in_progress"
   | "completed"
@@ -10,6 +11,8 @@ export type RideStatus =
 export type RideOption = "free" | "paid_external";
 
 export interface RideRequest {
+  requested_by_user_id?: string;
+  waiting_minutes?: number;
   id: string;
   client_id: string;
   requested_by_staff_id: string;

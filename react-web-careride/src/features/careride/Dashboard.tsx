@@ -166,9 +166,6 @@ export function Dashboard() {
             </div>
           </Panel>
           <Panel title="A helping hand" className="help-panel">
-            <span className="help-illustration">
-              <HeartHandshake size={46} strokeWidth={1.3} />
-            </span>
             <h3>
               Care goes further
               <br />

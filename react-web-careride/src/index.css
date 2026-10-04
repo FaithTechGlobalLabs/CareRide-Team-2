@@ -245,7 +245,7 @@
 .emergency-panel p { color: var(--care-muted); font-size: .76rem; line-height: 1.55; }
 .help-panel h3 { margin: 7px 0; font-family: Georgia, serif; font-size: 1.3rem; font-weight: 540; line-height: 1.25; }
 .help-panel p { color: var(--care-muted); font-size: .76rem; line-height: 1.55; }
-.help-illustration, .impact-icon { display: grid; width: 65px; height: 65px; place-items: center; border-radius: 50%; background: #dceee3; color: var(--care-green); }
+.impact-icon { display: grid; width: 65px; height: 65px; place-items: center; border-radius: 50%; background: #dceee3; color: var(--care-green); }
 .impact-panel { background: #fcfbf6; }
 .impact-inner { display: flex; align-items: center; gap: 18px; }
 .impact-icon { flex-shrink: 0; aspect-ratio: 1; }
@@ -629,7 +629,7 @@ button.user-avatar { border: 0; cursor: pointer; font: inherit; }
 }
 
 .mobile-home-brand, .mobile-community-signoff { display: none; }
-.community-note svg, .help-illustration svg, .impact-icon svg, .empty-icon svg { fill: none; color: var(--care-gold); }
+.community-note svg, .impact-icon svg, .empty-icon svg { fill: none; color: var(--care-gold); }
 .journey-art svg { fill: none; }
 .auth-main { position: relative; }
 .directions-controls { display: grid; gap: 12px; margin-top: 20px; }

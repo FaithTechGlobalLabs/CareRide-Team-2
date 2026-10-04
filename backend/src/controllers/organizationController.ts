@@ -16,38 +16,20 @@ export const registerOrganization = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const {
-      name,
-      type,
-      email,
-      phone,
-      address,
-      staffName,
-      staffEmail,
-      staffPhone,
-      staffPassword,
-    } = req.body;
+    const { name, email, phone, staffName, staffEmail, staffPhone, staffPassword } =
+      req.body;
 
     if (
       !name ||
-      !type ||
       !email ||
       !phone ||
-      !address ||
       !staffName ||
       !staffEmail ||
       !staffPhone ||
       !staffPassword
     ) {
       res.status(400).json({
-        message: "All organization and staff fields are required.",
-      });
-      return;
-    }
-
-    if (!["partner_org", "transport_provider"].includes(type)) {
-      res.status(400).json({
-        message: "Invalid organization type.",
+        message: "Organization name, email, phone, and the first staff account are required.",
       });
       return;
     }
@@ -72,12 +54,8 @@ export const registerOrganization = async (
 
     const organizationData: Omit<Organization, "id" | "created_at"> = {
       name,
-      type,
-      contact_name: staffName,
       email,
       phone,
-      address,
-      status: "active",
     };
 
     const organization = await createOrganization(organizationData);
@@ -90,7 +68,6 @@ export const registerOrganization = async (
       email: staffEmail,
       phone: staffPhone,
       password_hash: passwordHash,
-      role: "admin",
       is_active: true,
     };
 
@@ -101,11 +78,8 @@ export const registerOrganization = async (
       organization: {
         id: organization.id,
         name: organization.name,
-        type: organization.type,
         email: organization.email,
         phone: organization.phone,
-        address: organization.address,
-        status: organization.status,
       },
       staff: {
         id: staff.id,
@@ -113,7 +87,6 @@ export const registerOrganization = async (
         name: staff.name,
         email: staff.email,
         phone: staff.phone,
-        role: staff.role,
       },
     });
   } catch (error) {

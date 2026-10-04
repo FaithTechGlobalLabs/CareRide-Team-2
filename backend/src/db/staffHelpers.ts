@@ -23,16 +23,15 @@ export const findStaffByEmail = async (
 export const createStaff = async (staff: Omit<Staff, "id">): Promise<Staff> => {
   const result = await pool.query<Staff>(
     `INSERT INTO staff
-      (organization_id, name, email, phone, password_hash, role, is_active)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING *`,
+      (organization_id, name, email, phone, password_hash, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, organization_id, name, email, phone, password_hash, is_active`,
     [
       staff.organization_id,
       staff.name,
       staff.email,
       staff.phone,
       staff.password_hash,
-      staff.role,
       staff.is_active,
     ],
   );

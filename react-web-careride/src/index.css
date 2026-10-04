@@ -248,6 +248,7 @@
 .help-illustration, .impact-icon { display: grid; width: 65px; height: 65px; place-items: center; border-radius: 50%; background: #dceee3; color: var(--care-green); }
 .impact-panel { background: #fcfbf6; }
 .impact-inner { display: flex; align-items: center; gap: 18px; }
+.impact-icon { flex-shrink: 0; aspect-ratio: 1; }
 .impact-inner h3 { margin: 7px 0 3px; font-family: Georgia, serif; font-size: 1.25rem; font-weight: 540; }
 .impact-inner p { margin: 0; color: var(--care-muted); font-size: .74rem; }
 .impact-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 20px; border: 1px solid #e7e3d7; border-radius: 13px; overflow: hidden; background: #e7e3d7; }

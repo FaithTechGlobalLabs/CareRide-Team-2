@@ -350,20 +350,16 @@ export function registerApi(app: Express): void {
         !adminEmail ||
         adminPassword.length < 8
       ) {
-        res
-          .status(400)
-          .json({
-            message:
-              "Fill in the organization and a password of at least 8 characters.",
-          });
+        res.status(400).json({
+          message:
+            "Fill in the organization and a password of at least 8 characters.",
+        });
         return;
       }
       if (type !== "partner_org" && type !== "transport_provider") {
-        res
-          .status(400)
-          .json({
-            message: "Choose partner organization or transportation provider.",
-          });
+        res.status(400).json({
+          message: "Choose partner organization or transportation provider.",
+        });
         return;
       }
       const created = await update((db) => {
@@ -451,11 +447,9 @@ export function registerApi(app: Express): void {
       const dob = String(req.body.dob ?? "").trim();
       const notes = String(req.body.notes ?? "").trim();
       if (!first || !last || !dob) {
-        res
-          .status(400)
-          .json({
-            message: "First name, last name, and date of birth are required.",
-          });
+        res.status(400).json({
+          message: "First name, last name, and date of birth are required.",
+        });
         return;
       }
       if (notes.length > 50) {
@@ -718,12 +712,10 @@ export function registerApi(app: Express): void {
         !Number.isFinite(passengers) ||
         passengers < 1
       ) {
-        res
-          .status(400)
-          .json({
-            message:
-              "Client, pickup, destination, pickup time, and passenger count are required.",
-          });
+        res.status(400).json({
+          message:
+            "Client, pickup, destination, pickup time, and passenger count are required.",
+        });
         return;
       }
       if (tripType === "round_trip" && !returnAt) {
@@ -752,6 +744,8 @@ export function registerApi(app: Express): void {
           return {
             error: "Choose an active client and address-book locations.",
           };
+        if (pickup.id === destination.id)
+          return { error: "Pickup and destination must be different places." };
         const now = new Date().toISOString();
         const needs = Array.isArray(req.body.accessibility_needs)
           ? req.body.accessibility_needs.map(String).join(", ")
@@ -823,6 +817,95 @@ export function registerApi(app: Express): void {
         return;
       }
       res.status(201).json(result);
+    }),
+  );
+
+  app.patch(
+    "/rides/:id",
+    requireAuth("staff"),
+    asyncRoute(async (req, res) => {
+      const orgId = req.auth?.organizationId ?? "";
+      const clientId = String(req.body.client_id ?? "");
+      const pickupId = String(
+        req.body.pickup_destination_id ?? req.body.pickup_id ?? "",
+      );
+      const destinationId = String(
+        req.body.destination_destination_id ?? req.body.destination_id ?? "",
+      );
+      const pickupAt = String(req.body.requested_pickup_at ?? "");
+      const passengers = Number(req.body.passenger_count);
+      if (
+        !clientId ||
+        !pickupId ||
+        !destinationId ||
+        !pickupAt ||
+        !Number.isFinite(passengers) ||
+        passengers < 1
+      ) {
+        res.status(400).json({
+          message:
+            "Client, pickup, destination, pickup time, and passenger count are required.",
+        });
+        return;
+      }
+      const result = await update((db) => {
+        const ride = db.rides.find(
+          (row) => row.id === param(req, "id") && row.organization_id === orgId,
+        );
+        if (!ride) return { error: "Ride not found.", status: 404 };
+        if (ride.status !== "requested")
+          return {
+            error:
+              "This booking can no longer be edited after a driver is assigned.",
+            status: 409,
+          };
+        const client = db.clients.find(
+          (row) => row.id === clientId && row.organization_id === orgId,
+        );
+        const pickup = db.destinations.find(
+          (row) =>
+            row.id === pickupId &&
+            row.organization_id === orgId &&
+            row.is_active,
+        );
+        const destination = db.destinations.find(
+          (row) =>
+            row.id === destinationId &&
+            row.organization_id === orgId &&
+            row.is_active,
+        );
+        if (!client || !pickup || !destination)
+          return {
+            error: "Choose an active client and address-book locations.",
+            status: 400,
+          };
+        if (pickup.id === destination.id)
+          return {
+            error: "Pickup and destination must be different places.",
+            status: 400,
+          };
+
+        ride.client_id = client.id;
+        ride.pickup_address = pickup.address;
+        ride.pickup_lat = pickup.lat;
+        ride.pickup_lng = pickup.lng;
+        ride.destination_id = destination.id;
+        ride.destination_address = destination.address;
+        ride.destination_lat = destination.lat;
+        ride.destination_lng = destination.lng;
+        ride.requested_pickup_at = pickupAt;
+        ride.passenger_count = passengers;
+        ride.accessibility_needs = String(req.body.accessibility_needs ?? "");
+        ride.notes = String(req.body.notes ?? "").trim();
+        ride.updated_at = new Date().toISOString();
+        return { ride: presentRide(db, ride) };
+      });
+      const failed = failure(result);
+      if (failed) {
+        res.status(failed.status).json({ message: failed.error });
+        return;
+      }
+      res.json(result);
     }),
   );
 
@@ -1046,12 +1129,10 @@ export function registerApi(app: Express): void {
         !Number.isFinite(seats) ||
         seats < 1
       ) {
-        res
-          .status(400)
-          .json({
-            message:
-              "Name, date of birth, contact, vehicle, and a password of at least 8 characters are required.",
-          });
+        res.status(400).json({
+          message:
+            "Name, date of birth, contact, vehicle, and a password of at least 8 characters are required.",
+        });
         return;
       }
       const created = await update((db) => {
@@ -1169,11 +1250,9 @@ export function registerApi(app: Express): void {
         return row;
       });
       if (!saved) {
-        res
-          .status(400)
-          .json({
-            message: "Choose the partner organization that should approve you.",
-          });
+        res.status(400).json({
+          message: "Choose the partner organization that should approve you.",
+        });
         return;
       }
       res.status(201).json({ verification: saved });
@@ -1213,11 +1292,9 @@ export function registerApi(app: Express): void {
         !end ||
         end <= start
       ) {
-        res
-          .status(400)
-          .json({
-            message: "Choose a schedule and an end time after the start time.",
-          });
+        res.status(400).json({
+          message: "Choose a schedule and an end time after the start time.",
+        });
         return;
       }
       if (
@@ -1226,12 +1303,9 @@ export function registerApi(app: Express): void {
         !Number.isFinite(radius) ||
         radius <= 0
       ) {
-        res
-          .status(400)
-          .json({
-            message:
-              "Drop a service-area pin and enter a radius in kilometres.",
-          });
+        res.status(400).json({
+          message: "Drop a service-area pin and enter a radius in kilometres.",
+        });
         return;
       }
       const weekdays = Array.isArray(req.body.weekdays)
@@ -1254,12 +1328,9 @@ export function registerApi(app: Express): void {
         return;
       }
       if (kind === "monthly" && monthDays.length === 0) {
-        res
-          .status(400)
-          .json({
-            message:
-              "Monthly availability needs at least one day of the month.",
-          });
+        res.status(400).json({
+          message: "Monthly availability needs at least one day of the month.",
+        });
         return;
       }
       const row = await update((db) => {

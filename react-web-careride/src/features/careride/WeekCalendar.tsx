@@ -9,6 +9,8 @@ import {
   vancouverYmd,
   weekdayIndex,
 } from "./dates"
+import { useCare } from "./context"
+import { formatKm, useDriveTimes, type TravelEstimate } from "./travel"
 import type { Ride } from "./types"
 
 const START_HOUR = 6
@@ -32,7 +34,13 @@ function passenger(ride: Ride) {
   return ride.client?.first_name || "Passenger"
 }
 
-export function WeekCalendar({ rides }: { rides: Ride[] }) {
+export function WeekCalendar({
+  rides,
+  driveTimes,
+}: {
+  rides: Ride[]
+  driveTimes?: Record<string, TravelEstimate>
+}) {
   const today = vancouverYmd(new Date())
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
   const days = useMemo(
@@ -44,7 +52,10 @@ export function WeekCalendar({ rides }: { rides: Ride[] }) {
     (_, index) => START_HOUR + index
   )
   const nowMinutes = vancouverMinutes(new Date().toISOString())
-  const showNow = days.includes(today) && nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
+  const showNow =
+    days.includes(today) &&
+    nowMinutes >= START_HOUR * 60 &&
+    nowMinutes <= END_HOUR * 60
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -63,18 +74,25 @@ export function WeekCalendar({ rides }: { rides: Ride[] }) {
     )
     return days.map((day) => {
       const events = committed
-        .filter((ride) => vancouverYmd(new Date(ride.requested_pickup_at)) === day)
+        .filter(
+          (ride) => vancouverYmd(new Date(ride.requested_pickup_at)) === day
+        )
         .map((ride) => {
-          const start = vancouverMinutes(ride.requested_pickup_at)
-          const body = rideMinutes(ride)
-          const end = Math.min(start + body + BUFFER_MINUTES, END_HOUR * 60)
-          return { ride, start, end, body }
+          const pickup = vancouverMinutes(ride.requested_pickup_at)
+          const drive = driveTimes?.[ride.id]
+          const timed = driveTimes != null
+          const body = drive?.minutes ?? rideMinutes(ride)
+          const start = timed ? pickup - BUFFER_MINUTES : pickup
+          const end = Math.min(pickup + body + BUFFER_MINUTES, END_HOUR * 60)
+          return { ride, start, end, body, drive, timed }
         })
-        .filter((event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60)
+        .filter(
+          (event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60
+        )
         .sort((a, b) => a.start - b.start || a.end - b.end)
       return layout(events)
     })
-  }, [rides, days])
+  }, [rides, days, driveTimes])
 
   return (
     <div className="week-calendar">
@@ -155,38 +173,37 @@ export function WeekCalendar({ rides }: { rides: Ride[] }) {
                   0,
                   ((event.start - START_HOUR * 60) / 60) * HOUR_HEIGHT
                 )
-                const height = Math.max(
-                  MIN_EVENT_HEIGHT,
+                const span =
                   ((event.end - Math.max(event.start, START_HOUR * 60)) / 60) *
-                    HOUR_HEIGHT
-                )
+                  HOUR_HEIGHT
+                const height = event.timed
+                  ? Math.max(40, span)
+                  : Math.max(MIN_EVENT_HEIGHT, span)
                 return (
                   <Link
                     key={event.ride.id}
                     to="/rides/$rideId"
                     params={{ rideId: event.ride.id }}
-                    className={`cal-event ${event.ride.status}`}
+                    className={`cal-event ${event.ride.status}${event.timed ? "timed" : ""}`}
                     style={{
                       top,
                       height,
                       left: `calc(${(event.col / event.cols) * 100}% + 3px)`,
                       width: `calc(${100 / event.cols}% - 6px)`,
                     }}
-                    aria-label={`${passenger(event.ride)} to ${placeTitle(event.ride)} at ${new Intl.DateTimeFormat(
-                      "en-CA",
-                      {
-                        weekday: "short",
-                        hour: "numeric",
-                        minute: "2-digit",
-                        timeZone: TIMEZONE,
-                      }
-                    ).format(new Date(event.ride.requested_pickup_at))}. Includes a ${BUFFER_MINUTES} minute buffer after the ride.`}
+                    aria-label={eventLabel(event.ride, event.drive)}
                   >
                     <span className="cal-event-body">
                       <strong>{passenger(event.ride)}</strong>
+                      {event.drive && (
+                        <small>
+                          {event.drive.minutes} min ·{" "}
+                          {formatKm(event.drive.kilometers)}
+                        </small>
+                      )}
                       <small>{placeTitle(event.ride)}</small>
                     </span>
-                    {height > 68 && (
+                    {!event.timed && height > 68 && (
                       <span className="cal-event-pad">
                         {BUFFER_MINUTES} min buffer
                       </span>
@@ -199,8 +216,9 @@ export function WeekCalendar({ rides }: { rides: Ride[] }) {
         </div>
       </div>
       <p className="map-hint">
-        Solid time is the ride. The lighter band is a {BUFFER_MINUTES}-minute
-        buffer so you can see whether another pickup fits.
+        {driveTimes
+          ? `Each block is the drive plus ${BUFFER_MINUTES} minutes before and after.`
+          : `Solid time is the ride. The lighter band is a ${BUFFER_MINUTES}-minute buffer so you can see whether another pickup fits.`}
       </p>
     </div>
   )
@@ -243,9 +261,129 @@ function formatHour(hour: number) {
 
 const VISIBLE = ["requested", "accepted", "in_progress", "completed"]
 
-export function RideSchedule({ rides }: { rides: Ride[] }) {
+export function TodayColumn({ rides }: { rides: Ride[] }) {
+  const { data } = useCare()
+  const today = vancouverYmd(new Date())
+  const todays = rides.filter(
+    (ride) =>
+      ["accepted", "in_progress", "completed"].includes(ride.status) &&
+      vancouverYmd(new Date(ride.requested_pickup_at)) === today
+  )
+  const driveTimes = useDriveTimes(todays, data.destinations)
+  const hours = Array.from(
+    { length: END_HOUR - START_HOUR },
+    (_, index) => START_HOUR + index
+  )
+  const nowMinutes = vancouverMinutes(new Date().toISOString())
+  const showNow = nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const events = useMemo(() => {
+    const placed = todays
+      .map((ride) => {
+        const pickup = vancouverMinutes(ride.requested_pickup_at)
+        const drive = driveTimes[ride.id]
+        const body = drive?.minutes ?? rideMinutes(ride)
+        const start = pickup - BUFFER_MINUTES
+        const end = Math.min(pickup + body + BUFFER_MINUTES, END_HOUR * 60)
+        return { ride, start, end, body, drive, timed: true as const }
+      })
+      .filter((event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60)
+      .sort((a, b) => a.start - b.start || a.end - b.end)
+    return layout(placed)
+  }, [todays, driveTimes])
+
+  useEffect(() => {
+    const root = scrollRef.current
+    const marker = root?.querySelector<HTMLElement>(".cal-event")
+    if (!root || !marker) return
+    root.scrollTop = Math.max(0, marker.offsetTop - 28)
+  }, [events.length])
+
+  if (!todays.length) {
+    return (
+      <div className="today-clear">
+        <strong>A clear day.</strong>
+        <p>Nothing is booked today. The afternoon is yours.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="today-column">
+      <div className="week-scroll" ref={scrollRef}>
+        <div
+          className="today-grid"
+          style={{
+            ["--hour-height" as string]: `${HOUR_HEIGHT}px`,
+            ["--hour-count" as string]: String(END_HOUR - START_HOUR),
+          }}
+        >
+          <div className="week-times">
+            {hours.map((hour) => (
+              <span key={hour}>{formatHour(hour)}</span>
+            ))}
+          </div>
+          <div className="week-day today">
+            {hours.map((hour) => (
+              <div key={hour} className="week-hour" />
+            ))}
+            {showNow && (
+              <div
+                className="week-now"
+                style={{
+                  top: ((nowMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT,
+                }}
+              />
+            )}
+            {events.map((event) => {
+              const top = Math.max(
+                0,
+                ((event.start - START_HOUR * 60) / 60) * HOUR_HEIGHT
+              )
+              const height = Math.max(
+                40,
+                ((event.end - Math.max(event.start, START_HOUR * 60)) / 60) *
+                  HOUR_HEIGHT
+              )
+              return (
+                <Link
+                  key={event.ride.id}
+                  to="/rides/$rideId"
+                  params={{ rideId: event.ride.id }}
+                  className={`cal-event timed ${event.ride.status}`}
+                  style={{ top, height, left: 4, right: 4, width: "auto" }}
+                >
+                  <span className="cal-event-body">
+                    <strong>{passenger(event.ride)}</strong>
+                    {event.drive && (
+                      <small>
+                        {event.drive.minutes} min · {formatKm(event.drive.kilometers)}
+                      </small>
+                    )}
+                    <small>{placeTitle(event.ride)}</small>
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+export function RideSchedule({
+  rides,
+  driver = false,
+}: {
+  rides: Ride[]
+  driver?: boolean
+}) {
+  const { data } = useCare()
   const [view, setView] = useState<"week" | "month">("week")
   const visible = rides.filter((ride) => VISIBLE.includes(ride.status))
+  const driveTimes = useDriveTimes(driver ? visible : [], data.destinations)
   return (
     <div className="schedule">
       <div className="view-tabs" role="tablist" aria-label="Calendar view">
@@ -269,15 +407,40 @@ export function RideSchedule({ rides }: { rides: Ride[] }) {
         </button>
       </div>
       {view === "week" ? (
-        <WeekCalendar rides={visible} />
+        <WeekCalendar
+          rides={visible}
+          driveTimes={driver ? driveTimes : undefined}
+        />
       ) : (
-        <MonthCalendar rides={visible} />
+        <MonthCalendar
+          rides={visible}
+          driveTimes={driver ? driveTimes : undefined}
+        />
       )}
     </div>
   )
 }
 
-function MonthCalendar({ rides }: { rides: Ride[] }) {
+function eventLabel(ride: Ride, drive?: TravelEstimate) {
+  const when = new Intl.DateTimeFormat("en-CA", {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: TIMEZONE,
+  }).format(new Date(ride.requested_pickup_at))
+  const time = drive
+    ? `${drive.minutes} minute drive plus ${BUFFER_MINUTES} minutes before and after.`
+    : `Includes a ${BUFFER_MINUTES} minute buffer after the ride.`
+  return `${passenger(ride)} to ${placeTitle(ride)} at ${when}. ${time}`
+}
+
+function MonthCalendar({
+  rides,
+  driveTimes,
+}: {
+  rides: Ride[]
+  driveTimes?: Record<string, TravelEstimate>
+}) {
   const today = vancouverYmd(new Date())
   const [cursor, setCursor] = useState(today.slice(0, 7))
   const cells = useMemo(() => monthCells(cursor), [cursor])
@@ -353,6 +516,9 @@ function MonthCalendar({ rides }: { rides: Ride[] }) {
                       timeZone: TIMEZONE,
                     }).format(new Date(ride.requested_pickup_at))}{" "}
                     {passenger(ride)}
+                    {driveTimes?.[ride.id]
+                      ? ` · ${driveTimes[ride.id].minutes} min`
+                      : ""}
                   </Link>
                 ))}
               </div>
@@ -365,7 +531,6 @@ function MonthCalendar({ rides }: { rides: Ride[] }) {
 }
 
 function monthCells(yearMonth: string) {
-  const [year, month] = yearMonth.split("-").map(Number)
   const first = `${yearMonth}-01`
   const firstWeekday = weekdayIndex(first)
   const lead = firstWeekday === 0 ? 6 : firstWeekday - 1

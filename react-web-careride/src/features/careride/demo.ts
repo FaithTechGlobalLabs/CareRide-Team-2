@@ -118,6 +118,7 @@ function seed(): Data {
   pickup.setHours(14, 0, 0, 0)
   const base = {
     client_id: "client_jamie",
+    round_trip: false,
     organization_id: org.id,
     requested_by_user_id: "staff_alvin",
     pickup_address: org.address,
@@ -412,8 +413,7 @@ function eligible(ride: Ride, data: Data, activeDriver = driver) {
           (!a.ends_on || localDate <= a.ends_on) &&
           ((a.kind === "one_time" && localDate === a.on_date) ||
             (a.kind === "weekly" && a.weekdays?.includes(day)) ||
-            (a.kind === "monthly" &&
-              a.month_days?.includes(Number(p.day))))
+            (a.kind === "monthly" && a.month_days?.includes(Number(p.day))))
         )
       })
   )
@@ -425,7 +425,8 @@ function presentDemoRide(ride: Ride, data: Data, driverView: boolean): Ride {
   )
   const destination = data.destinations.find(
     (item) =>
-      item.id === ride.destination_id || item.address === ride.destination_address
+      item.id === ride.destination_id ||
+      item.address === ride.destination_address
   )
   const organization =
     data.organizations.find((item) => item.id === ride.organization_id) ?? org
@@ -559,6 +560,11 @@ export async function demoRequest(
     })
   let result: unknown
   if (path === "/rides" && method === "POST") {
+    if (
+      (b.pickup_id && b.pickup_id === b.destination_id) ||
+      (b.pickup_address && b.pickup_address === b.destination_address)
+    )
+      throw new Error("Pickup and destination must be different places.")
     const ride = {
       ...b,
       id: id(),
@@ -597,6 +603,11 @@ export async function demoRequest(
     if (method === "PATCH") {
       if (ride.status !== "requested")
         throw new Error("This ride can no longer be edited.")
+      if (
+        (b.pickup_id && b.pickup_id === b.destination_id) ||
+        (b.pickup_address && b.pickup_address === b.destination_address)
+      )
+        throw new Error("Pickup and destination must be different places.")
       Object.assign(ride, b)
     } else if (action === "accept") {
       if (ride.status !== "requested")

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import {
   ArrowRight,
@@ -20,8 +21,9 @@ import {
   GroupedRideList,
   RideList,
   RideSearch,
+  Success,
 } from "./ui"
-import { RideSchedule } from "./WeekCalendar"
+import { RideSchedule, TodayColumn } from "./WeekCalendar"
 export function Dashboard() {
   const { data, session } = useCare()
   const upcoming = data.rides
@@ -235,6 +237,12 @@ export function RidesScreen() {
 }
 export function DriverDashboard() {
   const { data, session } = useCare()
+  const [confirmation] = useState(
+    () => sessionStorage.getItem("careride-driver-confirmation") ?? ""
+  )
+  useEffect(() => {
+    if (confirmation) sessionStorage.removeItem("careride-driver-confirmation")
+  }, [confirmation])
   const active = data.rides.filter((r) =>
     ["accepted", "in_progress"].includes(r.status)
   )
@@ -252,6 +260,11 @@ export function DriverDashboard() {
           </Link>
         }
       />
+      {confirmation && (
+        <div className="driver-confirmation">
+          <Success>{confirmation}</Success>
+        </div>
+      )}
       <div className="driver-info-strip">
         <span>
           <CarFront size={20} />
@@ -266,7 +279,9 @@ export function DriverDashboard() {
           Manage approvals <ArrowRight size={15} />
         </Link>
       </div>
-     
+
+      <div className="my-rides-layout">
+        <div>
       <Panel
         title="Ride Requests"
         description="Requests that match your organization approval, vehicle, schedule, and service area."
@@ -304,12 +319,6 @@ export function DriverDashboard() {
           />
         )}
       </Panel>
-      <Panel
-        title="Your schedule"
-        description="Switch between the week and the month. Each block includes a 15-minute buffer after the ride."
-      >
-        <RideSchedule rides={data.rides} />
-      </Panel>
       <Panel title="Past journeys">
         <RideList
           rides={data.rides.filter((r) =>
@@ -317,6 +326,36 @@ export function DriverDashboard() {
           )}
           driver
         />
+      </Panel>
+        </div>
+        <aside className="today-side">
+          <Panel
+            title="Today"
+            action={
+              <Link to="/driver/schedule" className="text-link">
+                Schedule
+              </Link>
+            }
+          >
+            <TodayColumn rides={data.rides} />
+          </Panel>
+        </aside>
+      </div>
+    </Layout>
+  )
+}
+
+export function DriverScheduleScreen() {
+  const { data } = useCare()
+  return (
+    <Layout driver>
+      <PageTitle
+        eyebrow="YOUR TIME"
+        title="Schedule."
+        description="Each block is the drive, plus 15 minutes before and after."
+      />
+      <Panel>
+        <RideSchedule rides={data.rides} driver />
       </Panel>
     </Layout>
   )

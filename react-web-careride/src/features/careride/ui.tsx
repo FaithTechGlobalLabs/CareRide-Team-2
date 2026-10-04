@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { useCare } from "./context"
 import { relativeDateLabel, vancouverYmd } from "./dates"
+import { formatKm, useDriveTimes } from "./travel"
 import type { Destination, Ride, Status, Verification } from "./types"
 
 export function Brand() {
@@ -240,6 +241,7 @@ export function RideList({
   hideStatuses?: Status[]
 }) {
   const { data } = useCare()
+  const driveTimes = useDriveTimes(driver ? rides : [], data.destinations)
   return (
     <div className="ride-list">
       {rides.map((ride) => {
@@ -276,6 +278,9 @@ export function RideList({
               <span>
                 {dateTime(ride.requested_pickup_at)} · {ride.passenger_count}{" "}
                 passenger{ride.passenger_count > 1 ? "s" : ""}
+                {driveTimes[ride.id]
+                  ? ` · ${driveTimes[ride.id].minutes} min · ${formatKm(driveTimes[ride.id].kilometers)}`
+                  : ""}
               </span>
               <div className="route-line">
                 {pickup}

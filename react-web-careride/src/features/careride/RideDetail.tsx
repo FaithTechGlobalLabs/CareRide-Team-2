@@ -1,6 +1,16 @@
-import { Link } from "@tanstack/react-router"
-import { ArrowRight, Check, Clock3, MapPin, Phone, Users } from "lucide-react"
+import { useState } from "react"
+import { Link, useNavigate } from "@tanstack/react-router"
+import {
+  ArrowRight,
+  Check,
+  Clock3,
+  MapPin,
+  Pencil,
+  Phone,
+  Users,
+} from "lucide-react"
 import { ConfettiButton } from "../../components/ui/confetti"
+import { BookingDayCard } from "./BookingDay"
 import { useCare } from "./context"
 import { Layout } from "./Layout"
 import {
@@ -16,7 +26,14 @@ import {
 } from "./ui"
 export function RideDetail({ rideId }: { rideId: string }) {
   const { data, session, mutate } = useCare()
+  const navigate = useNavigate()
   const driver = session?.user.role === "driver"
+  const [appleMaps] = useState(() => {
+    if (typeof navigator === "undefined") return false
+    const platform = navigator.platform || ""
+    const ua = navigator.userAgent || ""
+    return /Mac|iPhone|iPad|iPod/i.test(`${platform} ${ua}`)
+  })
   const ride = [...data.rides, ...data.availableRides].find(
     (r) => r.id === rideId
   )
@@ -37,6 +54,7 @@ export function RideDetail({ rideId }: { rideId: string }) {
   const client =
     ride.client ?? data.clients.find((c) => c.id === ride.client_id)
   const assigned = ride.driver_id === session?.user.id
+  const maps = mapLinks(ride)
   const steps = [
     { title: "Request submitted", done: true, time: ride.created_at },
     {
@@ -65,13 +83,122 @@ export function RideDetail({ rideId }: { rideId: string }) {
         description={
           <span>
             Scheduled pickup:{" "}
-            <strong>{dateTime(ride.requested_pickup_at)} </strong>· America/Vancouver
+            <strong>{dateTime(ride.requested_pickup_at)} </strong>·
+            America/Vancouver
           </span>
         }
         action={<Badge status={ride.status} />}
       />
       <div className="booking-columns">
         <div>
+          {driver &&
+            assigned &&
+            ["accepted", "in_progress"].includes(ride.status) && (
+              <Panel
+                title="Ride actions"
+                description={
+                  ride.status === "accepted"
+                    ? "Confirm the passenger is with you before starting the journey."
+                    : "Complete the ride once the passenger reaches their destination."
+                }
+              >
+                <div className="action-row">
+                  {ride.status === "accepted" && (
+                    <ActionButton
+                      className="primary"
+                      onClick={() => mutate(`/rides/${ride.id}/pickup`)}
+                    >
+                      Mark picked up
+                    </ActionButton>
+                  )}
+                  {ride.status === "in_progress" && (
+                    <ConfettiButton
+                      className="btn primary"
+                      onClick={() => mutate(`/rides/${ride.id}/dropoff`)}
+                    >
+                      Successfully dropped off rider <Check size={18} />
+                    </ConfettiButton>
+                  )}
+                  {ride.status === "accepted" && (
+                    <>
+                      <ReasonAction
+                        title="Client no-show"
+                        onSubmit={(reason) =>
+                          mutate(`/rides/${ride.id}/no-show`, "POST", {
+                            reason,
+                          })
+                        }
+                      />
+                      <ReasonAction
+                        title="Withdraw from ride"
+                        onSubmit={(reason) =>
+                          mutate(`/rides/${ride.id}/withdraw`, "POST", {
+                            reason,
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+              </Panel>
+            )}
+          {driver && !ride.driver_id && ride.status === "requested" && (
+            <Panel
+              title="Ride actions"
+              description="Review the route and confirm that you can take this ride."
+            >
+              <ConfettiButton
+                onClick={async () => {
+                  await mutate(`/rides/${ride.id}/accept`)
+                  sessionStorage.setItem(
+                    "careride-driver-confirmation",
+                    "You’re good to go. The ride is now in your upcoming rides."
+                  )
+                  await navigate({ to: "/driver" })
+                }}
+                className="btn primary"
+              >
+                Confirm ride
+              </ConfettiButton>
+            </Panel>
+          )}
+          {!driver && (
+            <Panel title="Booking details">
+              <>
+                <p className="muted">
+                  {ride.status === "requested"
+                    ? "Your request is waiting for an eligible driver. You can edit it until a driver is assigned."
+                    : "This screen shows the booking snapshot saved when the ride was requested."}
+                </p>
+                {ride.status === "requested" && (
+                  <Link
+                    to="/book"
+                    search={{ edit: ride.id, client: ride.client_id }}
+                    className="btn secondary"
+                  >
+                    <Pencil size={16} /> Edit booking
+                  </Link>
+                )}
+                {["requested", "accepted"].includes(ride.status) && (
+                  <ReasonAction
+                    title="Cancel booking"
+                    onSubmit={(reason) =>
+                      mutate(`/rides/${ride.id}/cancel`, "POST", { reason })
+                    }
+                  />
+                )}
+              </>
+              {ride.cancelled_reason && (
+                <p>Cancellation reason: {ride.cancelled_reason}</p>
+              )}
+            </Panel>
+          )}
+          {driver &&
+            ["completed", "cancelled", "no_show"].includes(ride.status) && (
+              <Panel title="Ride actions">
+                <p className="muted">This journey is closed.</p>
+              </Panel>
+            )}
           <Panel
             title="The journey"
             action={<span className="free-tag">Free ride</span>}
@@ -141,13 +268,24 @@ export function RideDetail({ rideId }: { rideId: string }) {
               <div className="action-row">
                 <a
                   className="btn secondary"
-                  href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${ride.pickup_lat}%2C${ride.pickup_lng}%3B${ride.destination_lat}%2C${ride.destination_lng}`}
+                  href={maps.google}
                   target="_blank"
                   rel="noreferrer"
                 >
                   <MapPin size={17} />
-                  Open directions
+                  Open in Google Maps
                 </a>
+                {appleMaps && (
+                  <a
+                    className="btn secondary"
+                    href={maps.apple}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <MapPin size={17} />
+                    Open in Apple Maps
+                  </a>
+                )}
                 {ride.organization_phone && (
                   <a
                     className="btn secondary"
@@ -161,83 +299,15 @@ export function RideDetail({ rideId }: { rideId: string }) {
               </div>
             )}
           </Panel>
-          <Panel title={driver ? "Ride actions" : "Booking details"}>
-            {driver ? (
-              <>
-                <div className="action-row">
-                  {!ride.driver_id && ride.status === "requested" && (
-                    // <ActionButton
-                    //   className="primary"
-                    //   onClick={() => mutate(`/rides/${ride.id}/accept`)}
-                    // >
-                    //   Accept this ride <ArrowRight size={17} />
-                    // </ActionButton>
-                    <ConfettiButton onClick={() => mutate(`/rides/${ride.id}/accept`)} className = "btn secondary">Accept this ride</ConfettiButton>
-                  )}
-                  {assigned && ride.status === "accepted" && (
-                    <ActionButton
-                      className="primary"
-                      onClick={() => mutate(`/rides/${ride.id}/pickup`)}
-                    >
-                      Mark picked up
-                    </ActionButton>
-                  )}
-                  {assigned && ride.status === "in_progress" && (
-                    <ActionButton
-                      className="primary"
-                      onClick={() => mutate(`/rides/${ride.id}/dropoff`)}
-                    >
-                      Mark dropped off <Check size={18} />
-                    </ActionButton>
-                  )}
-                  {assigned && ride.status === "accepted" && (
-                    <>
-                      <ReasonAction
-                        title="Client no-show"
-                        onSubmit={(reason) =>
-                          mutate(`/rides/${ride.id}/no-show`, "POST", {
-                            reason,
-                          })
-                        }
-                      />
-                      <ReasonAction
-                        title="Withdraw from ride"
-                        onSubmit={(reason) =>
-                          mutate(`/rides/${ride.id}/withdraw`, "POST", {
-                            reason,
-                          })
-                        }
-                      />
-                    </>
-                  )}
-                </div>
-                {["completed", "cancelled", "no_show"].includes(
-                  ride.status
-                ) && <p className="muted">This journey is closed.</p>}
-              </>
-            ) : (
-              <>
-                <p className="muted">
-                  {ride.status === "requested"
-                    ? "Your request is waiting for an eligible driver. Booking editing is planned for the next integration pass."
-                    : "This screen shows the booking snapshot saved when the ride was requested."}
-                </p>
-                {["requested", "accepted"].includes(ride.status) && (
-                  <ReasonAction
-                    title="Cancel booking"
-                    onSubmit={(reason) =>
-                      mutate(`/rides/${ride.id}/cancel`, "POST", { reason })
-                    }
-                  />
-                )}
-              </>
-            )}
-            {ride.cancelled_reason && (
-              <p>Cancellation reason: {ride.cancelled_reason}</p>
-            )}
-          </Panel>
         </div>
         <div>
+          {driver && (
+            <BookingDayCard
+              ride={ride}
+              rides={data.rides}
+              destinations={data.destinations}
+            />
+          )}
           <Panel title="Ride progress">
             <ol className="timeline">
               {steps.map((s, i) => (
@@ -260,6 +330,7 @@ export function RideDetail({ rideId }: { rideId: string }) {
               <Badge status={ride.status} />
             )}
           </Panel>
+          {!driver && (
           <Panel title="Your driver">
             {ride.driver ? (
               <>
@@ -293,8 +364,31 @@ export function RideDetail({ rideId }: { rideId: string }) {
               </a>
             )}
           </Panel>
+          )}
         </div>
       </div>
     </Layout>
   )
+}
+
+function mapLinks(ride: {
+  pickup_lat?: number
+  pickup_lng?: number
+  destination_lat?: number
+  destination_lng?: number
+  pickup_address: string
+  destination_address: string
+}) {
+  const coords =
+    ride.pickup_lat != null &&
+    ride.pickup_lng != null &&
+    ride.destination_lat != null &&
+    ride.destination_lng != null
+  const google = coords
+    ? `https://www.google.com/maps/dir/?api=1&origin=${ride.pickup_lat},${ride.pickup_lng}&destination=${ride.destination_lat},${ride.destination_lng}&travelmode=driving`
+    : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ride.pickup_address)}&destination=${encodeURIComponent(ride.destination_address)}&travelmode=driving`
+  const apple = coords
+    ? `https://maps.apple.com/?saddr=${ride.pickup_lat},${ride.pickup_lng}&daddr=${ride.destination_lat},${ride.destination_lng}&dirflg=d`
+    : `https://maps.apple.com/?saddr=${encodeURIComponent(ride.pickup_address)}&daddr=${encodeURIComponent(ride.destination_address)}&dirflg=d`
+  return { google, apple }
 }

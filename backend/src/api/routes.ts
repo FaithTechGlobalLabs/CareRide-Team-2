@@ -254,10 +254,12 @@ function shapeRide(row: Record<string, unknown>) {
     accessibility_needs: needsList.join(", "),
     accessibility_need_list: needsList,
     notes: row.notes,
-    status: row.status,
+    // The database calls an accepted ride "approved"; screens use "accepted".
+    status: row.status === "approved" ? "accepted" : row.status,
     driver_id: row.driver_id,
     approved_by_user_id: row.approved_by_user_id,
     approved_at: iso(row.approved_at),
+    accepted_at: iso(row.approved_at),
     ride_option: row.ride_option,
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
@@ -680,7 +682,8 @@ export function registerApi(app: Express): void {
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
       await markTimedOut();
-      const status = String(req.query.status ?? "");
+      const requestedStatus = String(req.query.status ?? "");
+      const status = requestedStatus === "accepted" ? "approved" : requestedStatus;
       const q = String(req.query.q ?? "").trim().toLowerCase();
       const result = await pool.query(
         `${rideListSql}

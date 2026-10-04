@@ -437,9 +437,6 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 destination_lat: d.lat,
                 destination_lng: d.lng,
                 requested_pickup_at: pickupAt.toISOString(),
-                appointment_at: f.get("appointment_at")
-                  ? new Date(String(f.get("appointment_at"))).toISOString()
-                  : undefined,
                 return_pickup_at: returnAt
                   ? new Date(String(returnAt)).toISOString()
                   : undefined,
@@ -537,12 +534,6 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 required
               />
             </Field>
-            <Field
-              label="Appointment date & time"
-              hint="Optional · America/Vancouver"
-            >
-              <input name="appointment_at" type="datetime-local" />
-            </Field>
             {roundTrip && (
               <Field
                 label="Return pickup date & time"
@@ -562,17 +553,10 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 required
               />
             </Field>
-            <Field label="Request urgency">
-              <select name="urgency">
-                <option value="routine">Routine</option>
-                <option value="soon">Soon</option>
-                <option value="time_sensitive">Time sensitive</option>
-              </select>
-            </Field>
             <div className="wide">
               <h3 className="form-section">Accessibility needs</h3>
               <div className="checkbox-group">
-                {["Wheelchair", "Mobility aid", "Escort", "Other"].map((s) => (
+                {["Wheelchair", "Mobility aid", "Other"].map((s) => (
                   <label key={s} className="checkbox">
                     <input
                       name="accessibility"

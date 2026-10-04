@@ -38,7 +38,12 @@ async function point(
   if (named && Number.isFinite(named.lat) && Number.isFinite(named.lng)) {
     return { lat: named.lat, lng: named.lng }
   }
-  if (lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+  if (
+    lat != null &&
+    lng != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng)
+  ) {
     return { lat, lng }
   }
   if (!address) return null
@@ -78,8 +83,9 @@ export function BookingDayCard({
       .map((item) => {
         const start = vancouverMinutes(item.requested_pickup_at)
         const drive = driveTimes[item.id]
-        const body = drive?.minutes
-          ?? (item.duration_minutes && item.duration_minutes > 0
+        const body =
+          drive?.minutes ??
+          (item.duration_minutes && item.duration_minutes > 0
             ? item.duration_minutes
             : 45)
         return {
@@ -204,16 +210,15 @@ export function BookingDayCard({
   return (
     <Panel title={dateLabel} className="booking-day-card">
       <div className="travel-readout">
-        <strong>{travel ? `${travel.minutes} min` : "—"}</strong>
+        <strong>{travel ? `${travel.minutes} min drive time` : "—"}</strong>
         <span>
           {travel ? formatKm(travel.kilometers) : "Checking drive time…"}
         </span>
         <small>
           Pickup {clock(pickupAt)}
           {travel
-            ? ` · arrive about ${clock(pickupAt + travel.minutes)}`
+            ? ` · arrive at destination ETA about ${clock(pickupAt + travel.minutes)}`
             : ""}
-          . The block adds 15 minutes before and after the drive.
         </small>
       </div>
       <div className="booking-day-scroll" ref={scroller}>
@@ -248,12 +253,6 @@ export function BookingDayCard({
               start={proposal.start}
               body={proposal.body}
               windowStart={windowStart}
-              title={travel ? `${travel.minutes} min` : "This ride"}
-              detail={
-                travel
-                  ? `${formatKm(travel.kilometers)} · ${clock(pickupAt)}`
-                  : clock(pickupAt)
-              }
             />
           </div>
         </div>
@@ -264,7 +263,9 @@ export function BookingDayCard({
         onClick={locate}
         disabled={locating}
       >
-        {locating ? "Finding your location…" : "See distance from my current location"}
+        {locating
+          ? "Finding your location…"
+          : "See distance from my current location"}
       </button>
       {fromHere && (
         <p className="from-here">
@@ -292,8 +293,8 @@ function PreviewBlock({
   start: number
   body: number
   windowStart: number
-  title: string
-  detail: string
+  title?: string
+  detail?: string
   proposed?: boolean
 }) {
   const total = body + BUFFER_MINUTES * 2
@@ -301,13 +302,16 @@ function PreviewBlock({
   const height = Math.max(MIN_SQUARE, (total / 60) * HOUR_HEIGHT)
   return (
     <div
-      className={`preview-event${proposed ? " proposed" : ""}`}
+      className={`preview-event${proposed ? "proposed" : ""}`}
+      aria-label={proposed ? "Selected ride" : undefined}
       style={{ top, height }}
     >
-      <span className="drive-copy">
-        <strong>{title}</strong>
-        <small>{detail}</small>
-      </span>
+      {!proposed && (
+        <span className="drive-copy">
+          <strong>{title}</strong>
+          <small>{detail}</small>
+        </span>
+      )}
     </div>
   )
 }

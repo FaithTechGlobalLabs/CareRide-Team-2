@@ -28,12 +28,11 @@ function AuthFrame({ children }: { children: React.ReactNode }) {
       <aside className="auth-story">
         <Brand />
         <div>
-          <span className="eyebrow">A COMMUNITY EFFORT</span>
           <h1>
-            A little help.
+            A little help,
             <br />A way forward.
           </h1>
-          <p>Getting to care should never stand in the way of receiving it.</p>
+          <p>Connecting people to the care they need.</p>
           <div className="journey-art">
             <span>
               <HeartHandshake size={42} />
@@ -62,7 +61,6 @@ function AuthFrame({ children }: { children: React.ReactNode }) {
             </p>
           </div>
         </div>
-        <small>CareRide · Connecting our community, one ride at a time.</small>
       </aside>
       <main className="auth-main">
         <div className="auth-mobile-brand">

@@ -24,8 +24,13 @@ import {
   Success,
 } from "./ui"
 import { RideSchedule, TodayColumn } from "./WeekCalendar"
+import { usePersonalText } from "./personalText"
 export function Dashboard() {
   const { data, session } = useCare()
+  const copy = usePersonalText(session?.user.name.split(" ")[0] ?? "there")
+  const pendingApprovals = data.verifications.filter(
+    (v) => v.status === "pending"
+  ).length
   const upcoming = data.rides
     .filter((r) => ["requested", "accepted", "in_progress"].includes(r.status))
     .sort((a, b) => a.requested_pickup_at.localeCompare(b.requested_pickup_at))
@@ -36,9 +41,9 @@ export function Dashboard() {
   return (
     <Layout>
       <PageTitle
-        eyebrow="LET’S KEEP OUR COMMUNITY MOVING"
-        title={`Hello, ${session?.user.name.split(" ")[0] ?? "there"}.`}
-        description="A little coordination. A meaningful difference."
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        description={copy.description}
         action={<AddLink to="/book">Book a ride</AddLink>}
       />
       <div className="stats-grid">
@@ -147,13 +152,13 @@ export function Dashboard() {
                 </div>
                 <ArrowRight size={17} />
               </Link>
-              <Link to="/locations">
+              <Link to="/locations/new">
                 <span className="quick-icon">
                   <MapPin size={20} />
                 </span>
                 <div>
-                  <strong>Address book</strong>
-                  <small>Your community’s destinations</small>
+                  <strong>Add an Address</strong>
+                  <small>Save a destination for your community</small>
                 </div>
                 <ArrowRight size={17} />
               </Link>
@@ -169,11 +174,13 @@ export function Dashboard() {
               when we go together.
             </h3>
             <p>
-              Review driver approvals to welcome more volunteers into your
-              community.
+              {pendingApprovals
+                ? `${pendingApprovals} driver approval${pendingApprovals === 1 ? " is" : "s are"} waiting. Welcome another helping hand into your community.`
+                : "You’re up to date on driver approvals. Thank you for keeping your community connected to care."}
             </p>
             <Link to="/approvals" className="btn secondary">
-              Review approvals <ArrowRight size={15} />
+              {pendingApprovals ? "Review approvals" : "View approvals"}{" "}
+              <ArrowRight size={15} />
             </Link>
           </Panel>
           <Panel title="Stay in the loop">
@@ -249,13 +256,16 @@ export function DriverDashboard() {
   const active = data.rides.filter((r) =>
     ["accepted", "in_progress"].includes(r.status)
   )
-  const approved = data.verifications.filter((v) => v.status === "approved")
+  const copy = usePersonalText(
+    session?.user.name.split(" ")[0] ?? "driver",
+    true
+  )
   return (
     <Layout driver>
       <PageTitle
-        eyebrow="YOUR TIME MAKES A DIFFERENCE"
-        title={`Hello, ${session?.user.name.split(" ")[0] ?? "driver"}.`}
-        description="A ride from you can open a world of possibilities."
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        description={copy.description}
         action={
           <Link className="btn secondary" to="/driver/availability">
             <CalendarDays size={18} />
@@ -268,68 +278,57 @@ export function DriverDashboard() {
           <Success>{confirmation}</Success>
         </div>
       )}
-      <div className="driver-info-strip">
-        <span>
-          <CarFront size={20} />
-          {active.length} active ride{active.length === 1 ? "" : "s"}
-        </span>
-        <span>
-          <Check size={20} />
-          {approved.length} organization approval
-          {approved.length === 1 ? "" : "s"}
-        </span>
-        <Link to="/driver/verification" className="text-link">
-          Manage approvals <ArrowRight size={15} />
-        </Link>
-      </div>
-
       <div className="my-rides-layout">
         <div>
-      <Panel
-        title="Ride Requests"
-        description="Requests that match your organization approval, vehicle, schedule, and service area."
-        action={
-          <span className="count-pill">
-            {data.availableRides.length} available
-          </span>
-        }
-      >
-        {data.availableRides.length ? (
-          <RideList rides={data.availableRides} driver />
-        ) : (
-          <Empty
-            title="No matching requests right now"
-            description="Check your organization approval and active availability. New matches appear when staff book a ride."
+          <Panel
+            title="Ride Requests"
+            description="Requests that match your organization approval, vehicle, schedule, and service area."
             action={
-              <Link to="/driver/availability" className="btn secondary">
-                Review availability
-              </Link>
+              <span className="count-pill">
+                {data.availableRides.length} available
+              </span>
             }
-          />
-        )}
-      </Panel>
+          >
+            {data.availableRides.length ? (
+              <RideList rides={data.availableRides} driver />
+            ) : (
+              <Empty
+                title="No matching requests right now"
+                description="Check your organization approval and active availability. New matches appear when staff book a ride."
+                action={
+                  <Link to="/driver/availability" className="btn secondary">
+                    Review availability
+                  </Link>
+                }
+              />
+            )}
+          </Panel>
 
-      <Panel
-        title="Your upcoming rides"
-        description="The people counting on you for their next journey."
-      >
-        {active.length ? (
-          <GroupedRideList rides={active} driver hideStatuses={["accepted"]} />
-        ) : (
-          <Empty
-            title="Your next journey is waiting"
-            description="Accept an eligible ride below to help someone get to care."
-          />
-        )}
-      </Panel>
-      <Panel title="Past journeys">
-        <RideList
-          rides={data.rides.filter((r) =>
-            ["completed", "no_show", "cancelled"].includes(r.status)
-          )}
-          driver
-        />
-      </Panel>
+          <Panel
+            title="Your upcoming rides"
+            description="The people counting on you for their next journey."
+          >
+            {active.length ? (
+              <GroupedRideList
+                rides={active}
+                driver
+                hideStatuses={["accepted"]}
+              />
+            ) : (
+              <Empty
+                title="Your next journey is waiting"
+                description="Accept an eligible ride below to help someone get to care."
+              />
+            )}
+          </Panel>
+          <Panel title="Past journeys">
+            <RideList
+              rides={data.rides.filter((r) =>
+                ["completed", "no_show", "cancelled"].includes(r.status)
+              )}
+              driver
+            />
+          </Panel>
         </div>
         <aside className="today-side">
           <Panel

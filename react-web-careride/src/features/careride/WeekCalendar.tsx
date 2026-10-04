@@ -1,3 +1,4 @@
+import { useClearDayText, useLocalNow } from "./personalText"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -262,8 +263,10 @@ function formatHour(hour: number) {
 const VISIBLE = ["requested", "accepted", "in_progress", "completed"]
 
 export function TodayColumn({ rides }: { rides: Ride[] }) {
+  const now = useLocalNow()
+  const clearDay = useClearDayText(now)
   const { data } = useCare()
-  const today = vancouverYmd(new Date())
+  const today = vancouverYmd(now)
   const todays = rides.filter(
     (ride) =>
       ["accepted", "in_progress", "completed"].includes(ride.status) &&
@@ -274,7 +277,7 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
     { length: END_HOUR - START_HOUR },
     (_, index) => START_HOUR + index
   )
-  const nowMinutes = vancouverMinutes(new Date().toISOString())
+  const nowMinutes = vancouverMinutes(now.toISOString())
   const showNow = nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
   const scrollRef = useRef<HTMLDivElement>(null)
   const events = useMemo(() => {
@@ -287,7 +290,9 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
         const end = Math.min(pickup + body + BUFFER_MINUTES, END_HOUR * 60)
         return { ride, start, end, body, drive, timed: true as const }
       })
-      .filter((event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60)
+      .filter(
+        (event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60
+      )
       .sort((a, b) => a.start - b.start || a.end - b.end)
     return layout(placed)
   }, [todays, driveTimes])
@@ -302,8 +307,8 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
   if (!todays.length) {
     return (
       <div className="today-clear">
-        <strong>A clear day.</strong>
-        <p>Nothing is booked today. The afternoon is yours.</p>
+        <strong>{clearDay.title}</strong>
+        <p>{clearDay.description}</p>
       </div>
     )
   }
@@ -357,7 +362,8 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
                     <strong>{passenger(event.ride)}</strong>
                     {event.drive && (
                       <small>
-                        {event.drive.minutes} min · {formatKm(event.drive.kilometers)}
+                        {event.drive.minutes} min ·{" "}
+                        {formatKm(event.drive.kilometers)}
                       </small>
                     )}
                     <small>{placeTitle(event.ride)}</small>
@@ -371,7 +377,6 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
     </div>
   )
 }
-
 
 export function RideSchedule({
   rides,

@@ -51,6 +51,104 @@ function fold(line: string) {
   return lines.join("\r\n")
 }
 
+export function rideCalendarEvent(ride: Ride, appOrigin: string) {
+  const origin = new URL(appOrigin).origin
+  const start = new Date(ride.requested_pickup_at)
+  if (
+    !Number.isFinite(start.getTime()) ||
+    !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(ride.requested_pickup_at)
+  ) {
+    throw new Error(
+      "This ride has an invalid pickup time. Refresh and try again."
+    )
+  }
+  const knownDuration =
+    ride.duration_minutes != null &&
+    Number.isFinite(ride.duration_minutes) &&
+    ride.duration_minutes > 0
+  const minutes = knownDuration ? ride.duration_minutes! : 45
+  const end = new Date(start.getTime() + minutes * 60000)
+  if (!Number.isFinite(end.getTime()))
+    throw new Error("This ride has an invalid duration. Refresh and try again.")
+  const url = `${origin}/rides/${encodeURIComponent(ride.id)}`
+  const title =
+    ride.trip_leg === "return"
+      ? "CareRide return pickup"
+      : ride.trip_leg === "outbound"
+        ? "CareRide outbound pickup"
+        : "CareRide pickup"
+  const description = [
+    `Pickup: ${ride.pickup_address}`,
+    `Destination: ${ride.destination_address}`,
+    "Pickup scheduled in America/Vancouver; your calendar displays its local time.",
+    knownDuration
+      ? `Estimated ride duration: ${minutes} minutes.`
+      : "Estimated ride duration: 45 minutes; actual duration may vary.",
+    `Latest ride details: ${url}`,
+    "This event does not sync with CareRide. If the ride is cancelled or you withdraw, delete this event manually. If details change, update it manually.",
+  ].join("\n")
+  return { start, end, title, description, location: ride.pickup_address, url }
+}
+
+export function calendarEditorLinks(ride: Ride, appOrigin: string) {
+  const event = rideCalendarEvent(ride, appOrigin)
+  const google = new URL("https://calendar.google.com/calendar/render")
+  google.search = new URLSearchParams({
+    action: "TEMPLATE",
+    text: event.title,
+    dates: `${timestamp(event.start)}/${timestamp(event.end)}`,
+    details: event.description,
+    location: event.location,
+    ctz: "America/Vancouver",
+  }).toString()
+  const outlookParams = new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: event.title,
+    startdt: event.start.toISOString(),
+    enddt: event.end.toISOString(),
+    // Outlook interprets body as HTML, so route text must not become markup.
+    body: event.description
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>"),
+    location: event.location,
+    allday: "false",
+  })
+  return {
+    google: google.href,
+    outlook: `https://outlook.live.com/calendar/0/deeplink/compose?${outlookParams}`,
+    office365: `https://outlook.office.com/calendar/0/deeplink/compose?${outlookParams}`,
+  }
+}
+
+export function shareableCalendarFile(
+  file: File,
+  target: {
+    share?: (data: ShareData) => Promise<void>
+    canShare?: (data: ShareData) => boolean
+  }
+) {
+  if (!target.share || !target.canShare) return null
+  // Some native share sheets accept the file extension but reject text/calendar.
+  const candidates = [
+    file,
+    new File([file], file.name, {
+      type: "application/octet-stream",
+      lastModified: file.lastModified,
+    }),
+  ]
+  for (const candidate of candidates) {
+    try {
+      if (target.canShare({ files: [candidate] })) return candidate
+    } catch {
+      // Unsupported file sharing must leave the calendar-file option available.
+    }
+  }
+  return null
+}
+
 export function buildRideCalendar(
   rides: Ride[],
   appOrigin: string,
@@ -58,7 +156,6 @@ export function buildRideCalendar(
 ) {
   if (!rides.length)
     throw new Error("No accepted rides are available to export.")
-  const origin = new URL(appOrigin).origin
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -66,52 +163,17 @@ export function buildRideCalendar(
     "CALSCALE:GREGORIAN",
   ]
   for (const ride of rides) {
-    const start = new Date(ride.requested_pickup_at)
-    if (
-      !Number.isFinite(start.getTime()) ||
-      !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(ride.requested_pickup_at)
-    ) {
-      throw new Error(
-        "This ride has an invalid pickup time. Refresh and try again."
-      )
-    }
-    const knownDuration =
-      ride.duration_minutes != null &&
-      Number.isFinite(ride.duration_minutes) &&
-      ride.duration_minutes > 0
-    const minutes = knownDuration ? ride.duration_minutes! : 45
-    const end = new Date(start.getTime() + minutes * 60000)
-    if (!Number.isFinite(end.getTime()))
-      throw new Error(
-        "This ride has an invalid duration. Refresh and try again."
-      )
-    const url = `${origin}/rides/${encodeURIComponent(ride.id)}`
-    const title =
-      ride.trip_leg === "return"
-        ? "CareRide return pickup"
-        : ride.trip_leg === "outbound"
-          ? "CareRide outbound pickup"
-          : "CareRide pickup"
-    const description = [
-      `Pickup: ${ride.pickup_address}`,
-      `Destination: ${ride.destination_address}`,
-      "Pickup scheduled in America/Vancouver; your calendar displays its local time.",
-      knownDuration
-        ? `Estimated ride duration: ${minutes} minutes.`
-        : "Estimated ride duration: 45 minutes; actual duration may vary.",
-      `Latest ride details: ${url}`,
-      "This event does not sync with CareRide. If the ride is cancelled or you withdraw, delete this event manually. If details change, update it manually.",
-    ].join("\n")
+    const event = rideCalendarEvent(ride, appOrigin)
     lines.push(
       "BEGIN:VEVENT",
       `UID:ride-${encodeURIComponent(ride.id)}@careride`,
       `DTSTAMP:${timestamp(now)}`,
-      `DTSTART:${timestamp(start)}`,
-      `DTEND:${timestamp(end)}`,
-      `SUMMARY:${text(title)}`,
-      `LOCATION:${text(ride.pickup_address)}`,
-      `DESCRIPTION:${text(description)}`,
-      `URL:${url}`,
+      `DTSTART:${timestamp(event.start)}`,
+      `DTEND:${timestamp(event.end)}`,
+      `SUMMARY:${text(event.title)}`,
+      `LOCATION:${text(event.location)}`,
+      `DESCRIPTION:${text(event.description)}`,
+      `URL:${event.url}`,
       "CLASS:PRIVATE",
       "END:VEVENT"
     )

@@ -2,7 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import {
   buildRideCalendar,
+  calendarEditorLinks,
   calendarRides,
+  shareableCalendarFile,
 } from "../src/features/careride/calendar.ts"
 import type { Ride } from "../src/features/careride/types.ts"
 
@@ -182,4 +184,110 @@ test("invalid or timezone-less pickup times cannot produce misleading events", (
     () => buildRideCalendar([], "https://careride.example", now),
     /No accepted rides/
   )
+})
+
+test("provider editors preserve pickup times, route text and manual-removal guidance", () => {
+  const location = "Clinic & entrance #2 + café <side door>"
+  const links = calendarEditorLinks(
+    ride({ pickup_address: location }),
+    "https://careride.example/?token=secret"
+  )
+  const google = new URL(links.google)
+  assert.equal(google.origin, "https://calendar.google.com")
+  assert.equal(google.searchParams.get("action"), "TEMPLATE")
+  assert.equal(
+    google.searchParams.get("dates"),
+    "20261005T163000Z/20261005T170000Z"
+  )
+  assert.equal(google.searchParams.get("ctz"), "America/Vancouver")
+  assert.equal(google.searchParams.get("location"), location)
+  assert.equal(google.searchParams.get("text"), "CareRide pickup")
+  assert.ok(
+    google.searchParams.get("details")?.includes("delete this event manually")
+  )
+  for (const [provider, host] of [
+    ["outlook", "https://outlook.live.com"],
+    ["office365", "https://outlook.office.com"],
+  ] as const) {
+    const url = new URL(links[provider])
+    assert.equal(url.origin, host)
+    assert.equal(url.searchParams.get("startdt"), "2026-10-05T16:30:00.000Z")
+    assert.equal(url.searchParams.get("enddt"), "2026-10-05T17:00:00.000Z")
+    assert.equal(url.searchParams.get("location"), location)
+    assert.ok(url.searchParams.get("body")?.includes("&lt;side door&gt;"))
+    assert.ok(url.searchParams.get("body")?.includes("Clinic &amp; entrance"))
+  }
+  for (const link of Object.values(links)) {
+    const decoded = decodeURIComponent(link)
+    for (const secret of [
+      "token=secret",
+      "Private+medical+notes",
+      "private-client-id",
+      "Private+client+name",
+    ]) {
+      assert.ok(!decoded.includes(secret))
+    }
+  }
+})
+
+test("each round-trip leg opens its own event editor with its own time and title", () => {
+  const outbound = new URL(
+    calendarEditorLinks(
+      ride({ trip_leg: "outbound" }),
+      "https://careride.example"
+    ).google
+  )
+  const back = new URL(
+    calendarEditorLinks(
+      ride({
+        id: "return",
+        trip_leg: "return",
+        requested_pickup_at: "2026-10-05T11:00:00-07:00",
+      }),
+      "https://careride.example"
+    ).google
+  )
+  assert.equal(outbound.searchParams.get("text"), "CareRide outbound pickup")
+  assert.equal(back.searchParams.get("text"), "CareRide return pickup")
+  assert.equal(
+    back.searchParams.get("dates"),
+    "20261005T180000Z/20261005T183000Z"
+  )
+  assert.ok(
+    back.searchParams
+      .get("details")
+      ?.includes("https://careride.example/rides/return")
+  )
+})
+
+test("native file handoff checks exact file support and retains calendar contents", async () => {
+  const calendar = buildRideCalendar([ride()], "https://careride.example", now)
+  const file = new File([calendar], "ride.ics", { type: "text/calendar" })
+  const share = async () => {}
+  assert.equal(shareableCalendarFile(file, {}), null)
+  assert.equal(shareableCalendarFile(file, { share }), null)
+  assert.equal(
+    shareableCalendarFile(file, { share, canShare: () => false }),
+    null
+  )
+  assert.equal(
+    shareableCalendarFile(file, {
+      share,
+      canShare: () => {
+        throw new TypeError("Unsupported file")
+      },
+    }),
+    null
+  )
+  assert.equal(
+    shareableCalendarFile(file, { share, canShare: () => true }),
+    file
+  )
+  const generic = shareableCalendarFile(file, {
+    share,
+    canShare: ({ files }) => files?.[0].type === "application/octet-stream",
+  })
+  assert.ok(generic)
+  assert.equal(generic.name, "ride.ics")
+  assert.equal(await generic.text(), calendar)
 })

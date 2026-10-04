@@ -1,4 +1,5 @@
 export interface Driver {
+  organization_id?: string;
   id: string;
   first_name: string;
   last_name: string;
@@ -26,6 +27,7 @@ export interface DriverAvailability {
   centre_lat: number;
   centre_lng: number;
   radius_m: number;
+  radius_km?: number;
   is_active: boolean;
   kind: AvailabilityKind;
   start_time: string;
@@ -50,6 +52,8 @@ export interface DriverVerification {
   driver_id: string;
   approved_by_org_id: string;
   approved_by_staff_id?: string;
+  approved_by_user_id?: string;
+  document_ref?: string;
   document_type: string;
   document_filename?: string;
   expires_on?: string;

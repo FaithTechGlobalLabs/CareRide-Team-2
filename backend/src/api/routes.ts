@@ -5,26 +5,6 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import type { PoolClient } from "pg";
 
-import { driverCanClaim } from "../store/eligibility.js";
-import {
-  newId,
-  readDb,
-  update,
-  uploadsDir,
-  type Db,
-} from "../store/jsonStore.js";
-import type {
-  Driver,
-  DriverAvailability,
-  Vehicle,
-} from "../types/driver.types.js";
-import type { NotificationType } from "../types/notification.types.js";
-import type {
-  Destination,
-  OrganizationType,
-} from "../types/organization.types.js";
-import type { RideRequest } from "../types/ride.types.js";
-import type { Client, Staff } from "../types/user.types.js";
 import { registerPersonalApi } from "./personal.js";
 import { pool } from "../db/db.js";
 
@@ -108,11 +88,6 @@ function requireAuth(kind?: Auth["kind"]) {
     }
     try {
       const auth = jwt.verify(token, secret) as Auth;
-      const db = readDb();
-      const exists = auth.kind === "driver"
-        ? db.drivers.some(d => d.id === auth.sub)
-        : db.staff.some(s => s.id === auth.sub && s.is_active && s.organization_id === auth.organizationId && db.organizations.some(o => o.id === s.organization_id));
-      if (!exists) { res.status(401).json({ message: "This account no longer has access. Please log in again." }); return; }
       if (kind && auth.kind !== kind) {
         res.status(403).json({ message: "This account cannot open that page." });
         return;
@@ -228,20 +203,6 @@ async function notifyStaff(
       }),
     ],
   );
-  const shared = {
-    ...ride,
-    linked_leg_status: db.rides.find(other => other.id !== ride.id && other.organization_id === ride.organization_id && other.client_id === ride.client_id && (other.id === ride.linked_ride_id || (!!ride.trip_group_id && other.trip_group_id === ride.trip_group_id)))?.status ?? null,
-    pickup_name: locationName(db, undefined, ride.pickup_address),
-    destination_name: locationName(
-      db,
-      ride.destination_id,
-      ride.destination_address,
-    ),
-    organization_name: organization?.name ?? null,
-    organization_phone: organization?.phone ?? null,
-    driver_name: driver?.name ?? null,
-    driver_phone: driver?.phone ?? null,
-    vehicle: vehicle
 }
 
 async function presentRide(client: PoolClient | typeof pool, id: string) {
@@ -755,10 +716,7 @@ export function registerApi(app: Express): void {
         res.status(403).json({ message: "You cannot view this ride." });
         return;
       }
-      const audience = auth?.kind === "driver" ? "driver" : "staff";
-      const driver = db.drivers.find(d => d.id === auth?.sub);
-      const vehicle = db.vehicles.find(v => v.driver_id === auth?.sub);
-      res.json({ ride: { ...presentRide(db, ride, audience), ...(audience === "driver" && driver ? { can_accept: driverCanClaim(db, driver, vehicle, ride).ok } : {}) } });
+      res.json({ ride });
     }),
   );
 
@@ -916,26 +874,12 @@ export function registerApi(app: Express): void {
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
       await markTimedOut();
-      const driverId = req.auth?.sub ?? "";
-      const db = readDb();
-      const driver = db.drivers.find((row) => row.id === driverId);
-      const vehicle = db.vehicles.find((row) => row.driver_id === driverId);
-      if (!driver) {
-        res.status(404).json({ message: "Driver not found." });
-        return;
-      }
-      const eligible = db.rides.filter(ride => driverCanClaim(db, driver, vehicle, ride).ok);
-      const rides = db.rides
-        .filter(ride => eligible.some(anchor => anchor.id === ride.id || (
-          ride.status === "requested" && !ride.driver_id && ride.organization_id === anchor.organization_id && ride.client_id === anchor.client_id &&
-          (anchor.linked_ride_id === ride.id || ride.linked_ride_id === anchor.id || (!!anchor.trip_group_id && anchor.trip_group_id === ride.trip_group_id))
-        )))
-        .map((ride) => ({ ...presentRide(db, ride, "driver"), can_accept: driverCanClaim(db, driver, vehicle, ride).ok }));
+      await markTimedOut();
       const result = await pool.query(
         `${rideListSql} WHERE ${eligibleSql.replaceAll("$DRIVER", "$1")} ORDER BY r.requested_pickup_at`,
-        [driverId],
+        [req.auth?.sub],
       );
-      res.json({ rides: result.rows.map((row) => shapeRide(row as Record<string, unknown>)) });
+      res.json({ rides: result.rows.map(row => shapeRide(row as Record<string, unknown>)) });
     }),
   );
 
@@ -1491,14 +1435,10 @@ export function registerApi(app: Express): void {
     "/notifications",
     requireAuth(),
     asyncRoute(async (req, res) => {
-      const userId = req.auth?.sub ?? "";
-      const db = readDb();
-      const notifications = db.notifications.filter(
-        (row) => row.recipient_user_id === userId && row.recipient === req.auth?.kind,
       const result = await pool.query(
         `SELECT id, staff_id, ride_request_id, title, message, action_url, channel, metadata, is_read, created_at
          FROM notifications
-         WHERE staff_id = $1
+         WHERE ${req.auth?.kind === 'driver' ? 'driver_id' : 'staff_id'} = $1
          ORDER BY created_at DESC`,
         [req.auth?.sub],
       );
@@ -1506,6 +1446,8 @@ export function registerApi(app: Express): void {
         notifications: result.rows.map((row) => ({
           ...row,
           created_at: iso(row.created_at),
+          sent_at: iso(row.created_at),
+          type: row.metadata?.type ?? "ride_updated",
           read_at: row.is_read ? iso(row.created_at) : null,
         })),
       });
@@ -1516,20 +1458,9 @@ export function registerApi(app: Express): void {
     "/notifications/:id/read",
     requireAuth(),
     asyncRoute(async (req, res) => {
-      const userId = req.auth?.sub ?? "";
-      const row = await update((db) => {
-        const note = db.notifications.find(
-          (item) =>
-            item.id === param(req, "id") && item.recipient_user_id === userId && item.recipient === req.auth?.kind,
-        );
-        if (!note) return null;
-        note.read_at = new Date().toISOString();
-        return note;
-      });
-      if (!row) {
       const result = await pool.query(
         `UPDATE notifications SET is_read = true
-         WHERE id = $1 AND staff_id = $2
+         WHERE id = $1 AND ${req.auth?.kind === 'driver' ? 'driver_id' : 'staff_id'} = $2
          RETURNING id, is_read`,
         [param(req, "id"), req.auth?.sub],
       );

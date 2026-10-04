@@ -19,9 +19,8 @@ export interface Notification {
   driver_id?: string;
   staff_id?: string;
   ride_request_id?: string;
-  title: string;
-  message: string;
-  action_url?: string;
+  recipient_user_id: string;
+  recipient: NotificationRecipient;
   channel: NotificationChannel;
   type: NotificationType;
   destination?: string;

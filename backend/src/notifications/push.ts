@@ -1,6 +1,6 @@
 import webpush from "web-push";
-import { readDb, update } from "../store/jsonStore.js";
-import { driverCanClaim } from "../store/eligibility.js";
+import { pool } from "../db/db.js";
+import { ensureNotificationSchema } from "./sqlStore.js";
 
 export function pushConfig() {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
@@ -13,18 +13,9 @@ export function pushConfig() {
 }
 
 let pending: Promise<void> | null = null;
-let rerun = false;
 export function flushPush(): Promise<void> {
-  if (pending) {
-    rerun = true;
-    return pending;
-  }
-  pending = (async () => {
-    do {
-      rerun = false;
-      await deliver();
-    } while (rerun);
-  })().finally(() => {
+  if (pending) return pending;
+  pending = deliver().finally(() => {
     pending = null;
   });
   return pending;
@@ -32,114 +23,63 @@ export function flushPush(): Promise<void> {
 
 async function deliver(): Promise<void> {
   if (!pushConfig().configured) return;
+  await ensureNotificationSchema();
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT!,
     process.env.VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!,
   );
-  await update((db) => {
-    db.pushDeliveries ??= [];
-    for (const note of db.notifications.filter(
-      (n) => n.event_key && !n.read_at,
-    )) {
-      const prefs = db.notificationPreferences?.find(
-        (p) =>
-          p.user_id === note.recipient_user_id && p.kind === note.recipient,
-      );
-      if (
-        !prefs?.push_enabled ||
-        (note.type === "available_ride"
-          ? !prefs.available_rides_enabled
-          : !prefs.updates_enabled)
-      )
-        continue;
-      for (const sub of db.pushSubscriptions ?? []) {
-        if (
-          sub.user_id !== note.recipient_user_id ||
-          sub.kind !== note.recipient ||
-          sub.created_at > (note.sent_at ?? "")
-        )
-          continue;
-        if (
-          !db.pushDeliveries.some(
-            (d) => d.notification_id === note.id && d.endpoint === sub.endpoint,
-          )
-        )
-          db.pushDeliveries.push({
-            notification_id: note.id,
-            endpoint: sub.endpoint,
-            attempts: 0,
-            next_attempt_at: new Date().toISOString(),
-          });
-      }
-    }
-  }, true);
-  const snapshot = readDb();
-  const due = (snapshot.pushDeliveries ?? [])
-    .filter(
-      (d) =>
-        !d.delivered_at &&
-        !d.failed &&
-        d.next_attempt_at <= new Date().toISOString(),
-    )
-    .slice(0, 40);
-  for (let i = 0; i < due.length; i += 8) {
+  await pool.query(`INSERT INTO push_deliveries (notification_id, endpoint)
+    SELECT n.id, s.endpoint FROM notifications n
+    JOIN push_subscriptions s ON (s.kind = 'staff' AND n.staff_id = s.user_id) OR (s.kind = 'driver' AND n.driver_id = s.user_id)
+    JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = s.kind
+    WHERE p.push_enabled AND NOT n.is_read AND n.created_at >= s.created_at
+      AND (CASE WHEN s.kind = 'driver' THEN p.available_rides_enabled ELSE p.updates_enabled END)
+    ON CONFLICT DO NOTHING`);
+  // Lease a batch atomically so multiple Cloud Run workers don't send the same batch.
+  const leased = await pool.query(`UPDATE push_deliveries d
+    SET next_attempt_at = now() + interval '2 minutes'
+    FROM (SELECT notification_id, endpoint FROM push_deliveries
+      WHERE NOT failed AND delivered_at IS NULL AND next_attempt_at <= now()
+      ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT 40) due
+    WHERE d.notification_id = due.notification_id AND d.endpoint = due.endpoint
+    RETURNING d.notification_id, d.endpoint`);
+  for (let offset = 0; offset < leased.rows.length; offset += 8) {
     await Promise.all(
-      due.slice(i, i + 8).map(async (delivery) => {
-        const sub = snapshot.pushSubscriptions?.find(
-          (s) => s.endpoint === delivery.endpoint,
+      leased.rows.slice(offset, offset + 8).map(async (delivery) => {
+        const result = await pool.query(
+          `SELECT s.endpoint, s.p256dh, s.auth, s.kind, n.id, n.is_read,
+          p.push_enabled, p.updates_enabled, p.available_rides_enabled
+        FROM notifications n JOIN push_subscriptions s ON s.endpoint = $2
+        JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = s.kind
+        WHERE n.id = $1 AND ((s.kind = 'staff' AND n.staff_id = s.user_id) OR (s.kind = 'driver' AND n.driver_id = s.user_id))`,
+          [delivery.notification_id, delivery.endpoint],
         );
-        const note = snapshot.notifications.find(
-          (n) => n.id === delivery.notification_id,
-        );
-        const pref = snapshot.notificationPreferences?.find(
-          (p) => p.user_id === sub?.user_id && p.kind === sub?.kind,
-        );
-        let terminal = !sub || !note || !pref?.push_enabled || !!note.read_at;
-        if (
-          note &&
-          sub &&
-          (note.recipient_user_id !== sub.user_id ||
-            note.recipient !== sub.kind)
-        )
-          terminal = true;
-        if (
-          note &&
-          (note.type === "available_ride"
-            ? !pref?.available_rides_enabled
-            : !pref?.updates_enabled)
-        )
-          terminal = true;
-        if (note?.type === "available_ride" && sub) {
-          const ride = snapshot.rides.find(
-            (r) => r.id === note.ride_request_id,
-          );
-          const driver = snapshot.drivers.find((d) => d.id === sub.user_id);
-          const vehicle = snapshot.vehicles.find(
-            (v) => v.driver_id === sub.user_id,
-          );
-          if (
-            !ride ||
-            !driver ||
-            !driverCanClaim(snapshot, driver, vehicle, ride).ok
-          )
-            terminal = true;
-        }
+        const row = result.rows[0];
         let success = false;
         let gone = false;
-        if (!terminal && sub && note) {
+        let terminal =
+          !row ||
+          row.is_read ||
+          !row.push_enabled ||
+          !(row.kind === "driver"
+            ? row.available_rides_enabled
+            : row.updates_enabled);
+        if (!terminal) {
           try {
-            // Lock-screen content stays generic; personal details are behind login.
             await webpush.sendNotification(
-              sub,
+              {
+                endpoint: row.endpoint,
+                keys: { p256dh: row.p256dh, auth: row.auth },
+              },
               JSON.stringify({
                 title: "CareRide",
                 body:
-                  sub.kind === "driver"
+                  row.kind === "driver"
                     ? "A ride fits your availability. Open CareRide for details."
                     : "There is an update for your organization. Open CareRide for details.",
                 url: "/notifications",
-                tag: note.id,
+                tag: row.id,
               }),
               { TTL: 3600, timeout: 5000 },
             );
@@ -152,25 +92,21 @@ async function deliver(): Promise<void> {
               (code !== undefined && code >= 400 && code < 500 && code !== 429);
           }
         }
-        await update((db) => {
-          const row = db.pushDeliveries?.find(
-            (d) =>
-              d.notification_id === delivery.notification_id &&
-              d.endpoint === delivery.endpoint,
+        if (gone) {
+          await pool.query(
+            `DELETE FROM push_subscriptions WHERE endpoint = $1`,
+            [delivery.endpoint],
           );
-          if (!row) return;
-          row.attempts++;
-          if (success) row.delivered_at = new Date().toISOString();
-          else if (terminal || row.attempts >= 5) row.failed = true;
-          else
-            row.next_attempt_at = new Date(
-              Date.now() + Math.min(3600000, 30000 * 2 ** row.attempts),
-            ).toISOString();
-          if (gone)
-            db.pushSubscriptions = (db.pushSubscriptions ?? []).filter(
-              (s) => s.endpoint !== delivery.endpoint,
-            );
-        }, true);
+        } else {
+          await pool.query(
+            `UPDATE push_deliveries SET attempts = attempts + 1,
+          delivered_at = CASE WHEN $3 THEN now() ELSE delivered_at END,
+          failed = $4 OR (NOT $3 AND attempts >= 4),
+          next_attempt_at = now() + LEAST(interval '1 hour', interval '30 seconds' * power(2, attempts + 1))
+          WHERE notification_id = $1 AND endpoint = $2`,
+            [delivery.notification_id, delivery.endpoint, success, terminal],
+          );
+        }
       }),
     );
   }

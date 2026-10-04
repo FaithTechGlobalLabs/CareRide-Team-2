@@ -62,14 +62,11 @@ function normalize(value: unknown): unknown {
     if (!user.role && user.kind === "driver") user.role = "driver"
     record.user = user
   }
-  if (
-    typeof record.pickup_address === "string" &&
-    typeof record.status === "string" &&
-    typeof record.driver_name === "string"
-  ) {
+  if (typeof record.driver_name === "string") {
     record.driver = {
       id: record.driver_id,
       name: record.driver_name,
+      email: record.driver_email ?? "",
       phone: record.driver_phone ?? "",
       vehicle: record.vehicle,
     }

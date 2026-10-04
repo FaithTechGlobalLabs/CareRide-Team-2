@@ -1303,13 +1303,73 @@ export function registerApi(app: Express): void {
     "/drivers/me/availability/:id",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const result = await pool.query(
-        `UPDATE driver_availabilities
-         SET is_active = $3
-         WHERE id = $1 AND driver_id = $2
-         RETURNING id, is_active`,
-        [param(req, "id"), req.auth?.sub, Boolean(req.body.is_active)],
+      req.body ??= {};
+      const editingSchedule = ["kind", "start_time", "end_time", "centre_lat", "centre_lng", "radius_km", "on_date", "weekdays", "month_days", "note"].some(
+        (key) => Object.hasOwn(req.body, key),
       );
+      if (req.body.is_active !== undefined && typeof req.body.is_active !== "boolean") {
+        res.status(400).json({ message: "Active must be true or false." });
+        return;
+      }
+      if (!editingSchedule && req.body.is_active === undefined) {
+        res.status(400).json({ message: "Provide availability changes." });
+        return;
+      }
+      let result;
+      if (editingSchedule) {
+        const kind = String(req.body.kind ?? "");
+        const start = String(req.body.start_time ?? "");
+        const end = String(req.body.end_time ?? "");
+        const lat = Number(req.body.centre_lat);
+        const lng = Number(req.body.centre_lng);
+        const radiusKm = Number(req.body.radius_km);
+        const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+        if (!["one_time", "weekly", "monthly"].includes(kind) || !timePattern.test(start) || !timePattern.test(end) || end <= start) {
+          res.status(400).json({ message: "Choose a schedule and an end time after the start time." });
+          return;
+        }
+        if (req.body.centre_lat == null || req.body.centre_lng == null || !Number.isFinite(lat) || Math.abs(lat) > 90 || !Number.isFinite(lng) || Math.abs(lng) > 180 || !Number.isFinite(radiusKm) || radiusKm <= 0) {
+          res.status(400).json({ message: "Drop a service-area pin and enter a radius in kilometres." });
+          return;
+        }
+        const weekdays = Array.isArray(req.body.weekdays) ? req.body.weekdays.map(Number) : [];
+        const monthDays = Array.isArray(req.body.month_days) ? req.body.month_days.map(Number) : [];
+        const onDate = String(req.body.on_date ?? "");
+        const date = new Date(`${onDate}T00:00:00Z`);
+        if (kind === "one_time" && (!/^\d{4}-\d{2}-\d{2}$/.test(onDate) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== onDate)) {
+          res.status(400).json({ message: "One-time availability needs a valid date." });
+          return;
+        }
+        if (kind === "weekly" && (!weekdays.length || weekdays.some((day: number) => !Number.isInteger(day) || day < 0 || day > 6))) {
+          res.status(400).json({ message: "Weekly availability needs valid weekdays." });
+          return;
+        }
+        if (kind === "monthly" && (!monthDays.length || monthDays.some((day: number) => !Number.isInteger(day) || day < 1 || day > 31))) {
+          res.status(400).json({ message: "Monthly availability needs valid days of the month." });
+          return;
+        }
+        result = await pool.query(
+          `UPDATE driver_availabilities
+           SET centre = ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography,
+               radius_m = $5, kind = $6, start_time = $7, end_time = $8,
+               on_date = NULLIF($9, '')::date, weekdays = $10::smallint[],
+               month_days = $11::smallint[], note = NULLIF($12, ''),
+               is_active = COALESCE($13::boolean, is_active)
+           WHERE id = $1 AND driver_id = $2
+           RETURNING id, is_active`,
+          [param(req, "id"), req.auth?.sub, lng, lat, radiusKm * 1000, kind, start, end,
+            kind === "one_time" ? onDate : "", kind === "weekly" ? weekdays : null,
+            kind === "monthly" ? monthDays : null, String(req.body.note ?? ""), req.body.is_active ?? null],
+        );
+      } else {
+        result = await pool.query(
+          `UPDATE driver_availabilities
+           SET is_active = $3
+           WHERE id = $1 AND driver_id = $2
+           RETURNING id, is_active`,
+          [param(req, "id"), req.auth?.sub, req.body.is_active],
+        );
+      }
       if (!result.rows[0]) {
         res.status(404).json({ message: "Availability not found." });
         return;

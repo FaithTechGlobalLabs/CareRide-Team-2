@@ -1,0 +1,156 @@
+[
+  {
+    "title": "A little help,\nA way forward.",
+    "eyebrow": "CARERIDE  /  TEAM 2  /  HACKVAN2026",
+    "time": 30,
+    "tag": "Connecting people to the care they need.",
+    "notes": "Imagine having an appointment that could change your week, but no reliable way to get there. For someone experiencing homelessness, the distance to care can be much greater than the distance on a map. We are Team 2, and this is CareRide: a little help, a way forward. We connect the people arranging care with the people willing to offer a ride, so more neighbours can reach the services they need."
+  },
+  {
+    "title": "Care exists.\nGetting there is the gap.",
+    "eyebrow": "THE HUMAN NEED",
+    "time": 45,
+    "tag": "A seat in your car can open a door to care.",
+    "cards": [
+      [
+        "A place to go",
+        "Hospitals, shelters, and essential services."
+      ],
+      [
+        "A barrier to cross",
+        "No smartphone, limited digital access, or no reliable ride."
+      ],
+      [
+        "A person to help",
+        "Staff need a clear way to coordinate the journey."
+      ]
+    ],
+    "notes": "The Belkin Communities of Hope brief describes a practical and deeply human problem. Clients need to travel to hospitals, shelters, and other essential services. Some do not have smartphones or the digital literacy to arrange a conventional ride independently. Staff step in, but requests, calls, and updates can become fragmented across organizations. That leaves two people carrying the uncertainty: the client wondering whether they will get there, and the staff member trying to arrange it. CareRide focuses on this specific access barrier for people experiencing homelessness and other vulnerable neighbours. A seat in a car can become a door to care."
+  },
+  {
+    "title": "Put the journey\nin one shared place.",
+    "eyebrow": "THE PROPOSAL",
+    "time": 45,
+    "tag": "A little coordination. A meaningful difference.",
+    "cards": [
+      [
+        "Staff request",
+        "Arrange a free ride on a client’s behalf."
+      ],
+      [
+        "Drivers respond",
+        "Approved volunteers review and accept eligible rides."
+      ],
+      [
+        "Everyone stays informed",
+        "Track the journey from request to completion."
+      ]
+    ],
+    "notes": "Our proposal is a staff-facing community transportation platform. Staff book a free ride for a client, an eligible driver accepts it, and the staff member can follow its progress. The client does not need a smartphone or a CareRide account in this first version. We begin with the people already providing support, rather than asking someone in a difficult situation to learn another digital system. CareRide brings requests and status updates into one place, across participating organizations. This is an independent platform shaped by the Belkin brief, with future service partnerships still to be confirmed. A little coordination can make a meaningful difference."
+  },
+  {
+    "title": "People at the heart\nof every journey.",
+    "eyebrow": "HOW IT WORKS",
+    "time": 40,
+    "tag": "Every connection is another step toward care.",
+    "notes": "The journey has three human roles. A staff member knows the client and arranges the pickup and destination. A driver offers time and a seat. The organization approves that driver for its own rides. From there, the request moves through clear stages: awaiting a driver, driver assigned, on the way, and completed. Staff can see what needs attention instead of chasing every update. Saved pickup points and essential destinations make repeat journeys easier to arrange. If a return ride is needed, each leg is handled as a separate booking, so the staff member can see whether both directions have coverage."
+  },
+  {
+    "title": "A ride to care\nstarts with you.",
+    "eyebrow": "THE STAFF EXPERIENCE  /  ACTUAL APP",
+    "time": 60,
+    "tag": "Built for the people who care for our communities.",
+    "notes": "Here is the staff experience in the prototype. These screenshots use synthetic demo records. The dashboard puts upcoming journeys and ride status in view. The booking screen lets staff select a client, choose saved pickup and destination points, and specify when the ride is needed. That matters because staff are arranging a real commitment, often around an appointment. For a live demonstration, I would open Book a ride, choose a sample client and a saved destination, and submit the request. It then becomes a journey that an eligible driver can review. The design is deliberately calm: clear labels, familiar actions, and a layout that works on mobile. We want staff spending their attention on people, with the app helping them coordinate."
+  },
+  {
+    "title": "A helping hand\nbehind the wheel.",
+    "eyebrow": "THE DRIVER EXPERIENCE  /  ACTUAL APP",
+    "time": 60,
+    "tag": "A little kindness travels a long way.",
+    "notes": "On the other side is the volunteer driver. The driver view brings available rides and their own commitments together. The driver can review an eligible request, accept it, and update the journey at pickup and drop-off. Staff then have a shared record of what is happening. For a live demonstration, I would switch to a sample driver, open an available request, and show the acceptance and journey actions. Organization approval is part of the model: signing up alone does not make someone eligible for every organization’s rides. Driver availability and capacity help make the offer of a ride practical. The promise we want to test is simple: make it easier for a willing helping hand to become a useful journey."
+  },
+  {
+    "title": "Build trust\ninto the journey.",
+    "eyebrow": "DIGNITY AND ACCOUNTABILITY",
+    "time": 45,
+    "tag": "Drivers approved by your organization.",
+    "cards": [
+      [
+        "Accountable approval",
+        "Each organization approves drivers for its rides."
+      ],
+      [
+        "Human support",
+        "Staff arrange rides and communications for clients."
+      ],
+      [
+        "Clear expectations",
+        "Planned trips, visible status, and defined destinations."
+      ]
+    ],
+    "notes": "For this audience, how we build matters as much as what we build. CareRide keeps the supporting organization involved. Each organization approves drivers for its rides, and staff remain the client’s point of contact in the first version. Trips are planned around essential services, with clear status and destination information. Emergency needs still go through emergency services. Before a live pilot, we need the partner to agree driver screening, insurance, consent, privacy, and escalation procedures. These are operational decisions to settle with the people responsible for care. The prototype gives us a foundation for that conversation; a responsible pilot will tell us what needs to change."
+  },
+  {
+    "title": "Start small.\nMeasure what matters.",
+    "eyebrow": "PROPOSED PILOT  /  SUBJECT TO PARTNER AGREEMENT",
+    "time": 45,
+    "tag": "Small steps. Stronger communities.",
+    "cards": [
+      [
+        "Prepare",
+        "One willing organization; named owner; approved drivers and routes."
+      ],
+      [
+        "Run",
+        "A proposed four-week pilot with staff support and a fallback plan."
+      ],
+      [
+        "Learn",
+        "Measure completion, coordination time, and client/staff feedback."
+      ]
+    ],
+    "notes": "Our next step is a proposed four-week pilot with one willing organization, subject to its agreement. First, choose a named operational owner, a small set of destinations, and approved drivers. Agree the procedures and a fallback when no ride is available. Then run a limited set of planned trips. We should measure completed rides as a share of requests, time from request to acceptance, and staff time spent coordinating each ride. We also need direct feedback: did the client feel respected, and did staff find the process useful? The app’s sample savings are illustrative, not measured results. We want a baseline and real evidence before making claims about cost savings or improved access."
+  },
+  {
+    "title": "Excellence. Impact. Hope.",
+    "eyebrow": "BUILT FOR FAITHTECH’S MISSION",
+    "time": 40,
+    "tag": "Bring your community.",
+    "cards": [
+      [
+        "Excellence",
+        "Clear, thoughtful tools for the people doing the work."
+      ],
+      [
+        "Impact",
+        "Reduce friction between a neighbour and essential care."
+      ],
+      [
+        "Hope",
+        "Turn a willingness to help into a practical next step."
+      ]
+    ],
+    "notes": "FaithTech’s event names three values: Excellence, Impact, and Hope. CareRide gives us a practical way to pursue all three. Excellence means making a thoughtful tool that staff can understand and use. Impact means testing whether it actually helps neighbours reach care and reduces the work needed to coordinate that journey. Hope means acknowledging the barriers while taking a useful next step together. For a gathering building in the name of Jesus, we see this as a concrete expression of loving our neighbour: offering time, attention, and practical help. We want churches, service organizations, and volunteers to be able to bring their community into that work."
+  },
+  {
+    "title": "Help us make\na way forward.",
+    "eyebrow": "THE INVITATION",
+    "time": 30,
+    "tag": "A little help, A way forward.\nConnecting people to the care they need.",
+    "cards": [
+      [
+        "Pilot with us",
+        "A willing service organization and an operational lead."
+      ],
+      [
+        "Drive with us",
+        "Volunteers ready to follow agreed approval procedures."
+      ],
+      [
+        "Build with us",
+        "FaithTech mentors and maintainers for the next phase."
+      ]
+    ],
+    "notes": "Today, we are asking for three kinds of help: a willing organization to shape a pilot, volunteers to offer rides under agreed procedures, and FaithTech mentors and maintainers to help carry this beyond the weekend. The next step is a pilot planning conversation with the people who will run and use it. We believe a small act of coordination can open a meaningful path to care. CareRide: a little help, a way forward. Connecting people to the care they need."
+  }
+]

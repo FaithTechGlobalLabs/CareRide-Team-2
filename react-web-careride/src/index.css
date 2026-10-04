@@ -285,10 +285,10 @@
 
 .form-panel { max-width: 860px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
-.field { display: grid; align-content: start; gap: 7px; color: #43534d; font-size: .74rem; font-weight: 660; }
+.field { display: grid; min-width: 0; align-content: start; gap: 7px; color: #43534d; font-size: .74rem; font-weight: 660; }
 .field.wide, .wide { grid-column: 1 / -1; }
 .field small { color: var(--care-muted); font-size: .65rem; font-weight: 440; }
-input, select, textarea { width: 100%; min-height: 42px; border: 1px solid #d7e0da; border-radius: 10px; padding: 9px 11px; background: #fbfcfb; color: var(--care-ink); }
+input, select, textarea { width: 100%; min-width: 0; max-width: 100%; min-height: 42px; border: 1px solid #d7e0da; border-radius: 10px; padding: 9px 11px; background: #fbfcfb; color: var(--care-ink); }
 textarea { min-height: 86px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: #a1aaa6; }
 .checkbox { display: inline-flex; align-items: center; gap: 8px; color: #52625b; font-size: .75rem; font-weight: 530; }
@@ -386,11 +386,13 @@ input::placeholder, textarea::placeholder { color: #a1aaa6; }
 .weekday span { display: grid; height: 38px; place-items: center; border: 1px solid var(--care-line); border-radius: 9px; color: var(--care-muted); font-size: .68rem; font-weight: 650; }
 .weekday input:checked + span { border-color: var(--care-green); background: var(--care-mint); color: var(--care-green); }
 
-.view-tabs { display: inline-flex; gap: 4px; margin-bottom: 14px; border-radius: 11px; padding: 4px; background: #f3f6f4; }
+.schedule-view-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.view-tabs { display: inline-flex; flex: 0 0 auto; gap: 4px; border-radius: 11px; padding: 4px; background: #f3f6f4; }
 .view-tabs button { min-height: 34px; border: 0; border-radius: 8px; padding: 0 14px; background: transparent; color: #66736e; font-size: .74rem; font-weight: 700; }
 .view-tabs button.active { background: white; color: var(--care-green); box-shadow: 0 1px 4px rgba(36, 63, 54, .12); }
-.week-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.week-toolbar p { margin: 0; color: var(--care-muted); font-size: .72rem; }
+.calendar-period { margin: 0; color: var(--care-muted); font-size: .72rem; text-align: right; }
+.week-toolbar { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin-bottom: 14px; }
+.week-toolbar .action-row { flex-wrap: nowrap; }
 .week-scroll { width: 100%; max-width: 100%; overflow-x: auto; }
 .week-grid { display: grid; grid-template-columns: 56px repeat(7, minmax(140px, 1fr)); width: max(100%, 1036px); }
 .week-corner { border-bottom: 1px solid var(--care-line); }
@@ -450,9 +452,23 @@ input::placeholder, textarea::placeholder { color: #a1aaa6; }
 .user-menu strong, .user-menu small { display: block; }
 .user-menu small { margin-top: 2px; color: var(--care-muted); font-size: .66rem; }
 .user-menu .btn { justify-content: center; }
+.user-menu .install-menu-button { order: -1; }
 button.user-avatar { border: 0; cursor: pointer; font: inherit; }
 .topbar-actions { position: relative; }
 
+.install-dialog-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: end center; padding: 18px; background: rgba(24, 39, 34, .52); backdrop-filter: blur(4px); }
+.install-dialog { position: relative; width: min(100%, 440px); max-height: calc(100dvh - 36px); overflow-y: auto; border-radius: 22px; padding: 25px; background: white; box-shadow: 0 24px 70px rgba(20, 42, 34, .26); }
+.install-dialog-close { position: absolute; top: 15px; right: 15px; display: grid; width: 38px; height: 38px; place-items: center; border: 0; border-radius: 50%; background: #f1f5f2; color: var(--care-muted); }
+.install-dialog-icon { display: grid; width: 52px; height: 52px; place-items: center; margin-bottom: 18px; border-radius: 15px; background: var(--care-mint); color: var(--care-green); }
+.install-dialog .eyebrow { margin-bottom: 7px; }
+.install-dialog h2 { max-width: 330px; margin: 0 0 9px; font-family: Georgia, serif; font-size: 1.7rem; font-weight: 540; letter-spacing: -.035em; line-height: 1.1; }
+.install-dialog-intro { margin-bottom: 21px; color: var(--care-muted); font-size: .82rem; line-height: 1.5; }
+.install-steps { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; counter-reset: install-step; }
+.install-steps li { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; counter-increment: install-step; }
+.install-steps li > span { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; background: #f4f7f5; color: var(--care-green); }
+.install-steps strong { display: block; margin-top: 1px; font-size: .86rem; }
+.install-steps p { margin: 4px 0 0; color: var(--care-muted); font-size: .73rem; line-height: 1.45; }
+.install-steps b { color: var(--care-ink); font-weight: 700; }
 .auth-layout { display: grid; min-height: 100vh; grid-template-columns: minmax(360px, 43%) minmax(0, 1fr); background: white; }
 .auth-story { display: flex; min-height: 100vh; flex-direction: column; justify-content: space-between; padding: 38px 9vw 28px 4vw; background: linear-gradient(160deg, #eaf3ed 0%, #f5f2e8 100%); }
 .auth-story > div { max-width: 430px; }
@@ -517,6 +533,10 @@ button.user-avatar { border: 0; cursor: pointer; font: inherit; }
   .impact-metrics { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .field.wide, .wide { grid-column: auto; }
+  input[type="date"] { display: block; width: -webkit-fill-available; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; }
+  .completed-rides-stat { display: none; }
+  .view-tabs button { padding: 0 10px; }
+  .calendar-period { font-size: .66rem; white-space: nowrap; }
   .filter-bar { align-items: stretch; flex-direction: column; }
   .filter-bar select { width: 100%; }
   .ride-row { grid-template-columns: 43px minmax(0, 1fr) auto; }

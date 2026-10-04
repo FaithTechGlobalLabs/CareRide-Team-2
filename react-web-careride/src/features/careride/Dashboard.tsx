@@ -60,6 +60,7 @@ export function Dashboard() {
           title="Completed rides"
           value={completed.length}
           note="Connections made"
+          className="completed-rides-stat"
         />
       </div>
       <div className="dashboard-columns">
@@ -196,15 +197,17 @@ function Stat({
   value,
   note,
   tone = "",
+  className = "",
 }: {
   icon: React.ReactNode
   title: string
   value: number
   note: string
   tone?: string
+  className?: string
 }) {
   return (
-    <Link to="/rides" className={`stat-card ${tone}`}>
+    <Link to="/rides" className={`stat-card ${tone} ${className}`}>
       <div>
         <span>{title}</span>
         <span className="stat-icon">{icon}</span>

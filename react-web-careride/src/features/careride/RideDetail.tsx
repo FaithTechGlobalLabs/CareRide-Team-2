@@ -13,6 +13,7 @@ import { ConfettiButton } from "../../components/ui/confetti"
 import { BookingDayCard } from "./BookingDay"
 import { useCare } from "./context"
 import { Layout } from "./Layout"
+import { queueInstallHelpAfterFirstRideAcceptance } from "./iosInstall"
 import {
   ActionButton,
   Badge,
@@ -150,6 +151,8 @@ export function RideDetail({ rideId }: { rideId: string }) {
               <ConfettiButton
                 onClick={async () => {
                   await mutate(`/rides/${ride.id}/accept`)
+                  if (session?.user.id)
+                    queueInstallHelpAfterFirstRideAcceptance(session.user.id)
                   sessionStorage.setItem(
                     "careride-driver-confirmation",
                     "You’re good to go. The ride is now in your upcoming rides."

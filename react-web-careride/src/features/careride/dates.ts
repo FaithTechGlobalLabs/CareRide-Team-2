@@ -1,5 +1,12 @@
 export const TIMEZONE = "America/Vancouver"
 
+export function formatClockTime(value: string) {
+  const [rawHour, rawMinute = "00"] = value.split(":")
+  const hour = Number(rawHour)
+  if (!Number.isFinite(hour)) return value
+  return `${hour % 12 || 12}:${rawMinute} ${hour >= 12 ? "PM" : "AM"}`
+}
+
 export function vancouverYmd(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TIMEZONE,

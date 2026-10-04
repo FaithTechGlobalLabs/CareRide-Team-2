@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useCare } from "./context"
 import { Layout } from "./Layout"
+import { AddToCalendar } from "./AddToCalendar"
 import {
   AddLink,
   Empty,
@@ -250,9 +251,14 @@ export function DriverDashboard() {
   const [confirmation] = useState(
     () => sessionStorage.getItem("careride-driver-confirmation") ?? ""
   )
+  const [acceptedRideId] = useState(
+    () => sessionStorage.getItem("careride-driver-accepted-ride") ?? ""
+  )
   useEffect(() => {
     if (confirmation) sessionStorage.removeItem("careride-driver-confirmation")
+    sessionStorage.removeItem("careride-driver-accepted-ride")
   }, [confirmation])
+  const acceptedRide = data.rides.find((ride) => ride.id === acceptedRideId)
   const active = data.rides.filter((r) =>
     ["accepted", "in_progress"].includes(r.status)
   )
@@ -276,6 +282,9 @@ export function DriverDashboard() {
       {confirmation && (
         <div className="driver-confirmation">
           <Success>{confirmation}</Success>
+          {acceptedRide && (
+            <AddToCalendar key={acceptedRide.id} ride={acceptedRide} />
+          )}
         </div>
       )}
       <div className="my-rides-layout">

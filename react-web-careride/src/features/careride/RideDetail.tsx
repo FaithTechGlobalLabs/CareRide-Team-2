@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { ConfettiButton } from "../../components/ui/confetti"
 import { BookingDayCard } from "./BookingDay"
+import { AddToCalendar } from "./AddToCalendar"
 import { useCare } from "./context"
 import { Layout } from "./Layout"
 import { queueInstallHelpAfterFirstRideAcceptance } from "./iosInstall"
@@ -144,15 +145,27 @@ export function RideDetail({ rideId }: { rideId: string }) {
                       />
                       <ReasonAction
                         title="Withdraw from ride"
-                        onSubmit={(reason) =>
-                          mutate(`/rides/${ride.id}/withdraw`, "POST", {
+                        onSubmit={async (reason) => {
+                          await mutate(`/rides/${ride.id}/withdraw`, "POST", {
                             reason,
                           })
-                        }
+                          sessionStorage.removeItem(
+                            "careride-driver-accepted-ride"
+                          )
+                          sessionStorage.setItem(
+                            "careride-driver-confirmation",
+                            "You’ve withdrawn from the ride. If you added it to your calendar, delete that event manually." +
+                              (ride.linked_ride_id
+                                ? " For a round trip, check the other leg separately."
+                                : "")
+                          )
+                          await navigate({ to: "/driver" })
+                        }}
                       />
                     </>
                   )}
                 </div>
+                <AddToCalendar key={ride.id} ride={ride} />
               </Panel>
             )}
           {driver && !ride.driver_id && ride.status === "requested" && (
@@ -168,6 +181,10 @@ export function RideDetail({ rideId }: { rideId: string }) {
                   sessionStorage.setItem(
                     "careride-driver-confirmation",
                     "You’re good to go. The ride is now in your upcoming rides."
+                  )
+                  sessionStorage.setItem(
+                    "careride-driver-accepted-ride",
+                    ride.id
                   )
                   await navigate({ to: "/driver" })
                 }}
@@ -202,6 +219,18 @@ export function RideDetail({ rideId }: { rideId: string }) {
                     }
                   />
                 )}
+                {ride.status === "accepted" && (
+                  <p className="muted">
+                    If the driver added this ride to their calendar, they’ll
+                    need to delete that event manually after cancellation.
+                  </p>
+                )}
+                {ride.status === "cancelled" && (
+                  <p role="status" className="info-box">
+                    This ride is cancelled. If the driver added it to their
+                    calendar, they need to delete that event manually.
+                  </p>
+                )}
               </>
               {ride.cancelled_reason && (
                 <p>Cancellation reason: {ride.cancelled_reason}</p>
@@ -212,6 +241,14 @@ export function RideDetail({ rideId }: { rideId: string }) {
             ["completed", "cancelled", "no_show"].includes(ride.status) && (
               <Panel title="Ride actions">
                 <p className="muted">This journey is closed.</p>
+                {assigned && ["cancelled", "no_show"].includes(ride.status) && (
+                  <p role="status" className="info-box">
+                    If you added this ride to your calendar, delete that event
+                    manually.
+                    {ride.linked_ride_id &&
+                      " For a round trip, check the other leg separately."}
+                  </p>
+                )}
               </Panel>
             )}
           <Panel

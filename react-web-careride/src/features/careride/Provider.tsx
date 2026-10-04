@@ -14,6 +14,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
   })
   const [data, setData] = useState<Data>(emptyData)
   const [loading, setLoading] = useState(false)
+  const [dataVersion, setDataVersion] = useState(0)
   const [error, setError] = useState("")
   const refresh = useCallback(async () => {
     if (!session) return
@@ -68,6 +69,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
           )
       })
       setData(next)
+      setDataVersion((version) => version + 1)
       setError(failures.length ? failures.join(" ") : "")
     } finally {
       setLoading(false)
@@ -111,7 +113,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
   }
   return (
     <Context.Provider
-      value={{ session, data, loading, error, refresh, login, logout, mutate }}
+      value={{ session, data, loading, dataVersion, error, refresh, login, logout, mutate }}
     >
       {children}
     </Context.Provider>

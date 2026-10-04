@@ -4,6 +4,7 @@ export interface CareContext {
   session: Session | null
   data: Data
   loading: boolean
+  dataVersion: number
   error: string
   refresh: () => Promise<void>
   login: (session: Session) => void

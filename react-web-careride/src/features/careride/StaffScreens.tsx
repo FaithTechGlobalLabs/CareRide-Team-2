@@ -26,6 +26,8 @@ import {
   vancouverYmd,
 } from "./dates"
 import type { Client, Destination, Ride } from "./types"
+import { NotificationControls, useDriverReadChanges } from "./NotificationControls"
+import { markDriverRead, noticesForSession } from "./notifications"
 
 function upcomingQuarterSlot(now = new Date()) {
   const ymd = vancouverYmd(now)
@@ -786,15 +788,22 @@ function BookingForm({
   )
 }
 export function NotificationsScreen() {
-  const { data, mutate } = useCare()
+  const { data, mutate, session } = useCare()
+  useDriverReadChanges()
   const [unread, setUnread] = useState(false)
-  const notices = data.notifications.filter((n) => !unread || !n.read_at)
+  const driver = session?.user.role === "driver"
+  const notices = (session ? noticesForSession(data, session) : [])
+    .filter((n) => !unread || !n.read_at)
+    .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""))
   return (
-    <Layout>
+    <Layout driver={driver}>
       <PageTitle
-        title="You’re in the loop."
-        description="Booking confirmations, driver assignments, and completed journeys."
+        title={driver ? "Rides ready for you." : "You’re in the loop."}
+        description={driver
+          ? "Requests that match your approval, availability, and vehicle."
+          : "Booking confirmations, driver assignments, and client journey updates."}
       />
+      <NotificationControls />
       <Panel>
         <label className="checkbox">
           <input
@@ -814,6 +823,7 @@ export function NotificationsScreen() {
                 <h3>
                   {n.message ??
                     {
+                      available_ride: "A ride is available",
                       confirmation: "Your ride request is confirmed",
                       driver_assigned: "A driver has accepted your ride",
                       completed: "Your client has arrived",
@@ -830,12 +840,14 @@ export function NotificationsScreen() {
                   params={{ rideId: n.ride_request_id }}
                   className="text-link"
                 >
-                  View booking <ArrowRight size={15} />
+                  {driver ? "Review ride" : "View booking"} <ArrowRight size={15} />
                 </Link>
               </div>
               {!n.read_at && (
                 <ActionButton
-                  onClick={() => mutate(`/notifications/${n.id}/read`)}
+                  onClick={() => driver && session
+                    ? Promise.resolve(markDriverRead(session.user.id, n.id))
+                    : mutate(`/notifications/${n.id}/read`)}
                 >
                   Mark as read
                 </ActionButton>
@@ -846,7 +858,9 @@ export function NotificationsScreen() {
         {!notices.length && (
           <Empty
             title="You’re all caught up."
-            description="Updates will appear as your clients’ rides move forward."
+            description={driver
+              ? "Matching ride requests will appear here when they become available."
+              : "Updates will appear as your clients’ rides move forward."}
           />
         )}
       </Panel>

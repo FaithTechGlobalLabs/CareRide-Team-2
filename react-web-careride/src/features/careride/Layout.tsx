@@ -21,6 +21,8 @@ import {
 import { useCare } from "./context"
 import { Brand, ErrorBox } from "./ui"
 import { IS_DEMO } from "./api"
+import { NotificationControls, useDriverReadChanges, useNotificationChoice } from "./NotificationControls"
+import { noticesForSession, rememberNewNotices, showNativeNotice } from "./notifications"
 import {
   clearPendingInstallHelp,
   hasPendingInstallHelp,
@@ -36,7 +38,9 @@ export function Layout({
   children: ReactNode
   driver?: boolean
 }) {
-  const { session, logout, data, error } = useCare()
+  const { session, logout, data, dataVersion, error } = useCare()
+  const { choice, permission } = useNotificationChoice(session?.user.id ?? "")
+  useDriverReadChanges()
   const path = useLocation({ select: (s) => s.pathname })
   const navigate = useNavigate()
   const [accountOpenPath, setAccountOpenPath] = useState<string | null>(null)
@@ -47,6 +51,13 @@ export function Layout({
   useEffect(() => {
     if (installHelpOpen) clearPendingInstallHelp()
   }, [installHelpOpen])
+  useEffect(() => {
+    if (!session || dataVersion === 0) return
+    const fresh = rememberNewNotices(session.user.id, noticesForSession(data, session))
+    if (choice === "enabled" && permission === "granted") {
+      fresh.forEach((notice) => { void showNativeNotice(notice, session) })
+    }
+  }, [session, data, dataVersion, choice, permission])
   if (!session)
     return (
       <main className="access-page">
@@ -85,6 +96,7 @@ export function Layout({
           title: "Organization approvals",
           icon: ClipboardCheck,
         },
+        { to: "/notifications", title: "Notifications", icon: Bell },
       ]
     : [
         { to: "/", title: "Overview", icon: LayoutDashboard },
@@ -94,7 +106,7 @@ export function Layout({
         { to: "/approvals", title: "Driver approvals", icon: ClipboardCheck },
         { to: "/notifications", title: "Notifications", icon: Bell },
       ]
-  const unread = data.notifications.filter((n) => !n.read_at).length
+  const unread = noticesForSession(data, session).filter((n) => !n.read_at).length
   const navActive = (to: string) => {
     if (to === "/") return path === "/"
     if (to === "/driver")
@@ -182,16 +194,14 @@ export function Layout({
           </div>
           <div className="topbar-actions">
             {IS_DEMO && <span className="demo-pill">Screen demo</span>}
-            {!driver && (
-              <Link
-                to="/notifications"
-                className="icon-button notification-button"
-                aria-label={`Notifications, ${unread} unread`}
-              >
-                <Bell size={19} />
-                {unread > 0 && <i />}
-              </Link>
-            )}
+            <Link
+              to="/notifications"
+              className="icon-button notification-button"
+              aria-label={`Notifications, ${unread} unread`}
+            >
+              <Bell size={19} />
+              {unread > 0 && <i />}
+            </Link>
             <button
               type="button"
               className="user-avatar"
@@ -251,6 +261,7 @@ export function Layout({
         )}
         <main id="main-content" className="page-content">
           <ErrorBox error={error} />
+          <NotificationControls compact />
           {children}
         </main>
         <div className="mobile-community-signoff">

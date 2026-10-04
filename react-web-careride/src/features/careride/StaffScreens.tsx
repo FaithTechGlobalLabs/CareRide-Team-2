@@ -19,6 +19,12 @@ import {
 import { PinMap } from "./MapPin"
 import type { Client, Destination, Ride } from "./types"
 
+const quarterHourTimes = Array.from({ length: 24 * 4 }, (_, index) => {
+  const hour = String(Math.floor(index / 4)).padStart(2, "0")
+  const minute = String((index % 4) * 15).padStart(2, "0")
+  return `${hour}:${minute}`
+})
+
 export function ClientsScreen() {
   const { data } = useCare()
   const [q, setQ] = useState("")
@@ -428,17 +434,30 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               const p = locations.find((d) => d.id === pickup)
               const d = locations.find((d) => d.id === destination)
               if (!p || !d) throw new Error("Choose a pickup and destination.")
-              const pickupAt = new Date(String(f.get("requested_pickup_at")))
-              if (pickupAt <= new Date())
+              const pickupAt = new Date(
+                `${f.get("requested_pickup_date")}T${f.get("requested_pickup_time")}`
+              )
+              if (Number.isNaN(pickupAt.getTime()) || pickupAt <= new Date())
                 throw new Error("Choose a pickup time in the future.")
-              const returnAt = f.get("return_pickup_at")
+              const returnAt = roundTrip
+                ? new Date(
+                    `${f.get("return_pickup_date")}T${f.get("return_pickup_time")}`
+                  )
+                : undefined
               if (
-                roundTrip &&
-                (!returnAt || new Date(String(returnAt)) <= pickupAt)
+                returnAt &&
+                (Number.isNaN(returnAt.getTime()) || returnAt <= pickupAt)
               )
                 throw new Error(
                   "Return pickup must be after the outbound pickup."
                 )
+              for (const name of [
+                "requested_pickup_date",
+                "requested_pickup_time",
+                "return_pickup_date",
+                "return_pickup_time",
+              ])
+                f.delete(name)
               const result = await mutate<Ride | Ride[]>("/rides", "POST", {
                 ...Object.fromEntries(f),
                 pickup_id: p.id,
@@ -450,9 +469,7 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 destination_lat: d.lat,
                 destination_lng: d.lng,
                 requested_pickup_at: pickupAt.toISOString(),
-                return_pickup_at: returnAt
-                  ? new Date(String(returnAt)).toISOString()
-                  : undefined,
+                return_pickup_at: returnAt?.toISOString(),
                 passenger_count: Number(f.get("passenger_count")),
                 accessibility_needs: f.getAll("accessibility").join(", "),
                 trip_type: roundTrip ? "round_trip" : "one_way",
@@ -540,28 +557,52 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 </option>
               </select>
             </Field>
-            <Field label="Pickup date & time" hint="America/Vancouver">
+            <Field label="Pickup date">
               <input
-                name="requested_pickup_at"
-                type="datetime-local"
-                step={15 * 60}
+                name="requested_pickup_date"
+                type="date"
                 onFocus={openDatePicker}
                 required
               />
             </Field>
+            <Field label="Pickup time" hint="America/Vancouver">
+              <select name="requested_pickup_time" defaultValue="" required>
+                <option value="" disabled>
+                  Select time
+                </option>
+                {quarterHourTimes.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {roundTrip && (
-              <Field
-                label="Return pickup date & time"
-                hint="Each direction is accepted separately."
-              >
-                <input
-                  name="return_pickup_at"
-                  type="datetime-local"
-                  step={15 * 60}
-                  onFocus={openDatePicker}
-                  required
-                />
-              </Field>
+              <>
+                <Field
+                  label="Return pickup date"
+                  hint="Each direction is accepted separately."
+                >
+                  <input
+                    name="return_pickup_date"
+                    type="date"
+                    onFocus={openDatePicker}
+                    required
+                  />
+                </Field>
+                <Field label="Return pickup time" hint="America/Vancouver">
+                  <select name="return_pickup_time" defaultValue="" required>
+                    <option value="" disabled>
+                      Select time
+                    </option>
+                    {quarterHourTimes.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </>
             )}
             <Field label="Passengers" hint="Include accompanying passengers.">
               <input

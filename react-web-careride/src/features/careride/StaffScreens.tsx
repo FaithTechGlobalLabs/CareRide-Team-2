@@ -405,6 +405,8 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
   const [pickup, setPickup] = useState("")
   const [destination, setDestination] = useState("")
   const [roundTrip, setRoundTrip] = useState(false)
+  const [pickupDate, setPickupDate] = useState("")
+  const [returnDate, setReturnDate] = useState("")
   const locations = data.destinations.filter((d) => d.is_active)
   const openDatePicker = (event: FocusEvent<HTMLInputElement>) => {
     try {
@@ -561,6 +563,8 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
               <input
                 name="requested_pickup_date"
                 type="date"
+                value={pickupDate}
+                onChange={(event) => setPickupDate(event.target.value)}
                 onFocus={openDatePicker}
                 required
               />
@@ -586,6 +590,8 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                   <input
                     name="return_pickup_date"
                     type="date"
+                    value={returnDate || pickupDate}
+                    onChange={(event) => setReturnDate(event.target.value)}
                     onFocus={openDatePicker}
                     required
                   />

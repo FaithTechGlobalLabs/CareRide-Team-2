@@ -69,8 +69,7 @@ function availabilityCovers(
   if (!rule.is_active) return false;
   const pickup = new Date(pickupIso);
   if (Number.isNaN(pickup.getTime())) return false;
-  const noticeMs = rule.minimum_notice_minutes * 60 * 1000;
-  if (pickup.getTime() - now.getTime() < noticeMs) return false;
+  if (pickup.getTime() < now.getTime()) return false;
 
   const parts = vancouverParts(pickupIso);
   if (rule.starts_on && parts.date < rule.starts_on) return false;
@@ -98,7 +97,7 @@ export function matchingAvailability(
         rule.centre_lng,
         ride.pickup_lat,
         ride.pickup_lng,
-      ) <= rule.radius_km,
+      ) <= rule.radius_m / 1000,
   );
 }
 
@@ -126,9 +125,9 @@ export function driverCanClaim(
   if (!vehicle || vehicle.seats < ride.passenger_count) {
     return { ok: false, reason: "Vehicle capacity is too small." };
   }
-  const needsWheelchair = (ride.accessibility_needs ?? "")
-    .toLowerCase()
-    .includes("wheelchair");
+  const needsWheelchair = ride.accessibility_needs.some((need) =>
+    need.toLowerCase().includes("wheelchair"),
+  );
   if (needsWheelchair && !vehicle.wheelchair_accessible) {
     return {
       ok: false,

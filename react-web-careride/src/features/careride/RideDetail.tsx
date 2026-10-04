@@ -106,16 +106,6 @@ export function RideDetail({ rideId }: { rideId: string }) {
                 <small>Accessibility</small>
                 <strong>{ride.accessibility_needs || "None requested"}</strong>
               </div>
-              <div>
-                <small>Urgency</small>
-                <strong>{ride.urgency?.replace("_", " ") ?? "Routine"}</strong>
-              </div>
-              {ride.appointment_at && (
-                <div>
-                  <small>Appointment</small>
-                  <strong>{dateTime(ride.appointment_at)}</strong>
-                </div>
-              )}
             </div>
             {(ride.notes || client?.notes) && (
               <div className="info-box">

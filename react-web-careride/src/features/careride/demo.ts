@@ -107,7 +107,6 @@ function seed(): Data {
     destination_lat: 49.2806,
     destination_lng: -123.128,
     passenger_count: 1,
-    urgency: "routine",
     created_at: now(),
     waiting_minutes: 15,
   }

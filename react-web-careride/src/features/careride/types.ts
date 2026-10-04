@@ -78,11 +78,9 @@ export interface Ride {
   destination_id?: string
   pickup_id?: string
   requested_pickup_at: string
-  appointment_at?: string
   passenger_count: number
   accessibility_needs?: string
   notes?: string
-  urgency?: string
   status: Status
   driver_id?: string
   driver?: Driver

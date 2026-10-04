@@ -222,7 +222,8 @@
 .section-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
-.stat-card { border: 1px solid var(--care-line); border-radius: 15px; padding: 17px; background: white; box-shadow: 0 6px 20px rgba(36, 63, 54, .035); }
+.stat-card { display: block; border: 1px solid var(--care-line); border-radius: 15px; padding: 17px; background: white; box-shadow: 0 6px 20px rgba(36, 63, 54, .035); }
+.stat-card:hover { border-color: var(--care-green); }
 .stat-card > div { display: flex; align-items: center; justify-content: space-between; color: var(--care-muted); font-size: .74rem; font-weight: 620; }
 .stat-card > strong { display: block; margin: 16px 0 2px; font-family: Georgia, serif; font-size: 2rem; font-weight: 500; }
 .stat-card > small { color: #85908b; font-size: .67rem; }

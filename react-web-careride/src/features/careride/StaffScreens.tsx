@@ -19,7 +19,12 @@ import {
 } from "./ui"
 import { PinMap } from "./MapPin"
 import { fireConfetti } from "@/components/ui/confetti"
-import { addDays, vancouverMinutes, vancouverYmd } from "./dates"
+import {
+  addDays,
+  formatClockTime,
+  vancouverMinutes,
+  vancouverYmd,
+} from "./dates"
 import type { Client, Destination, Ride } from "./types"
 
 function upcomingQuarterSlot(now = new Date()) {
@@ -678,7 +683,7 @@ function BookingForm({
               >
                 {quarterHourTimes.map((time) => (
                   <option key={time} value={time}>
-                    {time}
+                    {formatClockTime(time)}
                   </option>
                 ))}
               </select>
@@ -705,7 +710,7 @@ function BookingForm({
                     </option>
                     {quarterHourTimes.map((time) => (
                       <option key={time} value={time}>
-                        {time}
+                        {formatClockTime(time)}
                       </option>
                     ))}
                   </select>
@@ -725,7 +730,7 @@ function BookingForm({
             <div className="wide">
               <h3 className="form-section">Accessibility needs</h3>
               <div className="checkbox-group">
-                {["Wheelchair", "Mobility aid", "Other"].map((s) => (
+                {["Wheelchair", "Mobility aid"].map((s) => (
                   <label key={s} className="checkbox">
                     <input
                       name="accessibility"

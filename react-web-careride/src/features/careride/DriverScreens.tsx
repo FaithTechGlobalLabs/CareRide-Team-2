@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useCare } from "./context"
+import { formatClockTime } from "./dates"
 import { Layout } from "./Layout"
 import { PinMap } from "./MapPin"
 import {
@@ -261,7 +262,8 @@ export function DriverAvailabilityScreen() {
                   <Badge status={item.is_active ? "approved" : "pending"} />
                 </div>
                 <p>
-                  {item.start_time}–{item.end_time} · {item.radius_km} km radius
+                  {formatClockTime(item.start_time)}–
+                  {formatClockTime(item.end_time)} · {item.radius_km} km radius
                 </p>
                 <small>
                   {item.kind === "weekly"

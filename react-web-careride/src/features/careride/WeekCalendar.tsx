@@ -37,12 +37,15 @@ function passenger(ride: Ride) {
 export function WeekCalendar({
   rides,
   driveTimes,
+  weekStart,
+  setWeekStart,
 }: {
   rides: Ride[]
   driveTimes?: Record<string, TravelEstimate>
+  weekStart: string
+  setWeekStart: (value: string) => void
 }) {
   const today = vancouverYmd(new Date())
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
     [weekStart]
@@ -102,7 +105,7 @@ export function WeekCalendar({
             type="button"
             className="icon-button"
             aria-label="Previous week"
-            onClick={() => setWeekStart((value) => addDays(value, -7))}
+            onClick={() => setWeekStart(addDays(weekStart, -7))}
           >
             <ChevronLeft size={18} />
           </button>
@@ -117,14 +120,11 @@ export function WeekCalendar({
             type="button"
             className="icon-button"
             aria-label="Next week"
-            onClick={() => setWeekStart((value) => addDays(value, 7))}
+            onClick={() => setWeekStart(addDays(weekStart, 7))}
           >
             <ChevronRight size={18} />
           </button>
         </div>
-        <p>
-          {formatRange(days[0], days[6])} · {TIMEZONE.replace("_", " ")}
-        </p>
       </div>
       <div className="week-scroll" ref={scrollRef}>
         <div
@@ -382,39 +382,57 @@ export function RideSchedule({
 }) {
   const { data } = useCare()
   const [view, setView] = useState<"week" | "month">("week")
+  const today = vancouverYmd(new Date())
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
+  const [monthCursor, setMonthCursor] = useState(today.slice(0, 7))
   const visible = rides.filter((ride) => VISIBLE.includes(ride.status))
   const driveTimes = useDriveTimes(driver ? visible : [], data.destinations)
+  const weekEnd = addDays(weekStart, 6)
+  const monthLabel = new Intl.DateTimeFormat("en-CA", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${monthCursor}-15T12:00:00Z`))
   return (
     <div className="schedule">
-      <div className="view-tabs" role="tablist" aria-label="Calendar view">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "week"}
-          className={view === "week" ? "active" : ""}
-          onClick={() => setView("week")}
-        >
-          Week
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "month"}
-          className={view === "month" ? "active" : ""}
-          onClick={() => setView("month")}
-        >
-          Month
-        </button>
+      <div className="schedule-view-row">
+        <div className="view-tabs" role="tablist" aria-label="Calendar view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "week"}
+            className={view === "week" ? "active" : ""}
+            onClick={() => setView("week")}
+          >
+            Week
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "month"}
+            className={view === "month" ? "active" : ""}
+            onClick={() => setView("month")}
+          >
+            Month
+          </button>
+        </div>
+        <p className="calendar-period">
+          {view === "week" ? formatRange(weekStart, weekEnd) : monthLabel}
+        </p>
       </div>
       {view === "week" ? (
         <WeekCalendar
           rides={visible}
           driveTimes={driver ? driveTimes : undefined}
+          weekStart={weekStart}
+          setWeekStart={setWeekStart}
         />
       ) : (
         <MonthCalendar
           rides={visible}
           driveTimes={driver ? driveTimes : undefined}
+          cursor={monthCursor}
+          setCursor={setMonthCursor}
         />
       )}
     </div>
@@ -426,6 +444,7 @@ function eventLabel(ride: Ride, drive?: TravelEstimate) {
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
     timeZone: TIMEZONE,
   }).format(new Date(ride.requested_pickup_at))
   const time = drive
@@ -437,18 +456,16 @@ function eventLabel(ride: Ride, drive?: TravelEstimate) {
 function MonthCalendar({
   rides,
   driveTimes,
+  cursor,
+  setCursor,
 }: {
   rides: Ride[]
   driveTimes?: Record<string, TravelEstimate>
+  cursor: string
+  setCursor: (value: string) => void
 }) {
   const today = vancouverYmd(new Date())
-  const [cursor, setCursor] = useState(today.slice(0, 7))
   const cells = useMemo(() => monthCells(cursor), [cursor])
-  const label = new Intl.DateTimeFormat("en-CA", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${cursor}-15T12:00:00Z`))
 
   return (
     <div className="month-calendar">
@@ -458,7 +475,7 @@ function MonthCalendar({
             type="button"
             className="icon-button"
             aria-label="Previous month"
-            onClick={() => setCursor((value) => shiftMonth(value, -1))}
+            onClick={() => setCursor(shiftMonth(cursor, -1))}
           >
             <ChevronLeft size={18} />
           </button>
@@ -473,14 +490,11 @@ function MonthCalendar({
             type="button"
             className="icon-button"
             aria-label="Next month"
-            onClick={() => setCursor((value) => shiftMonth(value, 1))}
+            onClick={() => setCursor(shiftMonth(cursor, 1))}
           >
             <ChevronRight size={18} />
           </button>
         </div>
-        <p>
-          {label} · {TIMEZONE.replace("_", " ")}
-        </p>
       </div>
       <div className="month-grid">
         {WEEKDAYS.map((day) => (
@@ -513,6 +527,7 @@ function MonthCalendar({
                     {new Intl.DateTimeFormat("en-CA", {
                       hour: "numeric",
                       minute: "2-digit",
+                      hour12: true,
                       timeZone: TIMEZONE,
                     }).format(new Date(ride.requested_pickup_at))}{" "}
                     {passenger(ride)}

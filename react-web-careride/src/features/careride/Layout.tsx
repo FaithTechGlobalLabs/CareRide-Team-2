@@ -5,6 +5,7 @@ import {
   Calendar,
   CalendarDays,
   CarFront,
+  Check,
   CircleHelp,
   ClipboardCheck,
   HeartHandshake,
@@ -12,11 +13,20 @@ import {
   LogOut,
   MapPin,
   Plus,
+  Share,
+  SquarePlus,
   Users,
+  X,
 } from "lucide-react"
 import { useCare } from "./context"
 import { Brand, ErrorBox } from "./ui"
 import { IS_DEMO } from "./api"
+import {
+  clearPendingInstallHelp,
+  hasPendingInstallHelp,
+  isIOSSafari,
+  isStandaloneWebApp,
+} from "./iosInstall"
 
 export function Layout({
   children,
@@ -29,7 +39,12 @@ export function Layout({
   const path = useLocation({ select: (s) => s.pathname })
   const navigate = useNavigate()
   const [accountOpenPath, setAccountOpenPath] = useState<string | null>(null)
+  const [installHelpOpen, setInstallHelpOpen] = useState(hasPendingInstallHelp)
   const accountOpen = accountOpenPath === path
+  const showIOSInstall = isIOSSafari() && !isStandaloneWebApp()
+  useEffect(() => {
+    if (installHelpOpen) clearPendingInstallHelp()
+  }, [installHelpOpen])
   if (!session)
     return (
       <main className="access-page">
@@ -197,6 +212,18 @@ export function Layout({
                 >
                   <LogOut size={16} /> Log out
                 </button>
+                {showIOSInstall && (
+                  <button
+                    type="button"
+                    className="btn secondary install-menu-button"
+                    onClick={() => {
+                      setAccountOpenPath(null)
+                      setInstallHelpOpen(true)
+                    }}
+                  >
+                    <SquarePlus size={16} /> Add to Home Screen
+                  </button>
+                )}
               </div>
             )}
             <div className="user-info">
@@ -244,6 +271,67 @@ export function Layout({
           </Link>
         )}
       </nav>
+      {installHelpOpen && (
+        <div
+          className="install-dialog-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setInstallHelpOpen(false)
+          }}
+        >
+          <section
+            className="install-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="install-dialog-title"
+          >
+            <button
+              type="button"
+              className="install-dialog-close"
+              aria-label="Close install instructions"
+              onClick={() => setInstallHelpOpen(false)}
+            >
+              <X size={20} />
+            </button>
+            <span className="install-dialog-icon" aria-hidden="true">
+              <SquarePlus size={26} />
+            </span>
+            <p className="eyebrow">IPHONE WEB APP</p>
+            <h2 id="install-dialog-title">Add CareRide to your Home Screen</h2>
+            <p className="install-dialog-intro">
+              Apple requires this final step from Safari. It only takes a few
+              taps.
+            </p>
+            <ol className="install-steps">
+              <li>
+                <span><Share size={20} /></span>
+                <div>
+                  <strong>Open Safari's Share menu</strong>
+                  <p>
+                    Tap the Share icon hiding in the the three dots menu.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span><SquarePlus size={20} /></span>
+                <div>
+                  <strong>Tap Add to Home Screen</strong>
+                  <p>Scroll down if you do not see it.</p>
+                </div>
+              </li>
+              <li>
+                <span><Check size={20} /></span>
+                <div>
+                  <strong>Tap Add.</strong>
+                  <p>
+                    Keep Open as Web App turned on (It is on by default).
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

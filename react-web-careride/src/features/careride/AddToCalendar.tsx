@@ -89,7 +89,7 @@ export function AddToCalendar({ ride }: { ride: Ride }) {
         ref={trigger}
         type="button"
         className="btn secondary"
-        aria-describedby={hintId}
+        aria-describedby={open ? hintId : undefined}
         aria-expanded={open}
         aria-controls={choicesId}
         onClick={() => setOpen(!open)}
@@ -98,15 +98,6 @@ export function AddToCalendar({ ride }: { ride: Ride }) {
         {rides.length > 1 ? "Add round trip to calendar" : "Add to Calendar"}
         <ChevronDown size={16} aria-hidden="true" />
       </button>
-      <p id={hintId} className="muted">
-        {rides.length > 1
-          ? "Includes your accepted outbound and return rides as two events. "
-          : ride.linked_ride_id
-            ? "Includes this accepted leg only. The other leg is not currently accepted by you. "
-            : "Includes this accepted ride. "}
-        Choose your calendar, then confirm and save there. Duration is
-        estimated, using 45 minutes when unavailable.
-      </p>
       {open && (
         <div
           id={choicesId}
@@ -120,6 +111,10 @@ export function AddToCalendar({ ride }: { ride: Ride }) {
             }
           }}
         >
+          <p id={hintId} className="muted">
+            Duration is estimated. Calendar events do not sync. If a ride is
+            cancelled or you withdraw, delete that event manually.
+          </p>
           <div>
             <h3>Choose a calendar</h3>
             {rides.length > 1 && (
@@ -163,10 +158,6 @@ export function AddToCalendar({ ride }: { ride: Ride }) {
           </div>
         </div>
       )}
-      <p className="muted">
-        Calendar events do not sync. If a ride is cancelled or you withdraw,
-        delete that event manually. Adding again may create duplicates.
-      </p>
       {status && (
         <p role="status" className="info-box">
           {status}

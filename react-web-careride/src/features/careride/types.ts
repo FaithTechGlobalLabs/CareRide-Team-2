@@ -66,6 +66,7 @@ export interface Vehicle {
 export interface Ride {
   id: string
   client_id: string
+  round_trip: boolean
   organization_id?: string
   requested_by_user_id?: string
   pickup_address: string

@@ -17,6 +17,8 @@
     "@tailwindcss/vite": "^4",
     "@tanstack/react-router": "1.170.34",
     "@tanstack/react-router-devtools": "1.167.1",
+    "@types/canvas-confetti": "^1.9.0",
+    "canvas-confetti": "^1.9.4",
     "class-variance-authority": "0.7.1",
     "cn": "0.2.6",
     "lucide-react": "1.44.0",

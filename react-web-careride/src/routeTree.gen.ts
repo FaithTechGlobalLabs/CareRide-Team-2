@@ -14,6 +14,7 @@ import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ClientsIndexRouteImport } from './routes/clients.index'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
 import { Route as ClientsNewRouteImport } from './routes/clients.new'
@@ -52,6 +53,11 @@ const LoginRoute = LoginRouteImport.update({
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientsIndexRoute = ClientsIndexRouteImport.update({
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/book': typeof BookRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/settings': typeof SettingsRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/clients/new': typeof ClientsNewRoute
   '/driver/availability': typeof DriverAvailabilityRoute
@@ -152,6 +159,7 @@ export interface FileRoutesByTo {
   '/book': typeof BookRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/settings': typeof SettingsRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/clients/new': typeof ClientsNewRoute
   '/driver/availability': typeof DriverAvailabilityRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/book': typeof BookRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/settings': typeof SettingsRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
   '/clients/new': typeof ClientsNewRoute
   '/driver/availability': typeof DriverAvailabilityRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/login'
     | '/notifications'
+    | '/settings'
     | '/clients/$clientId'
     | '/clients/new'
     | '/driver/availability'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/login'
     | '/notifications'
+    | '/settings'
     | '/clients/$clientId'
     | '/clients/new'
     | '/driver/availability'
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/login'
     | '/notifications'
+    | '/settings'
     | '/clients/$clientId'
     | '/clients/new'
     | '/driver/availability'
@@ -261,6 +273,7 @@ export interface RootRouteChildren {
   BookRoute: typeof BookRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  SettingsRoute: typeof SettingsRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
   ClientsNewRoute: typeof ClientsNewRoute
   DriverAvailabilityRoute: typeof DriverAvailabilityRoute
@@ -312,6 +325,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clients/': {
@@ -421,6 +441,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookRoute: BookRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  SettingsRoute: SettingsRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,
   ClientsNewRoute: ClientsNewRoute,
   DriverAvailabilityRoute: DriverAvailabilityRoute,

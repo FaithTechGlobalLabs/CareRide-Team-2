@@ -27,6 +27,7 @@ import type {
 } from "../types/organization.types.js";
 import type { RideRequest } from "../types/ride.types.js";
 import type { Client, Staff } from "../types/user.types.js";
+import { registerPersonalApi } from "./personal.js";
 
 const secret = process.env.JWT_SECRET || "careride-dev-secret";
 
@@ -57,6 +58,11 @@ function requireAuth(kind?: Auth["kind"]) {
     }
     try {
       const auth = jwt.verify(token, secret) as Auth;
+      const db = readDb();
+      const exists = auth.kind === "driver"
+        ? db.drivers.some(d => d.id === auth.sub)
+        : db.staff.some(s => s.id === auth.sub && s.is_active && s.organization_id === auth.organizationId && db.organizations.some(o => o.id === s.organization_id));
+      if (!exists) { res.status(401).json({ message: "This account no longer has access. Please log in again." }); return; }
       if (kind && auth.kind !== kind) {
         res
           .status(403)
@@ -158,6 +164,7 @@ function presentRide(
   );
   const shared = {
     ...ride,
+    linked_leg_status: db.rides.find(other => other.id !== ride.id && other.organization_id === ride.organization_id && other.client_id === ride.client_id && (other.id === ride.linked_ride_id || (!!ride.trip_group_id && other.trip_group_id === ride.trip_group_id)))?.status ?? null,
     pickup_name: locationName(db, undefined, ride.pickup_address),
     destination_name: locationName(
       db,
@@ -213,6 +220,7 @@ function applySampleMetrics(ride: RideRequest): void {
 }
 
 export function registerApi(app: Express): void {
+  registerPersonalApi(app, requireAuth());
   app.post(
     "/auth/login",
     asyncRoute(async (req, res) => {
@@ -685,7 +693,9 @@ export function registerApi(app: Express): void {
         return;
       }
       const audience = auth?.kind === "driver" ? "driver" : "staff";
-      res.json({ ride: presentRide(db, ride, audience) });
+      const driver = db.drivers.find(d => d.id === auth?.sub);
+      const vehicle = db.vehicles.find(v => v.driver_id === auth?.sub);
+      res.json({ ride: { ...presentRide(db, ride, audience), ...(audience === "driver" && driver ? { can_accept: driverCanClaim(db, driver, vehicle, ride).ok } : {}) } });
     }),
   );
 
@@ -958,9 +968,13 @@ export function registerApi(app: Express): void {
         res.status(404).json({ message: "Driver not found." });
         return;
       }
+      const eligible = db.rides.filter(ride => driverCanClaim(db, driver, vehicle, ride).ok);
       const rides = db.rides
-        .filter((ride) => driverCanClaim(db, driver, vehicle, ride).ok)
-        .map((ride) => presentRide(db, ride, "driver"));
+        .filter(ride => eligible.some(anchor => anchor.id === ride.id || (
+          ride.status === "requested" && !ride.driver_id && ride.organization_id === anchor.organization_id && ride.client_id === anchor.client_id &&
+          (anchor.linked_ride_id === ride.id || ride.linked_ride_id === anchor.id || (!!anchor.trip_group_id && anchor.trip_group_id === ride.trip_group_id))
+        )))
+        .map((ride) => ({ ...presentRide(db, ride, "driver"), can_accept: driverCanClaim(db, driver, vehicle, ride).ok }));
       res.json({ rides });
     }),
   );
@@ -1585,12 +1599,12 @@ export function registerApi(app: Express): void {
 
   app.get(
     "/notifications",
-    requireAuth("staff"),
+    requireAuth(),
     asyncRoute(async (req, res) => {
       const userId = req.auth?.sub ?? "";
       const db = readDb();
       const notifications = db.notifications.filter(
-        (row) => row.recipient_user_id === userId,
+        (row) => row.recipient_user_id === userId && row.recipient === req.auth?.kind,
       );
       res.json({ notifications });
     }),
@@ -1598,13 +1612,13 @@ export function registerApi(app: Express): void {
 
   app.post(
     "/notifications/:id/read",
-    requireAuth("staff"),
+    requireAuth(),
     asyncRoute(async (req, res) => {
       const userId = req.auth?.sub ?? "";
       const row = await update((db) => {
         const note = db.notifications.find(
           (item) =>
-            item.id === param(req, "id") && item.recipient_user_id === userId,
+            item.id === param(req, "id") && item.recipient_user_id === userId && item.recipient === req.auth?.kind,
         );
         if (!note) return null;
         note.read_at = new Date().toISOString();

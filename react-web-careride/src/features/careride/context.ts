@@ -7,7 +7,7 @@ export interface CareContext {
   error: string
   refresh: () => Promise<void>
   login: (session: Session) => void
-  logout: () => void
+  logout: () => Promise<void>
   mutate: <T>(path: string, method?: string, body?: unknown) => Promise<T>
 }
 export const Context = createContext<CareContext | null>(null)

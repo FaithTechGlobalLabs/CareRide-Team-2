@@ -64,6 +64,8 @@ export interface Vehicle {
   wheelchair_accessible: boolean
 }
 export interface Ride {
+  can_accept?: boolean
+  linked_leg_status?: Status
   id: string
   client_id: string
   round_trip: boolean
@@ -94,6 +96,7 @@ export interface Ride {
   staff?: { name: string; phone: string }
   waiting_minutes?: number
   linked_ride_id?: string
+  trip_group_id?: string
   trip_leg?: string
   accepted_at?: string
   picked_up_at?: string
@@ -147,6 +150,8 @@ export interface Notice {
   message?: string
   sent_at?: string
   read_at?: string
+  title?: string
+  action_url?: string
 }
 export interface Data {
   clients: Client[]

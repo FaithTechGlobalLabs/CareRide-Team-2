@@ -261,6 +261,49 @@
 .driver-info-strip .text-link { margin-left: auto; color: white; }
 
 .ride-list { display: grid; }
+.notification-preferences-heading { display: flex; align-items: flex-start; gap: 12px; }
+.notification-filters { margin-top: 0; margin-bottom: 18px; }
+.notice-content { flex: 1; min-width: 0; }
+.unread-label { font-size: .65rem; background: #d7eddf; color: #246240; border-radius: 5px; padding: 3px 6px; margin-left: 8px; }
+.notification-preferences-heading > svg { color: var(--care-green); flex-shrink: 0; margin-top: 3px; }
+.notification-preferences h3 { margin: 0 0 6px; }
+.notification-preferences p { color: var(--care-muted); line-height: 1.6; }
+.notification-preferences .checkbox { margin: 16px 0; }
+.gentle-notification-card { padding: 20px; border: 1px solid #cfe7d7; background: #eef8f1; border-radius: 14px; margin-bottom: 20px; }
+.button-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+.notification-enable-button { flex-shrink: 0; }
+@media (max-width: 760px) {
+  .notification-actions .notification-enable-button { display: inline-flex; flex: 1 0 100%; min-height: 46px; width: 100%; }
+  .notification-actions .notification-enable-button:disabled { opacity: .72; }
+}
+.settings-profile p { margin: 6px 0; color: var(--care-muted); }
+.settings-danger-row { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 18px; padding: 18px 0; }
+.settings-danger-row + .settings-danger-row { border-top: 1px solid #f0d6d3; }
+.settings-danger-row > div { flex: 1 1 260px; }
+.settings-danger-row h3 { margin: 0 0 8px; }
+.settings-danger-row p { margin: 0; line-height: 1.6; color: var(--care-muted); }
+.danger-zone { border-color: #e6c4be; }
+.btn.danger { background: #a92f27; border-color: #a92f27; color: white; }
+.btn.danger:hover:not(:disabled) { background: #8d261f; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.deletion-dialog { max-height: 90dvh; overflow-y: auto; }
+.deletion-dialog .field { display: grid; gap: 8px; margin: 18px 0; }
+.deletion-dialog p { line-height: 1.6; }
+.organization-deletion-dialog { border: 2px solid #a92f27; }
+.danger-icon { color: #a92f27; }
+.ride-appointment + .ride-appointment { border-top: 1px solid #edf0ee; }
+.round-trip-card { background: var(--care-mint-soft); border: 1px solid #cfe7d7; border-radius: 14px; padding: 8px 12px; margin: 8px 0; min-width: 0; }
+.round-trip-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 5px 2px 9px; color: #246240; font-size: .78rem; }
+.round-trip-heading span { color: #517461; font-size: .69rem; }
+.round-trip-card .ride-row { border-color: #cfe7d7; }
+.round-trip-card .ride-main > strong { flex-wrap: wrap; }
+.round-trip-card .ride-date { background: #cfe7d7; color: #246240; }
+.round-trip-card .ride-date span { color: #246240; }
+.staff-booking-actions { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 12px; margin-top: 14px; }
+.staff-booking-actions > .btn { flex-shrink: 0; }
+.staff-booking-actions > .reason-action { min-width: 0; }
+.booking-heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.single-trip-note { display: block; margin-bottom: 5px; color: var(--care-muted); font-size: .69rem; }
 .ride-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto 20px; align-items: center; gap: 14px; border-top: 1px solid #edf0ee; padding: 14px 4px; }
 .ride-row:first-child { border-top: 0; }
 .ride-row:hover .row-arrow { transform: translateX(3px); color: var(--care-green); }

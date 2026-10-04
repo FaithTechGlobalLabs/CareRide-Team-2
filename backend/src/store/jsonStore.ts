@@ -11,7 +11,8 @@ import type {
   DriverVerification,
   Vehicle,
 } from "../types/driver.types.js";
-import type { Notification } from "../types/notification.types.js";
+import type { Notification, NotificationPreference, PushSubscriptionRecord, PushDelivery } from "../types/notification.types.js";
+import { reconcileNotifications } from "../notifications/events.js";
 import type { Destination, Organization } from "../types/organization.types.js";
 import type { RideRequest } from "../types/ride.types.js";
 import type { Client, Staff } from "../types/user.types.js";
@@ -27,13 +28,18 @@ export interface Db {
   availabilities: DriverAvailability[];
   verifications: DriverVerification[];
   notifications: Notification[];
+  notificationPreferences?: NotificationPreference[];
+  pushSubscriptions?: PushSubscriptionRecord[];
+  pushDeliveries?: PushDelivery[];
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.resolve(here, "../../data");
+const dataDir = process.env.CARERIDE_DATA_DIR ? path.resolve(process.env.CARERIDE_DATA_DIR) : path.resolve(here, "../../data");
 const storePath = path.join(dataDir, "store.json");
 
 let queue: Promise<void> = Promise.resolve();
+let dispatchPush: (() => Promise<void>) | undefined;
+export function setPushDispatcher(dispatch: () => Promise<void>): void { dispatchPush = dispatch; }
 
 function emptyDb(): Db {
   return {
@@ -363,18 +369,23 @@ function write(db: Db): void {
   fs.renameSync(tmp, storePath);
 }
 
-export function update<T>(fn: (db: Db) => T): Promise<T> {
+export function update<T>(fn: (db: Db) => T, internal = false): Promise<T> {
   let result: T | undefined;
   const run = queue.then(() => {
     const db = read();
+    const before = structuredClone(db);
     result = fn(db);
+    if (!internal) reconcileNotifications(before, db);
     write(db);
   });
   queue = run.then(
     () => undefined,
     () => undefined,
   );
-  return run.then(() => result as T);
+  return run.then(async () => {
+    if (!internal && dispatchPush) await dispatchPush().catch(() => console.error("Push delivery deferred"));
+    return result as T;
+  });
 }
 
 export function readDb(): Db {

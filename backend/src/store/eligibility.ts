@@ -97,7 +97,7 @@ export function matchingAvailability(
         rule.centre_lng,
         ride.pickup_lat,
         ride.pickup_lng,
-      ) <= rule.radius_m / 1000,
+      ) <= (rule.radius_km ?? (rule as DriverAvailability & { radius_m?: number }).radius_m! / 1000),
   );
 }
 
@@ -117,7 +117,7 @@ export function driverCanClaim(
     (row) =>
       row.driver_id === driver.id &&
       row.approved_by_org_id === ride.organization_id &&
-      row.status === "approved",
+      row.status === "approved" && (!row.expires_on || row.expires_on >= now.toISOString().slice(0, 10)),
   );
   if (!approved) {
     return { ok: false, reason: "This organization has not approved you." };
@@ -125,7 +125,9 @@ export function driverCanClaim(
   if (!vehicle || vehicle.seats < ride.passenger_count) {
     return { ok: false, reason: "Vehicle capacity is too small." };
   }
-  const needsWheelchair = ride.accessibility_needs.some((need) =>
+  const rawNeeds: unknown = ride.accessibility_needs;
+  const needs = Array.isArray(rawNeeds) ? rawNeeds.map(String) : [String(rawNeeds ?? "")];
+  const needsWheelchair = needs.some((need) =>
     need.toLowerCase().includes("wheelchair"),
   );
   if (needsWheelchair && !vehicle.wheelchair_accessible) {

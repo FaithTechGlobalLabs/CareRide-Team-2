@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { registerApi } from "./api/routes.js";
+import { flushPush } from "./notifications/push.js";
+import { setPushDispatcher } from "./store/jsonStore.js";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -9,6 +11,7 @@ const PORT = Number(process.env.PORT) || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+setPushDispatcher(flushPush);
 registerApi(app);
 
 app.get("/", (_req, res) => {
@@ -31,6 +34,11 @@ app.use((_req, res) => {
   res.status(404).json({
     error: "Route not found",
   });
+});
+
+app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Request failed", { name: error instanceof Error ? error.name : "Error" });
+  if (!res.headersSent) res.status(500).json({ message: "Something went wrong. Please try again." });
 });
 
 const server = app.listen(PORT, "0.0.0.0", () => {

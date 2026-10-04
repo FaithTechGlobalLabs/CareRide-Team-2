@@ -113,13 +113,14 @@ export interface ConfettiButtonProps extends Omit<
   "onClick"
 > {
   options?: ConfettiOptions
+  bursts?: number
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<void>
 }
 
 export const ConfettiButton = forwardRef<
   HTMLButtonElement,
   ConfettiButtonProps
->(({ options, children, onClick, disabled, ...props }, ref) => {
+>(({ options, bursts = 1, children, onClick, disabled, ...props }, ref) => {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
@@ -139,7 +140,15 @@ export const ConfettiButton = forwardRef<
           setError("")
           try {
             await onClick?.(event)
-            if (!event.defaultPrevented) fireConfetti(origin, options)
+            if (!event.defaultPrevented) {
+              fireConfetti(origin, options)
+              for (let burst = 1; burst < bursts; burst++) {
+                window.setTimeout(
+                  () => fireConfetti(origin, options),
+                  burst * 320
+                )
+              }
+            }
           } catch (caught) {
             setError(
               caught instanceof Error

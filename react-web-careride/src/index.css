@@ -156,7 +156,9 @@
 }
 
 .brand { display: inline-flex; align-items: center; gap: 9px; color: var(--care-ink); font-size: 1.25rem; font-weight: 760; letter-spacing: -.04em; }
-.brand-symbol { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 12px; background: var(--care-green); color: white; }
+.brand-symbol { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 12px; background: var(--care-green); color: var(--care-green); }
+.brand-symbol svg { fill: none; color: var(--care-gold); }
+.sidebar .brand-symbol svg, .mobile-home-brand .brand-symbol svg { color: white; }
 .brand-dot { margin-left: -7px; color: var(--care-gold); }
 .eyebrow { color: #497164; font-size: .7rem; font-weight: 760; letter-spacing: .16em; text-transform: uppercase; }
 .muted { color: var(--care-muted); }
@@ -475,8 +477,8 @@ button.user-avatar { border: 0; cursor: pointer; font: inherit; }
 .install-steps p { margin: 4px 0 0; color: var(--care-muted); font-size: .73rem; line-height: 1.45; }
 .install-steps b { color: var(--care-ink); font-weight: 700; }
 .auth-layout { display: grid; min-height: 100vh; grid-template-columns: minmax(360px, 43%) minmax(0, 1fr); background: white; }
-.auth-story { display: flex; min-height: 100vh; flex-direction: column; justify-content: space-between; padding: 38px 9vw 28px 4vw; background: linear-gradient(160deg, #eaf3ed 0%, #f5f2e8 100%); }
-.auth-story > div { max-width: 430px; }
+.auth-story { display: grid; min-height: 100vh; grid-template-rows: auto 1fr; padding: 38px 9vw 28px 4vw; background: linear-gradient(160deg, #eaf3ed 0%, #f5f2e8 100%); }
+.auth-story > div { max-width: 430px; align-self: center; padding: 32px 0; }
 .auth-story h1 { margin: 10px 0 14px; font-family: Georgia, serif; font-size: clamp(2.5rem, 5vw, 4.6rem); font-weight: 500; letter-spacing: -.055em; line-height: .98; }
 .auth-story > div > p { color: #53665e; font-size: .9rem; line-height: 1.6; }
 .journey-art { display: flex; align-items: center; margin: 35px 0 28px; }
@@ -527,7 +529,13 @@ button.user-avatar { border: 0; cursor: pointer; font: inherit; }
   .sidebar { display: none; }
   .topbar { min-height: 61px; padding: 0 16px; }
   .breadcrumb, .user-info, .demo-pill { display: none; }
-  .topbar::before { content: 'CareRide'; color: var(--care-green); font-size: 1.1rem; font-weight: 760; letter-spacing: -.04em; }
+  .mobile-home-brand { display: inline-flex; }
+  .mobile-home-brand .brand { font-size: 1.1rem; }
+  .mobile-home-brand .brand-symbol { width: 34px; height: 34px; }
+  .mobile-community-signoff { display: grid; justify-items: center; margin: 8px 26px 28px; border-top: 1px solid var(--care-line); padding-top: 22px; text-align: center; }
+  .mobile-community-signoff svg { margin-bottom: 10px; color: var(--care-gold); fill: none; }
+  .mobile-community-signoff strong { font-family: Georgia, serif; font-size: 1.05rem; font-weight: 500; }
+  .mobile-community-signoff p { margin: 7px 0 0; color: var(--care-muted); font-size: .72rem; }
   .topbar-actions { margin-left: auto; }
   .demo-banner { padding: 6px 16px; text-align: center; }
   .page-content { padding: 24px 16px; }
@@ -574,4 +582,16 @@ button.user-avatar { border: 0; cursor: pointer; font: inherit; }
   .detail-grid { grid-template-columns: 1fr; }
   .notice-list .notice { align-items: flex-start; flex-direction: column; }
   .client-card > div:last-child { align-items: stretch; flex-direction: column; }
+}
+
+.mobile-home-brand, .mobile-community-signoff { display: none; }
+.community-note svg, .help-illustration svg, .impact-icon svg, .empty-icon svg { fill: none; color: var(--care-gold); }
+.journey-art svg { fill: none; }
+.auth-main { position: relative; }
+.directions-controls { display: grid; gap: 12px; margin-top: 20px; }
+.directions-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.directions-heading h3 { margin: 0; font-size: .9rem; }
+@media (max-width: 760px) {
+  .mobile-home-brand { display: inline-flex; }
+  .mobile-community-signoff { display: grid; }
 }

@@ -154,7 +154,7 @@ export function Layout({
           <div className="community-note">
             <HeartHandshake size={26} />
             <strong>
-              A little help.
+              A little help,
               <br />A way forward.
             </strong>
             <p>Connecting people to the care they need.</p>
@@ -167,6 +167,13 @@ export function Layout({
       </aside>
       <div className="main-area">
         <header className="topbar">
+          <Link
+            to={driver ? "/driver" : "/"}
+            className="mobile-home-brand"
+            aria-label="CareRide home"
+          >
+            <Brand />
+          </Link>
           <div className="breadcrumb">
             Your workspace <span>/</span>{" "}
             <strong>
@@ -246,6 +253,11 @@ export function Layout({
           <ErrorBox error={error} />
           {children}
         </main>
+        <div className="mobile-community-signoff">
+          <HeartHandshake size={28} aria-hidden="true" />
+          <strong>A little help, A way forward.</strong>
+          <p>Connecting people to the care they need.</p>
+        </div>
         <footer className="app-footer">
           <span>CareRide · A community effort</span>
           <span>
@@ -298,7 +310,9 @@ export function Layout({
             <span className="install-dialog-icon" aria-hidden="true">
               <SquarePlus size={26} />
             </span>
-            <p className="eyebrow">{android ? "ANDROID WEB APP" : "IPHONE WEB APP"}</p>
+            <p className="eyebrow">
+              {android ? "ANDROID WEB APP" : "IPHONE WEB APP"}
+            </p>
             <h2 id="install-dialog-title">Add CareRide to your Home Screen!</h2>
             <p className="install-dialog-intro">
               {android
@@ -310,47 +324,62 @@ export function Layout({
                 <>
                   <li>
                     <span>1</span>
-                    <div><strong>Tap the three-dot menu in the top-right corner.</strong></div>
+                    <div>
+                      <strong>
+                        Tap the three-dot menu in the top-right corner.
+                      </strong>
+                    </div>
                   </li>
                   <li>
                     <span>2</span>
                     <div>
-                      <strong>Tap ‘Install and Create shortcut’ or Install app or Add to Home screen.</strong>
+                      <strong>
+                        Tap ‘Install and Create shortcut’ or Install app or Add
+                        to Home screen.
+                      </strong>
                       <p>The wording depends on your device.</p>
                     </div>
                   </li>
                   <li>
                     <span>3</span>
-                    <div><strong>Tap Install or Add.</strong></div>
+                    <div>
+                      <strong>Tap Install or Add.</strong>
+                    </div>
                   </li>
                 </>
               ) : (
                 <>
-              <li>
-                <span><Share size={20} /></span>
-                <div>
-                  <strong>Open Safari's Share menu</strong>
-                  <p>
-                    Tap the Share icon hiding in the the three dots menu.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span><SquarePlus size={20} /></span>
-                <div>
-                  <strong>Tap Add to Home Screen</strong>
-                  <p>Scroll down if you do not see it.</p>
-                </div>
-              </li>
-              <li>
-                <span><Check size={20} /></span>
-                <div>
-                  <strong>Tap Add.</strong>
-                  <p>
-                    Keep Open as Web App turned on (It is on by default).
-                  </p>
-                </div>
-              </li>
+                  <li>
+                    <span>
+                      <Share size={20} />
+                    </span>
+                    <div>
+                      <strong>Open Safari's Share menu</strong>
+                      <p>
+                        Tap the Share icon hiding in the the three dots menu.
+                      </p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>
+                      <SquarePlus size={20} />
+                    </span>
+                    <div>
+                      <strong>Tap Add to Home Screen</strong>
+                      <p>Scroll down if you do not see it.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>
+                      <Check size={20} />
+                    </span>
+                    <div>
+                      <strong>Tap Add.</strong>
+                      <p>
+                        Keep Open as Web App turned on (It is on by default).
+                      </p>
+                    </div>
+                  </li>
                 </>
               )}
             </ol>

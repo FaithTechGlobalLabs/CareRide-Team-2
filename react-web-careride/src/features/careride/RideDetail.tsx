@@ -5,6 +5,7 @@ import {
   Check,
   Clock3,
   MapPin,
+  ExternalLink,
   Pencil,
   Phone,
   Users,
@@ -15,7 +16,6 @@ import { useCare } from "./context"
 import { Layout } from "./Layout"
 import { queueInstallHelpAfterFirstRideAcceptance } from "./iosInstall"
 import {
-  ActionButton,
   Badge,
   Empty,
   PageTitle,
@@ -29,12 +29,23 @@ export function RideDetail({ rideId }: { rideId: string }) {
   const { data, session, mutate } = useCare()
   const navigate = useNavigate()
   const driver = session?.user.role === "driver"
-  const [appleMaps] = useState(() => {
-    if (typeof navigator === "undefined") return false
-    const platform = navigator.platform || ""
-    const ua = navigator.userAgent || ""
-    return /Mac|iPhone|iPad|iPod/i.test(`${platform} ${ua}`)
+  const [mapProvider, setMapProvider] = useState<"google" | "apple">(() => {
+    try {
+      return localStorage.getItem("careride-map-provider") === "apple"
+        ? "apple"
+        : "google"
+    } catch {
+      return "google"
+    }
   })
+  function selectMapProvider(provider: "google" | "apple") {
+    setMapProvider(provider)
+    try {
+      localStorage.setItem("careride-map-provider", provider)
+    } catch {
+      /* Keep the selection for this visit if storage is unavailable. */
+    }
+  }
   const ride = [...data.rides, ...data.availableRides].find(
     (r) => r.id === rideId
   )
@@ -105,16 +116,17 @@ export function RideDetail({ rideId }: { rideId: string }) {
               >
                 <div className="action-row">
                   {ride.status === "accepted" && (
-                    <ActionButton
-                      className="primary"
+                    <ConfettiButton
+                      className="btn primary"
                       onClick={() => mutate(`/rides/${ride.id}/pickup`)}
                     >
                       Mark picked up
-                    </ActionButton>
+                    </ConfettiButton>
                   )}
                   {ride.status === "in_progress" && (
                     <ConfettiButton
                       className="btn primary"
+                      bursts={3}
                       onClick={() => mutate(`/rides/${ride.id}/dropoff`)}
                     >
                       Successfully dropped off rider <Check size={18} />
@@ -268,27 +280,41 @@ export function RideDetail({ rideId }: { rideId: string }) {
               </Link>
             )}
             {driver && (
-              <div className="action-row">
-                <a
-                  className="btn secondary"
-                  href={maps.google}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <MapPin size={17} />
-                  Open in Google Maps
-                </a>
-                {appleMaps && (
-                  <a
-                    className="btn secondary"
-                    href={maps.apple}
-                    target="_blank"
-                    rel="noreferrer"
+              <div className="directions-controls">
+                <div className="directions-heading">
+                  <h3>Get directions</h3>
+                  <div
+                    className="view-tabs"
+                    role="group"
+                    aria-label="Directions app"
                   >
-                    <MapPin size={17} />
-                    Open in Apple Maps
-                  </a>
-                )}
+                    {(["google", "apple"] as const).map((provider) => (
+                      <button
+                        type="button"
+                        key={provider}
+                        aria-pressed={mapProvider === provider}
+                        className={mapProvider === provider ? "active" : ""}
+                        onClick={() => selectMapProvider(provider)}
+                      >
+                        {provider === "google" ? "Google Maps" : "Apple Maps"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="action-row">
+                  {(["pickup", "destination"] as const).map((place) => (
+                    <a
+                      key={place}
+                      className="btn secondary"
+                      href={maps[mapProvider][place]}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {place === "pickup" ? "Pickup" : "Destination"}{" "}
+                      <ExternalLink size={17} />
+                    </a>
+                  ))}
+                </div>
                 {ride.organization_phone && (
                   <a
                     className="btn secondary"
@@ -334,39 +360,39 @@ export function RideDetail({ rideId }: { rideId: string }) {
             )}
           </Panel>
           {!driver && (
-          <Panel title="Your driver">
-            {ride.driver ? (
-              <>
-                <h3>{ride.driver.name}</h3>
-                <p>
-                  {ride.driver.vehicle
-                    ? `${ride.driver.vehicle.make} ${ride.driver.vehicle.model} · ${ride.driver.vehicle.plate}`
-                    : "Vehicle details will appear here."}
+            <Panel title="Your driver">
+              {ride.driver ? (
+                <>
+                  <h3>{ride.driver.name}</h3>
+                  <p>
+                    {ride.driver.vehicle
+                      ? `${ride.driver.vehicle.make} ${ride.driver.vehicle.model} · ${ride.driver.vehicle.plate}`
+                      : "Vehicle details will appear here."}
+                  </p>
+                  <a className="text-link" href={`tel:${ride.driver.phone}`}>
+                    <Phone size={15} />
+                    {ride.driver.phone}
+                  </a>
+                </>
+              ) : (
+                <Empty
+                  title="A helping hand is on the way."
+                  description="Driver details appear once the request is accepted."
+                />
+              )}
+              {ride.waiting_minutes != null && (
+                <p className="info-box">
+                  <Clock3 size={16} />
+                  Driver waiting policy: {ride.waiting_minutes} minutes after
+                  scheduled pickup.
                 </p>
-                <a className="text-link" href={`tel:${ride.driver.phone}`}>
-                  <Phone size={15} />
-                  {ride.driver.phone}
+              )}
+              {ride.staff?.phone && (
+                <a href={`tel:${ride.staff.phone}`} className="text-link">
+                  Contact booking staff: {ride.staff.name}
                 </a>
-              </>
-            ) : (
-              <Empty
-                title="A helping hand is on the way."
-                description="Driver details appear once the request is accepted."
-              />
-            )}
-            {ride.waiting_minutes != null && (
-              <p className="info-box">
-                <Clock3 size={16} />
-                Driver waiting policy: {ride.waiting_minutes} minutes after
-                scheduled pickup.
-              </p>
-            )}
-            {ride.staff?.phone && (
-              <a href={`tel:${ride.staff.phone}`} className="text-link">
-                Contact booking staff: {ride.staff.name}
-              </a>
-            )}
-          </Panel>
+              )}
+            </Panel>
           )}
         </div>
       </div>
@@ -382,16 +408,21 @@ function mapLinks(ride: {
   pickup_address: string
   destination_address: string
 }) {
-  const coords =
-    ride.pickup_lat != null &&
-    ride.pickup_lng != null &&
-    ride.destination_lat != null &&
-    ride.destination_lng != null
-  const google = coords
-    ? `https://www.google.com/maps/dir/?api=1&origin=${ride.pickup_lat},${ride.pickup_lng}&destination=${ride.destination_lat},${ride.destination_lng}&travelmode=driving`
-    : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ride.pickup_address)}&destination=${encodeURIComponent(ride.destination_address)}&travelmode=driving`
-  const apple = coords
-    ? `https://maps.apple.com/?saddr=${ride.pickup_lat},${ride.pickup_lng}&daddr=${ride.destination_lat},${ride.destination_lng}&dirflg=d`
-    : `https://maps.apple.com/?saddr=${encodeURIComponent(ride.pickup_address)}&daddr=${encodeURIComponent(ride.destination_address)}&dirflg=d`
-  return { google, apple }
+  const point = (kind: "pickup" | "destination") => {
+    const lat = ride[`${kind}_lat`]
+    const lng = ride[`${kind}_lng`]
+    return encodeURIComponent(
+      lat != null && lng != null ? `${lat},${lng}` : ride[`${kind}_address`]
+    )
+  }
+  return {
+    google: {
+      pickup: `https://www.google.com/maps/dir/?api=1&destination=${point("pickup")}&travelmode=driving`,
+      destination: `https://www.google.com/maps/dir/?api=1&origin=${point("pickup")}&destination=${point("destination")}&travelmode=driving`,
+    },
+    apple: {
+      pickup: `https://maps.apple.com/?daddr=${point("pickup")}&dirflg=d`,
+      destination: `https://maps.apple.com/?saddr=${point("pickup")}&daddr=${point("destination")}&dirflg=d`,
+    },
+  }
 }

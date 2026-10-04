@@ -248,7 +248,7 @@ export function DriverVerificationScreen() {
   const { data, mutate } = useCare()
   const [success, setSuccess] = useState("")
   const partnerOrganizations = data.organizations.filter(
-    (organization) => organization.type === "partner_org"
+    (organization) => !organization.type || organization.type === "partner_org"
   )
 
   return (
@@ -332,7 +332,7 @@ export function DriverVerificationScreen() {
                     </h3>
                     <Badge status={record.status} />
                   </div>
-                  <p>{record.check_type.replaceAll("_", " ")}</p>
+                  <p>{record.check_type?.replaceAll("_", " ") ?? "Verification"}</p>
                   {record.document_ref && (
                     <small>Document: {record.document_ref}</small>
                   )}

@@ -428,7 +428,7 @@ export function BookingScreen({ selectedClient }: { selectedClient?: string }) {
                 )
               const result = await mutate<Ride | Ride[]>("/rides", "POST", {
                 ...Object.fromEntries(f),
-                pickup_id: p.id,
+                pickup_destination_id: p.id,
                 pickup_address: p.address,
                 pickup_lat: p.lat,
                 pickup_lng: p.lng,

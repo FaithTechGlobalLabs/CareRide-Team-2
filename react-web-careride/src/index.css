@@ -284,6 +284,7 @@
 .filter-bar select { width: 190px; }
 
 .form-panel { max-width: 860px; }
+.form-panel fieldset { min-inline-size: 0; max-width: 100%; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
 .field { display: grid; min-width: 0; align-content: start; gap: 7px; color: #43534d; font-size: .74rem; font-weight: 660; }
 .field.wide, .wide { grid-column: 1 / -1; }
@@ -291,6 +292,9 @@
 input, select, textarea { width: 100%; min-width: 0; max-width: 100%; min-height: 42px; border: 1px solid #d7e0da; border-radius: 10px; padding: 9px 11px; background: #fbfcfb; color: var(--care-ink); }
 textarea { min-height: 86px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: #a1aaa6; }
+.document-type-select:invalid { color: #a1aaa6; }
+.document-type-select option { color: var(--care-ink); }
+.document-type-select option:disabled { color: #a1aaa6; }
 .checkbox { display: inline-flex; align-items: center; gap: 8px; color: #52625b; font-size: .75rem; font-weight: 530; }
 .checkbox input { width: 17px; min-height: 17px; accent-color: var(--care-green); }
 .checkbox-group { display: flex; flex-wrap: wrap; gap: 9px; }
@@ -382,7 +386,8 @@ input::placeholder, textarea::placeholder { color: #a1aaa6; }
 .approval-card { display: grid; grid-template-columns: 44px 1fr; gap: 12px; border-bottom: 1px solid #edf0ee; padding: 13px 0; }
 .approval-card:last-child { border-bottom: 0; }
 .weekday-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; }
-.weekday input { position: absolute; opacity: 0; pointer-events: none; }
+.weekday { position: relative; min-width: 0; }
+.weekday input { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
 .weekday span { display: grid; height: 38px; place-items: center; border: 1px solid var(--care-line); border-radius: 9px; color: var(--care-muted); font-size: .68rem; font-weight: 650; }
 .weekday input:checked + span { border-color: var(--care-green); background: var(--care-mint); color: var(--care-green); }
 
@@ -533,7 +538,8 @@ button.user-avatar { border: 0; cursor: pointer; font: inherit; }
   .impact-metrics { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .field.wide, .wide { grid-column: auto; }
-  input[type="date"] { display: block; width: -webkit-fill-available; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; }
+  input[type="date"], input[type="time"] { display: block; width: -webkit-fill-available; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; }
+  input[type="time"]::-webkit-date-and-time-value { min-width: 0; text-align: left; }
   .completed-rides-stat { display: none; }
   .view-tabs button { padding: 0 10px; }
   .calendar-period { font-size: .66rem; white-space: nowrap; }

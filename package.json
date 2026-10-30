@@ -5,5 +5,16 @@
   "devDependencies": {
     "@types/multer": "^2.3.0",
     "turbo": "2.11.7"
-  }
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": "11.13.0"
+    }
+  },
+  "workspaces": [
+    "backend",
+    "react-web-careride",
+    "packages/*"
+  ]
 }

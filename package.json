@@ -1,12 +1,15 @@
 {
   "scripts": {
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix ."
   },
   "dependencies": {
     "multer": "^2.4.0"
   },
   "devDependencies": {
     "@types/multer": "^2.3.0",
+    "oxlint": "1.87.0",
     "turbo": "2.11.7"
   },
   "devEngines": {

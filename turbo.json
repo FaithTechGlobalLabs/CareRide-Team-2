@@ -17,6 +17,10 @@
       "env": ["CI", "NODE_ENV", "NODE_OPTIONS", "TZ", "LANG", "LC_ALL"],
       "outputs": ["test-results/**"]
     },
+    "//#lint": {},
+    "//#lint:fix": {
+      "cache": false
+    },
     "dev": {
       "persistent": true,
       "cache": false

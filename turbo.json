@@ -8,6 +8,13 @@
       "dependsOn": ["^typecheck"]
     },
     "test": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/.env*"],
+      "env": ["CI", "NODE_ENV", "NODE_OPTIONS", "TZ", "LANG", "LC_ALL"],
+      "outputs": ["test-results/**"]
+    },
+    "test:node": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/.env*"],
+      "env": ["CI", "NODE_ENV", "NODE_OPTIONS", "TZ", "LANG", "LC_ALL"],
       "outputs": ["test-results/**"]
     },
     "dev": {

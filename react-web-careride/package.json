@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "react-web-careride",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -45,6 +45,7 @@
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8",
-    "vite": "^8"
+    "vite": "^8",
+    "vitest": "5.0.3"
   }
 }

@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "mkdir -p test-results && node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
     "db:setup": "tsx src/db/setup.ts",
     "db:setup:compiled": "node dist/db/setup.js",
     "db:schema": "node dist/db/setup.js --schema-only"

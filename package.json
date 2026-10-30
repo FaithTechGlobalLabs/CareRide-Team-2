@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "test": "turbo run test"
+  },
   "dependencies": {
     "multer": "^2.4.0"
   },

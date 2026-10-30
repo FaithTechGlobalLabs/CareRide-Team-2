@@ -4,7 +4,7 @@ Instructions for working in this repository.
 
 ## Dependency Policy
 - Never install new dependencies or upgrade dependencies without explicit user confirmation.
-- You may `npm ci --prefer-offline` to install known dependencies when the repo is missing its node_modules folder, or that folder is empty.
+- You may `npm ci --prefer-offline` to install known dependencies to their lockfile versions when the repo is missing its node_modules folder, or that folder is empty.
 - Before install/upgrade, show exact command(s) and wait for approval.
 
 ## Change Safety

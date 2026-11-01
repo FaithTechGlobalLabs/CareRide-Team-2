@@ -66,8 +66,30 @@ export const createRideErrorResponseSchema = z.object({
   message: z.string(),
 })
 
+/** POST /rides/:id/accept 200 response.
+ * The post-commit lookup can return null; otherwise it uses the shared ride mapper.
+ */
+export const acceptRideResponseSchema = z.object({
+  ride: rideResponseSchema.nullable(),
+})
+
+/** POST /rides/:id/accept error response body:
+ * - 401: Login required. / Login expired.
+ * - 403: This account cannot open that page. / You are not eligible for this ride.
+ * - 404: Ride not found.
+ * - 409: Already assigned / This ride timed out.
+ * - 500: Something went wrong. Please try again.
+ */
+export const acceptRideErrorResponseSchema = z.object({
+  message: z.string(),
+})
+
 export type RideResponse = z.infer<typeof rideResponseSchema>
 export type CreateRideResponse = z.infer<typeof createRideResponseSchema>
 export type CreateRideErrorResponse = z.infer<
   typeof createRideErrorResponseSchema
+>
+export type AcceptRideResponse = z.infer<typeof acceptRideResponseSchema>
+export type AcceptRideErrorResponse = z.infer<
+  typeof acceptRideErrorResponseSchema
 >

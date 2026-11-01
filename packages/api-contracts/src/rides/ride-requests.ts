@@ -31,4 +31,16 @@ export const createRideRequestSchema = z.discriminatedUnion("trip_type", [
   roundTripRideRequestSchema,
 ])
 
+/** POST /rides/:id/accept path parameters. The current handler does not validate UUIDs. */
+export const acceptRideParamsSchema = z.object({
+  id: z.string(),
+})
+
+/** POST /rides/:id/accept requires no body and ignores any supplied body.
+ * The authenticated driver ID comes from the bearer token, not the body.
+ */
+export const acceptRideRequestSchema = z.unknown()
+
 export type CreateRideRequest = z.infer<typeof createRideRequestSchema>
+export type AcceptRideParams = z.infer<typeof acceptRideParamsSchema>
+export type AcceptRideRequest = z.infer<typeof acceptRideRequestSchema>

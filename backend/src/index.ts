@@ -7,13 +7,16 @@ import { createHttpApp } from "./create-http-app.js"
 import { pool } from "./db/db.js"
 import { Container } from "./infrastructure/container.js"
 
-const app = createHttpApp(new Container({}))
+// const app = createHttpApp(new Container({}))
 
-const PORT = Number(process.env.PORT) || 3000
+const app = express()
 
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+const PORT = Number(process.env.PORT) || 3000
+
 registerApi(app)
 
 app.get("/", (_req, res) => {

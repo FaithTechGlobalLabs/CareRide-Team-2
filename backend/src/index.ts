@@ -3,9 +3,9 @@ import cors from "cors"
 import express from "express"
 
 import { registerApi } from "./api/routes.js"
-import { createHttpApp } from "./create-http-app.js"
+// import { createHttpApp } from "./create-http-app.js"
 import { pool } from "./db/db.js"
-import { Container } from "./infrastructure/container.js"
+// import { Container } from "./infrastructure/container.js"
 
 // const app = createHttpApp(new Container({}))
 

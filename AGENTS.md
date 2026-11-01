@@ -14,6 +14,23 @@ Instructions for working in this repository.
 - If unexpected unrelated changes are detected, stop and ask.
 - Never store secrets, keys, or sensitive info in version control.
 
+## Agent skills
+
+### Issue tracker
+
+Track specs, PRDs, and tickets, including drafts, as local Markdown under `.scratch/`.
+Before tracker operations, read `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five canonical triage roles as local `Status:` values.
+Before triaging, read `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a single-context glossary and ADR layout.
+Before exploring the codebase, read `docs/agents/domain.md`.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

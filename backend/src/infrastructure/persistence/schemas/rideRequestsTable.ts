@@ -1,6 +1,6 @@
-import type { ColumnType, Generated } from "kysely"
+import type { Generated } from "kysely"
 
-type Timestamp = ColumnType<Date, Date | string, Date | string>
+import type { GeneratedTimestamp, Timestamp } from "./columns.js"
 
 // Mirrors backend/db/001_schema.sql. Timestamp reads use pg's default Date parser.
 export interface RideRequestsTable {
@@ -31,8 +31,8 @@ export interface RideRequestsTable {
   approved_by_user_id: string | null
   approved_at: Timestamp | null
   ride_option: Generated<"free" | "paid_external">
-  created_at: Generated<Timestamp>
-  updated_at: Generated<Timestamp>
+  created_at: GeneratedTimestamp
+  updated_at: GeneratedTimestamp
   completed_at: Timestamp | null
   cancelled_reason: string | null
   is_client_picked_up: Generated<boolean>

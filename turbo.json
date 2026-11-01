@@ -18,6 +18,18 @@
       "env": ["CI", "NODE_ENV", "NODE_OPTIONS", "TZ", "LANG", "LC_ALL"],
       "outputs": ["test-results/**"]
     },
+    "test:integration": {
+      "cache": false,
+      "passThroughEnv": [
+        "CI",
+        "DEBUG",
+        "DOCKER_*",
+        "TESTCONTAINERS_*",
+        "NODE_OPTIONS",
+        "TZ",
+        "XDG_RUNTIME_DIR"
+      ]
+    },
     "//#lint": {},
     "//#lint:fix": {
       "cache": false

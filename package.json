@@ -1,10 +1,11 @@
 {
   "scripts": {
     "test": "turbo run test",
+    "test:integration": "turbo run test:integration --filter=backend",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --check",
-    "format:fix": "oxfmt ."    
+    "format:fix": "oxfmt ."
   },
   "dependencies": {
     "multer": "^2.4.0"

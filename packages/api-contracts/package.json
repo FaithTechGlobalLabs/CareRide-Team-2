@@ -1,16 +1,25 @@
 {
-  "name": "api-contracts",
+  "name": "@careride/api-contracts",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": {
-    "./rides/ride-requests": "./src/rides/ride-requests.ts",
-    "./rides/ride-responses": "./src/rides/ride-responses.ts"
+    "./rides/ride-requests": {
+      "development": "./src/rides/ride-requests.ts",
+      "types": "./dist/rides/ride-requests.d.ts",
+      "default": "./dist/rides/ride-requests.js"
+    },
+    "./rides/ride-responses": {
+      "development": "./src/rides/ride-responses.ts",
+      "types": "./dist/rides/ride-responses.d.ts",
+      "default": "./dist/rides/ride-responses.js"
+    }
   },
   "imports": {
     "#*": "./src/*"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "lint": "oxlint src",
     "typecheck": "tsc --noEmit"
   },

@@ -26,7 +26,7 @@ test(socketMode
   const httpPort = await listen(reservation);
   await new Promise((resolve) => reservation.close(resolve));
 
-  const child = spawn(process.execPath, ["dist/index.js"], {
+  const child = spawn(process.execPath, ["--conditions=development", "--import", "tsx", "src/index.ts"], {
     cwd: new URL("../", import.meta.url),
     env: {
       ...process.env,

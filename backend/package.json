@@ -4,13 +4,13 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "dev": "tsx watch --conditions=development src/index.ts",
+    "build": "npm run build --workspace=@careride/api-contracts && tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run build",
-    "test": "mkdir -p test-results && node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
-    "test:node": "mkdir -p test-results && node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
+    "test": "mkdir -p test-results && node --conditions=development --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
+    "test:node": "mkdir -p test-results && node --conditions=development --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
+    "test:acceptance": "node --conditions=development --import tsx --test tests/ride-acceptance-*.test.mjs",
     "db:setup": "tsx src/db/setup.ts",
     "db:setup:compiled": "node dist/db/setup.js",
     "db:schema": "node dist/db/setup.js --schema-only"
@@ -20,6 +20,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@careride/api-contracts": "0.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "bcrypt": "^6.0.0",

@@ -30,6 +30,39 @@ npm run dev
 
 `db:setup` applies the schema once and seeds Belkin, the demo staff and drivers, four clients, two addresses, and one completed ride. The password for every demo login is `CareRideDemo1`.
 
+## Database integration tests
+
+With Docker running, run from the repository root:
+
+```sh
+npm run test:integration
+```
+
+This runs the backend's Vitest integration suite through Turborepo. Testcontainers
+starts a fresh `postgis/postgis:18-3.6` container on a random port, and global setup
+applies the Kysely migrations in
+`backend/src/infrastructure/persistence/migrations/`. Connection details pass to
+tests through Vitest's `provide`/`inject`; no database environment variables or
+manual database setup are needed. The first run downloads the image. The PostGIS
+image is amd64, so Docker must support amd64 emulation on Apple Silicon.
+
+The task disables caching so every invocation exercises PostgreSQL. Docker and
+Testcontainers environment overrides pass through Turborepo's strict environment
+filter. Tests run one file at a time against the shared migrated database;
+isolate fixture writes in transactions and roll them back after each test.
+Global teardown stops the container, and each test file closes its own client.
+
+The example in `backend/test/integration/rideQueries.test.ts` tests
+`RideQueries.getNotificationContext` against real tables. Add tests under
+`backend/test/integration/**/*.test.ts` or `backend/src/**/*.integration.test.ts`.
+To filter by filename through Turborepo, run:
+
+```sh
+npm run test:integration -- -- rideQueries
+```
+
+The existing `npm test` command continues to run its current suites independently.
+
 ## Cloud Run with Cloud SQL
 
 Use Cloud SQL **for PostgreSQL**. The API needs PostGIS; choose the same region as your Cloud Run service. This setup uses Cloud Run's built-in Cloud SQL Auth Proxy and Unix socket, with database username/password authentication.

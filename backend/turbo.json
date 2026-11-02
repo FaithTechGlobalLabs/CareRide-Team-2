@@ -20,7 +20,11 @@
         "CARERIDE_DATA_DIR",
         "VAPID_*",
         "NOTIFICATION_WORKER_TOKEN"
-      ]
+      ],
+      "dependsOn": ["^test"]
+    },
+    "test:node": {
+      "dependsOn": ["^test:node"]
     }
   }
 }

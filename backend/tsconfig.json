@@ -2,13 +2,15 @@
   // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     // File Layout
-    "rootDir": "./src",
+    "rootDir": "..",
+    "noEmit": true,
     "outDir": "./dist",
     "noEmitOnError": true,
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
+    "customConditions": ["development"],
     "target": "esnext",
     "types": ["node"],
     // For nodejs:
@@ -40,8 +42,8 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest*.config.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.d.ts"]
 }

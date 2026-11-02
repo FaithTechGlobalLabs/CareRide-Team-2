@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Pool } from "pg";
-import { databaseConfig } from "../dist/db/config.js";
+import { databaseConfig } from "../src/db/config.ts";
 
 const credentials = {
   POSTGRES_USER: "test-user",

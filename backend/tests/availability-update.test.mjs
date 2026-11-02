@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { registerApi } from "../dist/api/routes.js";
-import { pool } from "../dist/db/db.js";
+import { registerApi } from "../src/api/routes.ts";
+import { pool } from "../src/db/db.ts";
 
 // Exercise the registered edit handler without network access or a live database.
 const routes = new Map();

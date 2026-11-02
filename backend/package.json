@@ -4,13 +4,15 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "dev": "tsx watch --conditions=development src/index.ts",
+    "build": "npm run build --workspace=@careride/api-contracts && tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run build",
-    "test": "mkdir -p test-results && node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
-    "test:node": "mkdir -p test-results && node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
+    "test": "npm run test:unit && npm run test:node",
+    "test:unit": "vitest run",
+    "test:node": "mkdir -p test-results && node --conditions=development --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/junit.xml tests/*.test.mjs",
+    "test:acceptance": "node --conditions=development --import tsx --test tests/ride-acceptance-*.test.mjs",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:setup": "tsx src/db/setup.ts",
     "db:setup:compiled": "node dist/db/setup.js",
     "db:schema": "node dist/db/setup.js --schema-only"
@@ -20,6 +22,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@careride/api-contracts": "0.0.1",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "bcrypt": "^6.0.0",
@@ -27,11 +30,13 @@
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "kysely": "0.29.6",
     "multer": "^2.4.0",
     "pg": "^8.23.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "12.2.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.3.0",

@@ -1,0 +1,30 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "$TURBO_ROOT$/.env*",
+        "$TURBO_ROOT$/react-web-careride/src/features/careride/rideGroups.ts"
+      ],
+      "env": [
+        "$TURBO_EXTENDS$",
+        "DATABASE_URL",
+        "POSTGRES_*",
+        "DB_*",
+        "PG*",
+        "INSTANCE_CONNECTION_NAME",
+        "K_SERVICE",
+        "JWT_SECRET",
+        "CARERIDE_DATA_DIR",
+        "VAPID_*",
+        "NOTIFICATION_WORKER_TOKEN"
+      ],
+      "dependsOn": ["^test"]
+    },
+    "test:node": {
+      "dependsOn": ["^test:node"]
+    }
+  }
+}

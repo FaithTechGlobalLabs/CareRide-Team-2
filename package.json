@@ -1,8 +1,31 @@
 {
+  "scripts": {
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration --filter=backend",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt ."
+  },
   "dependencies": {
     "multer": "^2.4.0"
   },
   "devDependencies": {
-    "@types/multer": "^2.3.0"
-  }
+    "@types/multer": "^2.3.0",
+    "husky": "9.1.7",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "turbo": "2.11.7"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": "11.13.0"
+    }
+  },
+  "workspaces": [
+    "backend",
+    "react-web-careride",
+    "packages/*"
+  ]
 }

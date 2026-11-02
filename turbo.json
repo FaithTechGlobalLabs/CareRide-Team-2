@@ -1,0 +1,46 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "build": {
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "lint": {},
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/.env*"],
+      "env": ["CI", "NODE_ENV", "NODE_OPTIONS", "TZ", "LANG", "LC_ALL"],
+      "outputs": ["test-results/**"]
+    },
+    "test:node": {
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/.env*"],
+      "env": ["CI", "NODE_ENV", "NODE_OPTIONS", "TZ", "LANG", "LC_ALL"],
+      "outputs": ["test-results/**"]
+    },
+    "test:integration": {
+      "cache": false,
+      "passThroughEnv": [
+        "CI",
+        "DEBUG",
+        "DOCKER_*",
+        "TESTCONTAINERS_*",
+        "NODE_OPTIONS",
+        "TZ",
+        "XDG_RUNTIME_DIR"
+      ]
+    },
+    "//#lint": {},
+    "//#lint:fix": {
+      "cache": false
+    },
+    "//#format": {},
+    "//#format:fix": {
+      "cache": false
+    },
+    "dev": {
+      "persistent": true,
+      "cache": false
+    }
+  }
+}

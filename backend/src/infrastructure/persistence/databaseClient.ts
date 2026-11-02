@@ -1,10 +1,28 @@
 import { Kysely, PostgresDialect } from "kysely"
 import { Pool } from "pg"
 
+import type { AddressesTable } from "./schemas/addressesTable.js"
+import type { ClientsTable } from "./schemas/clientsTable.js"
+import type { DispatchesTable } from "./schemas/dispatchesTable.js"
+import type { DriverAvailabilitiesTable } from "./schemas/driverAvailabilitiesTable.js"
+import type { DriversTable } from "./schemas/driversTable.js"
+import type { DriverVerificationsTable } from "./schemas/driverVerificationsTable.js"
+import type { NotificationsTable } from "./schemas/notificationsTable.js"
 import type { RideRequestsTable } from "./schemas/rideRequestsTable.js"
+import type { VehiclesTable } from "./schemas/vehiclesTable.js"
+
+import { pool } from "../../db/db.js"
 
 export interface DatabaseSchema {
   ride_requests: RideRequestsTable
+  dispatches: DispatchesTable
+  driver_verifications: DriverVerificationsTable
+  driver_availabilities: DriverAvailabilitiesTable
+  vehicles: VehiclesTable
+  clients: ClientsTable
+  addresses: AddressesTable
+  drivers: DriversTable
+  notifications: NotificationsTable
 }
 
 export type DatabaseClient = Kysely<DatabaseSchema>
@@ -35,15 +53,8 @@ export function createDatabaseClient(
   })
 }
 
-function loadDatabaseConfigFromEnv(): DatabaseConnectionConfig {
-  return {
-    database: process.env.POSTGRES_DB || process.env.DB_NAME || "postgres",
-    host: process.env.POSTGRES_HOST || process.env.DB_HOST || "localhost",
-    port: Number(process.env.POSTGRES_PORT || process.env.DB_PORT || 5432),
-    user: process.env.POSTGRES_USER || process.env.DB_USER || "postgres",
-    password: process.env.POSTGRES_PASSWORD || process.env.DB_PASS || "",
-    maxConnections: Number(process.env.DB_POOL_MAX) || 10,
-  }
-}
-
-export const databaseClient = createDatabaseClient(loadDatabaseConfigFromEnv())
+// Both versions share connection settings (including Cloud SQL / DATABASE_URL)
+// and the existing pool lifecycle. index.ts closes this pool at shutdown.
+export const databaseClient: DatabaseClient = new Kysely<DatabaseSchema>({
+  dialect: new PostgresDialect({ pool }),
+})

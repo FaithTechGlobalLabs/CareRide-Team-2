@@ -1,5 +1,8 @@
 # Parallel ride acceptance implementation
 
+The architectural decisions and worked design guidelines are recorded in
+[ADR 0001: Clean architecture, aggregate ownership, and explicit transactions](adr/0001-clean-architecture-aggregates-and-transactions.md).
+
 `POST /rides/:id/accept` continues to use `backend/src/api/routes.ts`.
 `POST /v2/rides/:id/accept` uses the new layers. Both use the same bearer tokens,
 PostgreSQL pool, underlying tables, and HTTP response shapes. No migration is

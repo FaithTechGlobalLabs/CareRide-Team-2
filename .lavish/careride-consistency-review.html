@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CareRide · Consistency and aggregate candidates</title>
+<style>
+:root{color-scheme:light;--care-ink:#20302b;--care-muted:#66736e;--care-green:#285d4d;--care-mint:#e8f3ed;--care-gold:#d99a52;--care-cream:#f7f4ed;--care-line:#dfe6e1;--care-danger:#a8433c;background:var(--care-cream);color:var(--care-ink);font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--care-cream);line-height:1.6}html{scroll-behavior:smooth}a{color:var(--care-green);text-underline-offset:3px}button,input{font:inherit}button{cursor:pointer}*:focus-visible{outline:3px solid var(--care-gold);outline-offset:3px}h1,h2,h3,h4,p{margin-top:0}h1{font:500 clamp(2.4rem,5vw,4.6rem)/1.08 Georgia,serif;letter-spacing:-.04em;max-width:840px;margin-bottom:22px}h2{font:500 clamp(1.8rem,3vw,2.5rem)/1.2 Georgia,serif;margin-bottom:12px}h3{font-size:1.2rem;margin-bottom:10px}h4{margin-bottom:8px}p{margin-bottom:14px}code{font-size:.88em;overflow-wrap:anywhere}small{font-size:.8rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f8f5;padding:16px;border-radius:10px;font-size:.8rem}svg{max-width:100%;height:auto}section{scroll-margin-top:90px}.cr-wrap{max-width:1240px;margin:auto;padding:0 32px}.cr-top{border-bottom:1px solid var(--care-line);padding:18px 0;background:#fff}.cr-top .cr-wrap{display:flex;justify-content:space-between;align-items:center;gap:15px}.cr-brand{font-size:1.25rem;font-weight:780;letter-spacing:-.04em}.cr-brand span{color:var(--care-gold)}.cr-eyebrow{color:var(--care-green);font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;font-weight:750}.cr-hero{padding:55px 32px 36px}.cr-lead{max-width:850px;font-size:1.13rem;color:var(--care-muted)}.cr-stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}.cr-pill,.cr-tag{display:inline-block;border:1px solid var(--care-line);border-radius:30px;padding:7px 13px;background:white;font-size:.82rem;font-weight:600}.cr-tag{padding:3px 9px;font-size:.7rem;line-height:1.6}.cr-tag.strong{background:var(--care-mint);color:var(--care-green);border-color:#bfd6c9}.cr-tag.conditional{background:#fbf0df;color:#78501f;border-color:#e9cda8}.cr-tag.separate{background:#eef1f4;color:#425565}.cr-nav{position:sticky;top:0;z-index:5;background:#f7f4edf2;backdrop-filter:blur(12px);border-top:1px solid var(--care-line);border-bottom:1px solid var(--care-line)}.cr-nav .cr-wrap{display:flex;gap:25px;flex-wrap:wrap;padding-top:12px;padding-bottom:12px}.cr-nav a{font-size:.83rem;text-decoration:none;font-weight:700}.cr-section{padding:44px 0 10px}.cr-caption{color:var(--care-muted);max-width:900px;font-size:.95rem}.cr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:20px 0}.cr-grid>*{min-width:0}.cr-card{background:white;border:1px solid var(--care-line);border-radius:17px;padding:25px;min-width:0}.cr-card.featured{border-top:4px solid var(--care-green)}.cr-card.conditional{border-top:4px solid var(--care-gold)}.cr-card h3{margin:12px 0}.cr-card p:last-child{margin-bottom:0}.cr-callout{border-left:4px solid var(--care-green);background:var(--care-mint);padding:19px 23px;border-radius:0 12px 12px 0;margin:23px 0}.cr-callout.warn{border-color:var(--care-gold);background:#fbf0df}.cr-callout strong{display:block;margin-bottom:5px}.cr-mermaid{background:#fff;border:1px solid var(--care-line);border-radius:17px;padding:20px;margin:20px 0;overflow:auto;min-width:0}.cr-mermaid .mermaid{min-height:90px;text-align:center}.cr-mermaid figcaption{font-size:.82rem;color:var(--care-muted);border-top:1px solid var(--care-line);padding-top:12px;margin-top:12px}.cr-legend{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0}.cr-field{border-top:1px solid var(--care-line);padding-top:12px;margin-top:12px}.cr-field b{display:block;font-size:.76rem;text-transform:uppercase;letter-spacing:.07em;color:var(--care-green);margin-bottom:4px}.cr-field p{font-size:.9rem}.cr-source{font-size:.76rem;color:var(--care-muted);overflow-wrap:anywhere}.cr-tablewrap{overflow-x:auto;border:1px solid var(--care-line);border-radius:14px;background:#fff;margin:20px 0}table{width:100%;border-collapse:collapse;font-size:.86rem}th,td{text-align:left;vertical-align:top;padding:15px 18px;border-bottom:1px solid var(--care-line);overflow-wrap:anywhere}th{background:var(--care-mint);font-size:.74rem;text-transform:uppercase;letter-spacing:.05em}td:first-child{font-weight:650}tr:last-child td{border-bottom:0}.cr-entitytable{min-width:650px}.cr-invarianttable{min-width:810px}.cr-filter{display:flex;align-items:center;gap:12px;margin:20px 0;flex-wrap:wrap}.cr-filter input{border:1px solid #b6c9bf;border-radius:10px;padding:10px 13px;background:white;max-width:100%;width:340px}.cr-muted{color:var(--care-muted)}.cr-flowsteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}.cr-flowsteps>div{min-width:0;border:1px solid var(--care-line);border-radius:12px;padding:16px;background:white}.cr-flowsteps span{font-size:.72rem;color:var(--care-green);font-weight:750;text-transform:uppercase;letter-spacing:.08em}.cr-flowsteps p{margin:8px 0 0;font-size:.9rem}.cr-toggle{display:flex;gap:8px;flex-wrap:wrap;margin:17px 0}.cr-toggle button{border:1px solid #c4d4cc;border-radius:9px;padding:9px 14px;color:var(--care-green);background:white}.cr-toggle button[aria-pressed=true]{background:var(--care-green);color:white;border-color:var(--care-green)}.cr-foot{padding:38px 0;color:var(--care-muted);font-size:.8rem}details{border:1px solid var(--care-line);border-radius:12px;background:white;padding:17px 20px;margin:12px 0}summary{cursor:pointer;font-weight:650}details p{margin-top:14px;font-size:.9rem}details pre{margin-bottom:5px}li{margin:6px 0}p,li,figcaption,h1,h2,h3{overflow-wrap:anywhere}[hidden]{display:none!important}@media(max-width:760px){.cr-wrap{padding:0 18px}.cr-hero{padding:32px 18px 36px}.cr-grid,.cr-flowsteps{grid-template-columns:minmax(0,1fr)}.cr-card{padding:20px}.cr-nav .cr-wrap{gap:15px}.cr-top small{display:none}.cr-mermaid{padding:12px}.cr-section{padding-top:32px}}@media print{.cr-nav,.cr-filter,.cr-toggle{display:none}.cr-wrap{max-width:none}.cr-card,figure{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header class="cr-top"><div class="cr-wrap"><div class="cr-brand">CareRide<span>●</span> / Consistency review</div><small>31 October 2026 · code-based design inference</small></div></header>
+<div class="cr-wrap cr-hero"><div class="cr-eyebrow">Aggregate candidates / business invariants</div><h1>Keep assignment atomic.<br>Let notifications follow.</h1><p class="cr-lead"><strong>RideRequest → Dispatch</strong> is the strongest demonstrated boundary. Driver eligibility needs authoritative checks at acceptance, but that does not make every eligibility record a child of the ride.</p><div class="cr-stats"><span class="cr-pill">Strong: ride + assignment dispatches</span><span class="cr-pill">Conditional: driver + vehicle; settings + devices</span><span class="cr-pill">Eventual: alerts, matching lists, summaries</span></div></div>
+<nav class="cr-nav" aria-label="Sections"><div class="cr-wrap"><a href="#roots">Candidates</a><a href="#eligibility">Eligibility & concurrency</a><a href="#eventual">Eventual relationships</a><a href="#workflows">Trips & deletion</a><a href="#implementation">Current implementation</a></div></nav>
+<main class="cr-wrap">
+<div class="cr-callout"><strong>A boundary protects a rule, not an object graph.</strong>Choose children because their state must agree when a command commits. A foreign key, cascade delete, join, or shared transaction is evidence to examine, not sufficient proof of aggregate membership. A root can be a single entity with embedded value objects. Loading an aggregate alone does not protect it from concurrent writes: use locks, version checks, conditional writes and database constraints.</div>
+<section id="roots" class="cr-section"><div class="cr-eyebrow">01 / Proposed ownership</div><h2>Which roots does the code support?</h2>
+<figure class="cr-mermaid"><div class="mermaid">
+flowchart TB
+ subgraph ride["Strong boundary: RideRequest"]
+ R["Ride state and assigned driver ID"] --- D["Dispatch children: assignment / response"]
+ end
+ E["Acceptance policy: authoritative eligibility check"] --> R
+ V["DriverVerification root: document + review"] --> E
+ A["AvailabilityRule root: recurrence + service area"] --> E
+ P["Driver root + Vehicle child candidate"] --> E
+ R -.->|"proposed durable event / outbox"| N["Notification root"]
+ N -.->|"eventual"| W["PushDelivery work item per endpoint"]
+ S["NotificationSettings + subscription candidates"] -->|"check current preferences before send"| W
+</div><figcaption>Proposed boundaries. Solid connectors show ownership or command dependencies; dotted connectors show asynchronous effects. Eligibility records remain outside the ride. Organization, Client, Address and Staff can remain small independent roots.</figcaption></figure>
+<div class="cr-grid">
+<article class="cr-card featured"><span class="cr-tag strong">Strongest multi-entity candidate</span><h3>RideRequest → Dispatch</h3><p>Only one driver wins a claim. An assignment and its accepted dispatch must agree. Withdrawing reopens the ride and expires the accepted dispatch together; cancellation changes the ride and expires that dispatch together.</p><p>Ride status, pickup/dropoff flags and completion timestamp are local ride state. Pickup requires the assigned driver and approved status; dropoff requires in-progress status and pickup. Route guards and SQL checks protect complementary parts of these rules.</p><p>Keep assignment records inside this boundary; an exported dispatch history can be eventual. Do not put Driver, Client, Address or Notification inside it.</p><p class="cr-source">routes.ts:901 (claim), :834 (cancel), :971 (transitions), :1062 (withdraw). 001_schema.sql:213, :246.</p></article>
+<article class="cr-card conditional"><span class="cr-tag conditional">Plausible / limited evidence</span><h3>Driver → Vehicle</h3><p>Registration requires vehicle details and creates driver and vehicle in one transaction. Driver deletion removes vehicles. A vehicle that exists only as this driver's capability record is a reasonable child.</p><p>The code does not show a continuing collection-wide rule across vehicles, availability and verifications. Do not infer “exactly one vehicle” or “no overlapping rides”: neither is enforced here. SQL allows multiple vehicles, eligibility uses any matching one, and presentation selects one without recording the chosen vehicle on the ride.</p><p class="cr-source">routes.ts:1104, :33 (eligibleSql), :219. personal.ts:122. vehicles has no UNIQUE(driver_id).</p></article>
+<article class="cr-card"><span class="cr-tag separate">Small independent root candidate</span><h3>DriverVerification</h3><p>Own the submitted document, expiry and review result: status, reviewer, reviewed timestamp and rejection reason. Approval/rejection changes these fields together and is scoped to the reviewing organization.</p><p>The Organization and Driver are referenced roots, not parents that must contain every verification. Current eligibility requires <em>any</em> approved, unexpired verification for that organization; it does not require all document types to pass. The approve/reject handlers do not restrict the prior status.</p><p class="cr-source">routes.ts:1177, :1435, :1455; eligibleSql:33. This is a workflow root even though its state currently fits in one row.</p></article>
+<article class="cr-card"><span class="cr-tag separate">Small independent root candidate</span><h3>AvailabilityRule</h3><p>Keep recurrence kind, applicable date/days, time window, timezone, active flag and service area together. End must follow start; radius must be positive; one-time/weekly/monthly fields must agree.</p><p>There is no rule comparing all availability rows or preventing overlaps. A root per rule is sufficient for demonstrated invariants. A DriverSchedule aggregate becomes useful if rules later depend on the whole schedule or its reservations.</p><p class="cr-source">routes.ts:1238, :1302. 001_schema.sql:driver_availabilities CHECK constraints.</p></article>
+<article class="cr-card conditional"><span class="cr-tag conditional">Command-level coupling</span><h3>NotificationSettings → PushSubscriptions</h3><p>Key by (user_id, kind). Prompt decisions update related flags together. Enabling a browser registers its endpoint and enables push / dismisses the prompt: those changes can reasonably form one atomic settings command.</p><p>Today endpoint registration and preference changes use separate queries. Endpoint uniqueness and reassignment span owners and need explicit coordination. Disabling push may retain endpoints; removing a device does not disable push globally. Do not invent an invariant equating push_enabled with subscription count.</p><p class="cr-source">notifications/sqlApi.ts:35, :141, :156. notifications/events.ts:54 handles the first-ride prompt in the JSON path.</p></article>
+<article class="cr-card"><span class="cr-tag separate">Independent roots / worker state</span><h3>Organization, Staff, Client, Address, Notification</h3><p>Organization is a tenant/lifecycle root; the code gives no ongoing rule requiring all its staff, clients, locations and rides to be children. Staff's role allowlist is local account validation, not a rule over the organization's staff collection.</p><p>Client owns profile/contact values and the 50-character notes limit. Address owns location values and active status. Notification owns recipient/content/read state; exactly one staff or driver recipient is required. A PushDelivery is an independent technical work item keyed by notification + endpoint, with atomic lease/retry state.</p><p class="cr-source">routes.ts:508, :549, :617, :644, :1510. adminContoller.ts:28. push.ts:39. 001_schema.sql:262.</p></article>
+</div></section>
+<section id="eligibility" class="cr-section"><div class="cr-eyebrow">02 / Fresh reads are not enough</div><h2>Acceptance is the critical decision point.</h2><p>The available-rides list can lag. The accept command must recheck the authoritative ride and eligibility inputs: requested/unassigned/future pickup, organization approval, sufficient seats, wheelchair capability and a matching active availability rule. The SQL API does recheck these in the claim UPDATE.</p>
+<div class="cr-callout warn"><strong>Current protection covers competing claims for one ride.</strong>The handler locks that ride with FOR UPDATE. It does not lock verification, vehicle or availability rows, and those edit paths do not share a driver guard. At PostgreSQL's default Read Committed isolation, a statement reads a committed snapshot; another eligibility edit can commit before the claim transaction finishes. No runtime database isolation override was verified.</div>
+<div class="cr-flowsteps"><div><span>1 / Claim begins</span><p>Ride is locked. The eligibility statement sees an approved verification.</p></div><div><span>2 / Review changes</span><p>A separate transaction rejects that verification and commits independently.</p></div><div><span>3 / Claim commits</span><p>The ride and dispatch can commit based on the earlier eligibility view.</p></div></div>
+<p style="margin-top:20px">If that ordering is unacceptable, coordinate claim and eligibility edits under a shared driver guard, or a serializable transaction strategy with retries covering the relevant reads and writes. Simply putting objects in a Driver class changes no concurrency guarantee. A shared guard preserves smaller roots but introduces explicit command coordination and some contention.</p>
+<details><summary>The business decision: eligible when?</summary><p><strong>At acceptance:</strong> check authoritative inputs in an agreed concurrency order, then retain the commitment even if availability later changes. No continuous synchronization of every assigned ride is implied.</p><p><strong>Through pickup/completion:</strong> rejecting verification, reducing vehicle capacity or deleting availability must also reject the change, invalidate/reassign affected rides, or prevent pickup as required. The code does not implement this stronger policy. First define its reaction and timing; then design the coordination.</p><p>Expiry is currently checked against CURRENT_DATE, not the future pickup date. “Approval must remain valid on pickup day” is an additional rule. No double-booking rule appears in the eligibility predicate.</p></details>
+<p class="cr-source">Evidence: routes.ts:29–75, :901–955; availability edits :1302; verification review :1435. <a href="https://www.postgresql.org/docs/current/transaction-iso.html">PostgreSQL isolation documentation</a>.</p></section>
+<section id="eventual" class="cr-section"><div class="cr-eyebrow">03 / Tolerable delay</div><h2>Which relationships can catch up later?</h2><p>These are proposed tolerances inferred from the code. Eventual consistency still needs durable work, retries and a defined user experience; it is not permission to lose an update.</p>
+<div class="cr-tablewrap"><table><thead><tr><th>Relationship</th><th>Acceptable delayed effect</th><th>Keep authoritative</th></tr></thead><tbody>
+<tr><td>Ride / Client → Notification</td><td>Inbox messages, fan-out, first-accepted-ride prompt and delivery generation.</td><td>Commit a durable event with the source change; use an idempotent consumer. The ride stays valid if notification processing is delayed.</td></tr>
+<tr><td>Ride + eligibility → matching list / available-ride alert</td><td>A stale suggestion can appear or a newly eligible ride can appear a little later.</td><td>Recheck eligibility and claimability on acceptance. An alert is not a reservation or authorization.</td></tr>
+<tr><td>Notification → PushDelivery → browser</td><td>Queueing, leases, retries, failure state and endpoint cleanup.</td><td>Atomic lease per work item. Check recipient ownership, read state and current preferences before sending. Push cannot guarantee exactly-once delivery across an external network call.</td></tr>
+<tr><td>Ride → summary / dashboard</td><td>Completed-ride count and derived demo savings.</td><td>Read ride state directly for commands. The current summary is a query, not an asynchronous projection.</td></tr>
+<tr><td>Client / Driver / Organization → display projections</td><td>Names, labels, contact displays and joined views, if the product tolerates the delay.</td><td>Tenant ownership, current account access and eligibility decisions must not rely on stale display copies.</td></tr>
+<tr><td>Address → existing ride location</td><td>No catch-up is required: the ride owns a historical copy of address and coordinates.</td><td>Booking checks that selected addresses belong to the organization and are active. Later edits should not overwrite the booked route automatically.</td></tr>
+<tr><td>Account / Organization deletion → physical cleanup</td><td>Document unlinking and bulk purging can follow a logical deletion if that product contract is chosen.</td><td>Block new commands and coordinate with ride start/claim before declaring deletion safe. Respect foreign keys and retention policy; a deletion request is not completed erasure.</td></tr>
+</tbody></table></div>
+<p class="cr-source">events.ts:47, :109, :129; push.ts:32–107; routes.ts:152 (current transactional notices), :1540 (summary), :774 (snapshots); personal.ts:185 (file cleanup).</p>
+<div class="cr-callout"><strong>Recommended event boundary</strong>Source command → atomic source state + outbox event → idempotent notification handler → delivery work → browser. This is a proposal: current notifyStaff writes the notification row inside several ride transactions. An outbox would keep reliable publication atomic while allowing notification processing to lag.</div>
+</section>
+<section id="workflows" class="cr-section"><div class="cr-eyebrow">04 / Cross-root workflows</div><h2>Two places to resist a giant aggregate.</h2><div class="cr-grid">
+<article class="cr-card conditional"><h3>Round-trip booking</h3><p>Creation writes both legs, shared group ID and reciprocal links in one transaction. Partial creation should not be exposed as a successful round trip.</p><p>After creation, each leg can be independently accepted, cancelled or completed. No same-driver, coupled cancellation, or return-after-outbound rule is enforced.</p><p>Use a booking creation transaction with independent RideRequest roots for the current behavior. A Trip/Booking root owning both legs becomes a stronger candidate if the business requires continuing cross-leg invariants. Atomic creation alone does not establish lifelong ownership.</p><p class="cr-source">routes.ts:743, :773–818; each state command filters one ride ID.</p></article>
+<article class="cr-card conditional"><h3>Organization / driver deletion</h3><p>personal.ts refuses deletion if an affected ride is in_progress, then updates many collections. That is a genuine cross-root lifecycle rule, not evidence that an organization owns all those objects inside one aggregate.</p><p>A future SQL implementation can coordinate deletion and ride start/claim with a common lifecycle guard, or mark deletion pending, block new activity, drain assignments and purge afterward. Existing active rides must be checked authoritatively.</p><p>The JSON update queue only serializes its own process. It does not coordinate PostgreSQL ride writes, so today's mixed store paths cannot provide that cross-store guarantee.</p><p class="cr-source">personal.ts:59, :84–174; jsonStore.ts:372; routes.ts:991.</p></article>
+</div></section>
+<section id="implementation" class="cr-section"><div class="cr-eyebrow">05 / Evidence limits</div><h2>Do not mistake mixed paths for a finished model.</h2><ul>
+<li><strong>Active entry point:</strong> index.ts:13 mounts registerApi. Main ride and notification APIs use PostgreSQL. personal.ts deletion uses JSON.</li>
+<li><strong>adminContoller.ts:</strong> its staff list/find/update/delete helpers throw postgresUnused. The controller is not mounted by the inspected entry point. Its role allowlist does not establish a currently enforced authorization model.</li>
+<li><strong>organizationController.ts:</strong> creates Organization and first Staff through separate queries. The mounted /organizations/register route instead uses one atomic SQL CTE. Initial account creation merits atomicity, but no “always at least one staff/admin” rule is implemented.</li>
+<li><strong>events.ts:</strong> reconciliation is invoked by JSON-store updates. Its broad notifications and first-ride prompts are not wired into the SQL claim path. SQL's notifyStaff inserts narrower messages directly.</li>
+<li><strong>Subscriptions:</strong> registration changes subscriptions and preference flags through separate statements. Push delivery has an external send/ack gap despite atomic leases.</li>
+</ul>
+<p>The analysis follows the requested files plus their store, helper, schema and entry-point dependencies. No application code changed and no runtime concurrency tests were run.</p>
+<p class="cr-caption">Design references: <a href="https://martinfowler.com/bliki/DDD_Aggregate.html">Martin Fowler on aggregate integrity</a>; <a href="https://www.dddcommunity.org/wp-content/uploads/files/pdf_articles/Vernon_2011_2.pdf">Vaughn Vernon on references and eventual consistency</a>. Candidate boundaries and tolerances above are inferences from CareRide's code, not requirements established by those sources.</p>
+</section><footer class="cr-foot">Design source: CareRide's existing care-* tokens, green/mint/cream palette and serif headings from react-web-careride/src/index.css. Static review; application behavior unchanged.</footer></main>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs";
+
+  // Render Mermaid in a theme that matches the artifact page, and re-render when
+  // the viewer flips the page theme - Mermaid never restyles an already-rendered
+  // SVG on its own, so a fixed theme clashes in either light or dark mode.
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  // Normalize any CSS color the browser produces (rgb, oklch, hsl, named, ...)
+  // to [r, g, b, a] bytes via a 1x1 canvas, so parsing never breaks on modern
+  // color syntaxes like DaisyUI's oklch() values.
+  const paint = document.createElement("canvas").getContext("2d");
+  function toRgba(color) {
+    paint.clearRect(0, 0, 1, 1);
+    paint.fillStyle = "#000";
+    paint.fillStyle = color;
+    paint.fillRect(0, 0, 1, 1);
+    return paint.getImageData(0, 0, 1, 1).data;
+  }
+
+  function compositeRgba(foreground, background) {
+    const foregroundAlpha = foreground[3] / 255;
+    const backgroundAlpha = background[3] / 255;
+    const alpha = foregroundAlpha + backgroundAlpha * (1 - foregroundAlpha);
+    if (alpha === 0) return [0, 0, 0, 0];
+    return [
+      (foreground[0] * foregroundAlpha + background[0] * backgroundAlpha * (1 - foregroundAlpha)) / alpha,
+      (foreground[1] * foregroundAlpha + background[1] * backgroundAlpha * (1 - foregroundAlpha)) / alpha,
+      (foreground[2] * foregroundAlpha + background[2] * backgroundAlpha * (1 - foregroundAlpha)) / alpha,
+      alpha * 255,
+    ];
+  }
+
+  function pageIsDark() {
+    // Trust the actually-rendered page background so this works with any theming
+    // mechanism: prefers-color-scheme, a data-theme attribute, or plain CSS.
+    const root = document.documentElement;
+    const rootBackground = toRgba(getComputedStyle(root).backgroundColor);
+    const bodyBackground = document.body ? toRgba(getComputedStyle(document.body).backgroundColor) : [0, 0, 0, 0];
+    const [r, g, b, a] = compositeRgba(bodyBackground, rootBackground);
+    if (a > 0) {
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
+    }
+    const colorScheme = getComputedStyle(root).colorScheme;
+    if (colorScheme.includes("dark") && !colorScheme.includes("light")) return true;
+    if (colorScheme.includes("light") && !colorScheme.includes("dark")) return false;
+    return darkQuery.matches;
+  }
+
+  const diagrams = [...document.querySelectorAll(".mermaid")].map((el) => ({ el, src: el.textContent }));
+  let applied;
+  let rendering = false;
+  let queued = false;
+  function queueRender() {
+    queued = true;
+    if (rendering) return;
+    void render();
+  }
+  async function render() {
+    rendering = true;
+    try {
+      while (queued) {
+        queued = false;
+        const theme = pageIsDark() ? "dark" : "default";
+        if (theme === applied) continue;
+        mermaid.initialize({ startOnLoad: false, theme, securityLevel: "strict", themeVariables: theme === "dark" ? {} : {
+          primaryColor: "#e8f3ed", primaryTextColor: "#20302b", primaryBorderColor: "#285d4d",
+          lineColor: "#66736e", secondaryColor: "#f4f8f5", tertiaryColor: "#f7f4ed",
+          clusterBkg: "#f4f8f5", clusterBorder: "#b8cdc0", edgeLabelBackground: "#f7f4ed",
+          fontFamily: "ui-sans-serif, system-ui, sans-serif"
+        } });
+        for (const { el, src } of diagrams) {
+          el.removeAttribute("data-processed");
+          el.textContent = src;
+        }
+        try {
+          await mermaid.run({ nodes: diagrams.map((d) => d.el) });
+        } catch (error) {
+          console.error("Mermaid diagram render failed:", error);
+          return;
+        }
+        applied = theme;
+      }
+    } finally {
+      rendering = false;
+      if (queued) queueRender();
+    }
+  }
+
+  // First render once stylesheets are applied (no wrong-theme flash), then keep
+  // the diagrams in sync with page-theme toggles and OS light/dark changes.
+  if (document.readyState === "complete") queueRender();
+  else window.addEventListener("load", queueRender, { once: true });
+  const themeObserver = new MutationObserver(queueRender);
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    themeObserver.observe(el, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class", "style"],
+    });
+  }
+  document.addEventListener("change", queueRender, true);
+  document.addEventListener(
+    "transitionend",
+    ({ propertyName }) => {
+      if (propertyName === "background-color") queueRender();
+    },
+    true,
+  );
+  darkQuery.addEventListener("change", queueRender);
+</script>
+</body></html>

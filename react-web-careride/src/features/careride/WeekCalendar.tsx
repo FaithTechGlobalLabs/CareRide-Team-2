@@ -1,7 +1,10 @@
-import { useClearDayText, useLocalNow } from "./personalText"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Link } from "@tanstack/react-router"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { Link } from "@tanstack/react-router";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import type { Ride } from "./types";
+
+import { useCare } from "./context";
 import {
   TIMEZONE,
   addDays,
@@ -9,30 +12,29 @@ import {
   vancouverMinutes,
   vancouverYmd,
   weekdayIndex,
-} from "./dates"
-import { useCare } from "./context"
-import { formatKm, useDriveTimes, type TravelEstimate } from "./travel"
-import type { Ride } from "./types"
+} from "./dates";
+import { useClearDayText, useLocalNow } from "./personalText";
+import { formatKm, useDriveTimes, type TravelEstimate } from "./travel";
 
-const START_HOUR = 6
-const END_HOUR = 22
-const HOUR_HEIGHT = 56
-const MIN_EVENT_HEIGHT = 52
-const BUFFER_MINUTES = 15
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+const START_HOUR = 6;
+const END_HOUR = 22;
+const HOUR_HEIGHT = 56;
+const MIN_EVENT_HEIGHT = 52;
+const BUFFER_MINUTES = 15;
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function rideMinutes(ride: Ride) {
   return ride.duration_minutes && ride.duration_minutes > 0
     ? ride.duration_minutes
-    : 45
+    : 45;
 }
 
 function placeTitle(ride: Ride) {
-  return ride.destination_name || ride.destination_address
+  return ride.destination_name || ride.destination_address;
 }
 
 function passenger(ride: Ride) {
-  return ride.client?.first_name || "Passenger"
+  return ride.client?.first_name || "Passenger";
 }
 
 export function WeekCalendar({
@@ -41,62 +43,62 @@ export function WeekCalendar({
   weekStart,
   setWeekStart,
 }: {
-  rides: Ride[]
-  driveTimes?: Record<string, TravelEstimate>
-  weekStart: string
-  setWeekStart: (value: string) => void
+  rides: Ride[];
+  driveTimes?: Record<string, TravelEstimate>;
+  weekStart: string;
+  setWeekStart: (value: string) => void;
 }) {
-  const today = vancouverYmd(new Date())
+  const today = vancouverYmd(new Date());
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
     [weekStart]
-  )
+  );
   const hours = Array.from(
     { length: END_HOUR - START_HOUR },
     (_, index) => START_HOUR + index
-  )
-  const nowMinutes = vancouverMinutes(new Date().toISOString())
+  );
+  const nowMinutes = vancouverMinutes(new Date().toISOString());
   const showNow =
     days.includes(today) &&
     nowMinutes >= START_HOUR * 60 &&
-    nowMinutes <= END_HOUR * 60
-  const scrollRef = useRef<HTMLDivElement>(null)
+    nowMinutes <= END_HOUR * 60;
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const root = scrollRef.current
-    const current = root?.querySelector<HTMLElement>(".week-day.today")
-    if (!root || !current) return
+    const root = scrollRef.current;
+    const current = root?.querySelector<HTMLElement>(".week-day.today");
+    if (!root || !current) return;
     root.scrollLeft = Math.max(
       0,
       current.offsetLeft - root.clientWidth / 2 + current.clientWidth / 2
-    )
-  }, [weekStart])
+    );
+  }, [weekStart]);
 
   const byDay = useMemo(() => {
     const committed = rides.filter((ride) =>
       ["accepted", "in_progress", "completed"].includes(ride.status)
-    )
+    );
     return days.map((day) => {
       const events = committed
         .filter(
           (ride) => vancouverYmd(new Date(ride.requested_pickup_at)) === day
         )
         .map((ride) => {
-          const pickup = vancouverMinutes(ride.requested_pickup_at)
-          const drive = driveTimes?.[ride.id]
-          const timed = driveTimes != null
-          const body = drive?.minutes ?? rideMinutes(ride)
-          const start = timed ? pickup - BUFFER_MINUTES : pickup
-          const end = Math.min(pickup + body + BUFFER_MINUTES, END_HOUR * 60)
-          return { ride, start, end, body, drive, timed }
+          const pickup = vancouverMinutes(ride.requested_pickup_at);
+          const drive = driveTimes?.[ride.id];
+          const timed = driveTimes != null;
+          const body = drive?.minutes ?? rideMinutes(ride);
+          const start = timed ? pickup - BUFFER_MINUTES : pickup;
+          const end = Math.min(pickup + body + BUFFER_MINUTES, END_HOUR * 60);
+          return { ride, start, end, body, drive, timed };
         })
         .filter(
           (event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60
         )
-        .sort((a, b) => a.start - b.start || a.end - b.end)
-      return layout(events)
-    })
-  }, [rides, days, driveTimes])
+        .sort((a, b) => a.start - b.start || a.end - b.end);
+      return layout(events);
+    });
+  }, [rides, days, driveTimes]);
 
   return (
     <div className="week-calendar">
@@ -137,7 +139,7 @@ export function WeekCalendar({
         >
           <div className="week-corner" />
           {days.map((day) => {
-            const date = Number(day.slice(-2))
+            const date = Number(day.slice(-2));
             return (
               <div
                 key={day}
@@ -146,7 +148,7 @@ export function WeekCalendar({
                 <span>{WEEKDAYS[(weekdayIndex(day) + 6) % 7]}</span>
                 <strong>{date}</strong>
               </div>
-            )
+            );
           })}
           <div className="week-times">
             {hours.map((hour) => (
@@ -173,13 +175,13 @@ export function WeekCalendar({
                 const top = Math.max(
                   0,
                   ((event.start - START_HOUR * 60) / 60) * HOUR_HEIGHT
-                )
+                );
                 const span =
                   ((event.end - Math.max(event.start, START_HOUR * 60)) / 60) *
-                  HOUR_HEIGHT
+                  HOUR_HEIGHT;
                 const height = event.timed
                   ? Math.max(40, span)
-                  : Math.max(MIN_EVENT_HEIGHT, span)
+                  : Math.max(MIN_EVENT_HEIGHT, span);
                 return (
                   <Link
                     key={event.ride.id}
@@ -210,7 +212,7 @@ export function WeekCalendar({
                       </span>
                     )}
                   </Link>
-                )
+                );
               })}
             </div>
           ))}
@@ -222,87 +224,87 @@ export function WeekCalendar({
           : `Solid time is the ride. The lighter band is a ${BUFFER_MINUTES}-minute buffer so you can see whether another pickup fits.`}
       </p>
     </div>
-  )
+  );
 }
 
 function layout<T extends { start: number; end: number }>(events: T[]) {
-  const clusters: T[][] = []
-  let cluster: T[] = []
-  let clusterEnd = -1
+  const clusters: T[][] = [];
+  let cluster: T[] = [];
+  let clusterEnd = -1;
   for (const event of events) {
     if (!cluster.length || event.start < clusterEnd) {
-      cluster.push(event)
-      clusterEnd = Math.max(clusterEnd, event.end)
+      cluster.push(event);
+      clusterEnd = Math.max(clusterEnd, event.end);
     } else {
-      clusters.push(cluster)
-      cluster = [event]
-      clusterEnd = event.end
+      clusters.push(cluster);
+      cluster = [event];
+      clusterEnd = event.end;
     }
   }
-  if (cluster.length) clusters.push(cluster)
+  if (cluster.length) clusters.push(cluster);
   return clusters.flatMap((group) => {
-    const columnEnds: number[] = []
+    const columnEnds: number[] = [];
     const placed = group.map((event) => {
-      let col = columnEnds.findIndex((end) => end <= event.start)
+      let col = columnEnds.findIndex((end) => end <= event.start);
       if (col < 0) {
-        col = columnEnds.length
-        columnEnds.push(event.end)
-      } else columnEnds[col] = event.end
-      return { ...event, col }
-    })
-    return placed.map((event) => ({ ...event, cols: columnEnds.length }))
-  })
+        col = columnEnds.length;
+        columnEnds.push(event.end);
+      } else columnEnds[col] = event.end;
+      return { ...event, col };
+    });
+    return placed.map((event) => ({ ...event, cols: columnEnds.length }));
+  });
 }
 
 function formatHour(hour: number) {
-  const suffix = hour >= 12 ? "PM" : "AM"
-  const value = hour % 12 || 12
-  return `${value} ${suffix}`
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const value = hour % 12 || 12;
+  return `${value} ${suffix}`;
 }
 
-const VISIBLE = ["requested", "accepted", "in_progress", "completed"]
+const VISIBLE = ["requested", "accepted", "in_progress", "completed"];
 
 export function TodayColumn({ rides }: { rides: Ride[] }) {
-  const now = useLocalNow()
-  const clearDay = useClearDayText(now)
-  const { data } = useCare()
-  const today = vancouverYmd(now)
+  const now = useLocalNow();
+  const clearDay = useClearDayText(now);
+  const { data } = useCare();
+  const today = vancouverYmd(now);
   const todays = rides.filter(
     (ride) =>
       ["accepted", "in_progress", "completed"].includes(ride.status) &&
       vancouverYmd(new Date(ride.requested_pickup_at)) === today
-  )
-  const driveTimes = useDriveTimes(todays, data.destinations)
+  );
+  const driveTimes = useDriveTimes(todays, data.destinations);
   const hours = Array.from(
     { length: END_HOUR - START_HOUR },
     (_, index) => START_HOUR + index
-  )
-  const nowMinutes = vancouverMinutes(now.toISOString())
-  const showNow = nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
-  const scrollRef = useRef<HTMLDivElement>(null)
+  );
+  const nowMinutes = vancouverMinutes(now.toISOString());
+  const showNow = nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60;
+  const scrollRef = useRef<HTMLDivElement>(null);
   const events = useMemo(() => {
     const placed = todays
       .map((ride) => {
-        const pickup = vancouverMinutes(ride.requested_pickup_at)
-        const drive = driveTimes[ride.id]
-        const body = drive?.minutes ?? rideMinutes(ride)
-        const start = pickup - BUFFER_MINUTES
-        const end = Math.min(pickup + body + BUFFER_MINUTES, END_HOUR * 60)
-        return { ride, start, end, body, drive, timed: true as const }
+        const pickup = vancouverMinutes(ride.requested_pickup_at);
+        const drive = driveTimes[ride.id];
+        const body = drive?.minutes ?? rideMinutes(ride);
+        const start = pickup - BUFFER_MINUTES;
+        const end = Math.min(pickup + body + BUFFER_MINUTES, END_HOUR * 60);
+        return { ride, start, end, body, drive, timed: true as const };
       })
       .filter(
         (event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60
       )
-      .sort((a, b) => a.start - b.start || a.end - b.end)
-    return layout(placed)
-  }, [todays, driveTimes])
+      .sort((a, b) => a.start - b.start || a.end - b.end);
+    return layout(placed);
+  }, [todays, driveTimes]);
 
   useEffect(() => {
-    const root = scrollRef.current
-    const marker = root?.querySelector<HTMLElement>(".cal-event")
-    if (!root || !marker) return
-    root.scrollTop = Math.max(0, marker.offsetTop - 28)
-  }, [events.length])
+    const root = scrollRef.current;
+    const marker = root?.querySelector<HTMLElement>(".cal-event");
+    if (!root || !marker) return;
+    root.scrollTop = Math.max(0, marker.offsetTop - 28);
+  }, [events.length]);
 
   if (!todays.length) {
     return (
@@ -310,7 +312,7 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
         <strong>{clearDay.title}</strong>
         <p>{clearDay.description}</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -344,12 +346,12 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
               const top = Math.max(
                 0,
                 ((event.start - START_HOUR * 60) / 60) * HOUR_HEIGHT
-              )
+              );
               const height = Math.max(
                 40,
                 ((event.end - Math.max(event.start, START_HOUR * 60)) / 60) *
                   HOUR_HEIGHT
-              )
+              );
               return (
                 <Link
                   key={event.ride.id}
@@ -369,35 +371,35 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
                     <small>{placeTitle(event.ride)}</small>
                   </span>
                 </Link>
-              )
+              );
             })}
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export function RideSchedule({
   rides,
   driver = false,
 }: {
-  rides: Ride[]
-  driver?: boolean
+  rides: Ride[];
+  driver?: boolean;
 }) {
-  const { data } = useCare()
-  const [view, setView] = useState<"week" | "month">("week")
-  const today = vancouverYmd(new Date())
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
-  const [monthCursor, setMonthCursor] = useState(today.slice(0, 7))
-  const visible = rides.filter((ride) => VISIBLE.includes(ride.status))
-  const driveTimes = useDriveTimes(driver ? visible : [], data.destinations)
-  const weekEnd = addDays(weekStart, 6)
+  const { data } = useCare();
+  const [view, setView] = useState<"week" | "month">("week");
+  const today = vancouverYmd(new Date());
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
+  const [monthCursor, setMonthCursor] = useState(today.slice(0, 7));
+  const visible = rides.filter((ride) => VISIBLE.includes(ride.status));
+  const driveTimes = useDriveTimes(driver ? visible : [], data.destinations);
+  const weekEnd = addDays(weekStart, 6);
   const monthLabel = new Intl.DateTimeFormat("en-CA", {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(`${monthCursor}-15T12:00:00Z`))
+  }).format(new Date(`${monthCursor}-15T12:00:00Z`));
   return (
     <div className="schedule">
       <div className="schedule-view-row">
@@ -441,7 +443,7 @@ export function RideSchedule({
         />
       )}
     </div>
-  )
+  );
 }
 
 function eventLabel(ride: Ride, drive?: TravelEstimate) {
@@ -451,11 +453,11 @@ function eventLabel(ride: Ride, drive?: TravelEstimate) {
     minute: "2-digit",
     hour12: true,
     timeZone: TIMEZONE,
-  }).format(new Date(ride.requested_pickup_at))
+  }).format(new Date(ride.requested_pickup_at));
   const time = drive
     ? `${drive.minutes} minute drive plus ${BUFFER_MINUTES} minutes before and after.`
-    : `Includes a ${BUFFER_MINUTES} minute buffer after the ride.`
-  return `${passenger(ride)} to ${placeTitle(ride)} at ${when}. ${time}`
+    : `Includes a ${BUFFER_MINUTES} minute buffer after the ride.`;
+  return `${passenger(ride)} to ${placeTitle(ride)} at ${when}. ${time}`;
 }
 
 function MonthCalendar({
@@ -464,13 +466,13 @@ function MonthCalendar({
   cursor,
   setCursor,
 }: {
-  rides: Ride[]
-  driveTimes?: Record<string, TravelEstimate>
-  cursor: string
-  setCursor: (value: string) => void
+  rides: Ride[];
+  driveTimes?: Record<string, TravelEstimate>;
+  cursor: string;
+  setCursor: (value: string) => void;
 }) {
-  const today = vancouverYmd(new Date())
-  const cells = useMemo(() => monthCells(cursor), [cursor])
+  const today = vancouverYmd(new Date());
+  const cells = useMemo(() => monthCells(cursor), [cursor]);
 
   return (
     <div className="month-calendar">
@@ -514,7 +516,7 @@ function MonthCalendar({
             )
             .sort((a, b) =>
               a.requested_pickup_at.localeCompare(b.requested_pickup_at)
-            )
+            );
           return (
             <div
               key={day}
@@ -543,37 +545,37 @@ function MonthCalendar({
                 ))}
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 function monthCells(yearMonth: string) {
-  const first = `${yearMonth}-01`
-  const firstWeekday = weekdayIndex(first)
-  const lead = firstWeekday === 0 ? 6 : firstWeekday - 1
-  const start = addDays(first, -lead)
-  return Array.from({ length: 42 }, (_, index) => addDays(start, index))
+  const first = `${yearMonth}-01`;
+  const firstWeekday = weekdayIndex(first);
+  const lead = firstWeekday === 0 ? 6 : firstWeekday - 1;
+  const start = addDays(first, -lead);
+  return Array.from({ length: 42 }, (_, index) => addDays(start, index));
 }
 
 function shiftMonth(yearMonth: string, delta: number) {
-  const [year, month] = yearMonth.split("-").map(Number)
-  const next = new Date(Date.UTC(year, month - 1 + delta, 1))
-  const y = next.getUTCFullYear()
-  const m = String(next.getUTCMonth() + 1).padStart(2, "0")
-  return `${y}-${m}`
+  const [year, month] = yearMonth.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+  const y = next.getUTCFullYear();
+  const m = String(next.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 
 function formatRange(start: string, end: string) {
   const label = (ymd: string) => {
-    const [year, month, day] = ymd.split("-").map(Number)
+    const [year, month, day] = ymd.split("-").map(Number);
     return new Intl.DateTimeFormat("en-CA", {
       month: "short",
       day: "numeric",
       timeZone: "UTC",
-    }).format(new Date(Date.UTC(year, month - 1, day, 12)))
-  }
-  return `${label(start)} – ${label(end)}`
+    }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+  };
+  return `${label(start)} – ${label(end)}`;
 }

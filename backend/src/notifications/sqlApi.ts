@@ -5,9 +5,10 @@ import type {
   RequestHandler,
   NextFunction,
 } from "express";
+
 import { pool } from "../db/db.js";
-import { sqlPreference, ensureNotificationSchema } from "./sqlStore.js";
 import { flushPush, pushConfig } from "./push.js";
+import { sqlPreference, ensureNotificationSchema } from "./sqlStore.js";
 
 type AuthRequest = Request & {
   auth: { sub: string; kind: "staff" | "driver" };
@@ -30,7 +31,7 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
           ...pushConfig(),
         },
       });
-    }),
+    })
   );
   app.patch(
     "/notifications/preferences",
@@ -54,23 +55,23 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
         fields.push(
           "prompt_after = now() + interval '7 days'",
           "prompt_snoozed_until = now() + interval '7 days'",
-          "first_ride_prompt_pending = false",
+          "first_ride_prompt_pending = false"
         );
       if (req.body.prompt === "declined")
         fields.push(
           "prompt_dismissed = true",
           "push_enabled = false",
-          "first_ride_prompt_pending = false",
+          "first_ride_prompt_pending = false"
         );
       if (req.body.prompt === "accepted")
         fields.push(
           "prompt_dismissed = true",
-          "first_ride_prompt_pending = false",
+          "first_ride_prompt_pending = false"
         );
       if (fields.length)
         await pool.query(
           `UPDATE notification_preferences SET ${fields.join(", ")} WHERE user_id = $1 AND kind = $2`,
-          values,
+          values
         );
       res.json({
         preferences: {
@@ -78,7 +79,7 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
           ...pushConfig(),
         },
       });
-    }),
+    })
   );
   app.post(
     "/notifications/read-all",
@@ -87,22 +88,20 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
       const column = req.auth.kind === "driver" ? "driver_id" : "staff_id";
       await pool.query(
         `UPDATE notifications SET is_read = true WHERE ${column} = $1`,
-        [req.auth.sub],
+        [req.auth.sub]
       );
       res.json({ message: "All notifications marked as read." });
-    }),
+    })
   );
   app.post(
     "/notifications/subscriptions",
     auth,
     route(async (req, res) => {
       if (!pushConfig().configured) {
-        res
-          .status(503)
-          .json({
-            message:
-              "Browser notifications are not configured yet. Your inbox still works.",
-          });
+        res.status(503).json({
+          message:
+            "Browser notifications are not configured yet. Your inbox still works.",
+        });
         return;
       }
       const { endpoint, keys } = req.body;
@@ -126,7 +125,7 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
         url.password ||
         (url.port && url.port !== "443") ||
         !hosts.some(
-          (h) => url.hostname === h || url.hostname.endsWith(`.${h}`),
+          (h) => url.hostname === h || url.hostname.endsWith(`.${h}`)
         ) ||
         typeof keys?.p256dh !== "string" ||
         !/^[A-Za-z0-9_-]{87}=?$/.test(keys.p256dh) ||
@@ -144,14 +143,14 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
       VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, kind = EXCLUDED.kind, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
         created_at = CASE WHEN push_subscriptions.user_id = EXCLUDED.user_id AND push_subscriptions.kind = EXCLUDED.kind THEN push_subscriptions.created_at ELSE now() END`,
-        [endpoint, req.auth.sub, req.auth.kind, keys.p256dh, keys.auth],
+        [endpoint, req.auth.sub, req.auth.kind, keys.p256dh, keys.auth]
       );
       await pool.query(
         `UPDATE notification_preferences SET push_enabled = true, prompt_dismissed = true, first_ride_prompt_pending = false WHERE user_id = $1 AND kind = $2`,
-        [req.auth.sub, req.auth.kind],
+        [req.auth.sub, req.auth.kind]
       );
       res.status(201).json({ message: "Browser notifications enabled." });
-    }),
+    })
   );
   app.delete(
     "/notifications/subscriptions",
@@ -160,12 +159,12 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
       await ensureNotificationSchema();
       await pool.query(
         `DELETE FROM push_subscriptions WHERE user_id = $1 AND kind = $2 AND ($3::text IS NULL OR endpoint = $3)`,
-        [req.auth.sub, req.auth.kind, req.body.endpoint ?? null],
+        [req.auth.sub, req.auth.kind, req.body.endpoint ?? null]
       );
       res.json({
         message: "This device will no longer receive notifications.",
       });
-    }),
+    })
   );
   app.post(
     "/internal/notifications/dispatch",
@@ -177,6 +176,6 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
       }
       await flushPush();
       res.json({ message: "Delivery batch processed." });
-    }),
+    })
   );
 }

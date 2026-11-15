@@ -1,12 +1,12 @@
-import { sql } from "kysely"
+import { sql } from "kysely";
 
-import type { DatabaseTransaction } from "../../../application/ports/database.js"
+import type { DatabaseTransaction } from "../../../application/ports/database.js";
 import type {
   IRideQueries,
   RideDetails,
   RideNotificationContext,
-} from "../../../application/ports/rideQueries.js"
-import type { DatabaseClient } from "../databaseClient.js"
+} from "../../../application/ports/rideQueries.js";
+import type { DatabaseClient } from "../databaseClient.js";
 
 export class RideQueries implements IRideQueries {
   constructor(private readonly db: DatabaseClient) {}
@@ -39,8 +39,8 @@ export class RideQueries implements IRideQueries {
         "v.seats",
       ])
       .where("r.id", "=", rideId)
-      .executeTakeFirst()
-    if (!row) return null
+      .executeTakeFirst();
+    if (!row) return null;
 
     return {
       id: row.id,
@@ -98,7 +98,7 @@ export class RideQueries implements IRideQueries {
               seats: row.seats,
             }
           : null,
-    }
+    };
   }
 
   async getNotificationContext(
@@ -128,7 +128,7 @@ export class RideQueries implements IRideQueries {
         sql<string>`COALESCE(pickup.name, r.pickup_address)`.as("pickupName"),
       ])
       .where("r.id", "=", rideId)
-      .executeTakeFirst()
-    return row ?? null
+      .executeTakeFirst();
+    return row ?? null;
   }
 }

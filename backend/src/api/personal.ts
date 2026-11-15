@@ -5,18 +5,20 @@ import type {
   Response,
   NextFunction,
 } from "express";
+
 import bcrypt from "bcrypt";
 import fs from "node:fs";
 import path from "node:path";
-import { readDb, update, uploadsDir } from "../store/jsonStore.js";
+
 import { registerSqlNotificationApi } from "../notifications/sqlApi.js";
+import { readDb, update, uploadsDir } from "../store/jsonStore.js";
 
 type PersonalRequest = Request & {
   auth: { sub: string; kind: "staff" | "driver"; organizationId?: string };
 };
 const route =
   (
-    fn: (req: PersonalRequest, res: Response) => Promise<void>,
+    fn: (req: PersonalRequest, res: Response) => Promise<void>
   ): RequestHandler =>
   (req: Request, res: Response, next: NextFunction) => {
     req.body ??= {};
@@ -32,11 +34,9 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
       auth,
       route(async (req, res) => {
         if (target === "organization" && req.auth.kind !== "staff") {
-          res
-            .status(403)
-            .json({
-              message: "Only organization staff can delete an organization.",
-            });
+          res.status(403).json({
+            message: "Only organization staff can delete an organization.",
+          });
           return;
         }
         const snapshot = readDb();
@@ -49,11 +49,9 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
           typeof req.body.password !== "string" ||
           !(await bcrypt.compare(req.body.password, user.password_hash))
         ) {
-          res
-            .status(403)
-            .json({
-              message: "Enter your current password to confirm deletion.",
-            });
+          res.status(403).json({
+            message: "Enter your current password to confirm deletion.",
+          });
           return;
         }
         const outcome = await update((db) => {
@@ -67,7 +65,7 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
               status: 401,
             };
           const org = db.organizations.find(
-            (o) => o.id === current.organization_id,
+            (o) => o.id === current.organization_id
           );
           if (
             req.body.confirmation !==
@@ -84,7 +82,7 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
           const affected = db.rides.filter((r) =>
             target === "organization"
               ? r.organization_id === org!.id
-              : req.auth.kind === "driver" && r.driver_id === req.auth.sub,
+              : req.auth.kind === "driver" && r.driver_id === req.auth.sub
           );
           if (affected.some((r) => r.status === "in_progress"))
             return {
@@ -96,24 +94,24 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
               ? db.staff
                   .filter((s) => s.organization_id === org!.id)
                   .map((s) => s.id)
-              : [req.auth.sub],
+              : [req.auth.sub]
           );
           const removedRides = new Set(
-            target === "organization" ? affected.map((r) => r.id) : [],
+            target === "organization" ? affected.map((r) => r.id) : []
           );
           const removedVerifications = db.verifications.filter((v) =>
             target === "organization"
               ? v.approved_by_org_id === org!.id
-              : req.auth.kind === "driver" && v.driver_id === req.auth.sub,
+              : req.auth.kind === "driver" && v.driver_id === req.auth.sub
           );
           if (target === "organization") {
             db.organizations = db.organizations.filter((o) => o.id !== org!.id);
             db.staff = db.staff.filter((s) => !users.has(s.id));
             db.clients = db.clients.filter(
-              (c) => c.organization_id !== org!.id,
+              (c) => c.organization_id !== org!.id
             );
             db.destinations = db.destinations.filter(
-              (d) => d.organization_id !== org!.id,
+              (d) => d.organization_id !== org!.id
             );
             db.rides = db.rides.filter((r) => !removedRides.has(r.id));
             for (const driver of db.drivers)
@@ -122,10 +120,10 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
           } else if (req.auth.kind === "driver") {
             db.drivers = db.drivers.filter((d) => d.id !== req.auth.sub);
             db.vehicles = db.vehicles.filter(
-              (v) => v.driver_id !== req.auth.sub,
+              (v) => v.driver_id !== req.auth.sub
             );
             db.availabilities = db.availabilities.filter(
-              (a) => a.driver_id !== req.auth.sub,
+              (a) => a.driver_id !== req.auth.sub
             );
             for (const ride of affected) {
               delete ride.driver_id;
@@ -145,15 +143,15 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
                 delete v.approved_by_user_id;
           }
           const verificationIds = new Set(
-            removedVerifications.map((v) => v.id),
+            removedVerifications.map((v) => v.id)
           );
           db.verifications = db.verifications.filter(
-            (v) => !verificationIds.has(v.id),
+            (v) => !verificationIds.has(v.id)
           );
           db.notifications = db.notifications.filter(
             (n) =>
               !users.has(n.recipient_user_id) &&
-              !removedRides.has(n.ride_request_id ?? ""),
+              !removedRides.has(n.ride_request_id ?? "")
           );
           db.notificationPreferences = (
             db.notificationPreferences ?? []
@@ -161,16 +159,16 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
           const removedEndpoints = new Set(
             (db.pushSubscriptions ?? [])
               .filter((s) => users.has(s.user_id))
-              .map((s) => s.endpoint),
+              .map((s) => s.endpoint)
           );
           db.pushSubscriptions = (db.pushSubscriptions ?? []).filter(
-            (s) => !removedEndpoints.has(s.endpoint),
+            (s) => !removedEndpoints.has(s.endpoint)
           );
           const remainingNotes = new Set(db.notifications.map((n) => n.id));
           db.pushDeliveries = (db.pushDeliveries ?? []).filter(
             (d) =>
               !removedEndpoints.has(d.endpoint) &&
-              remainingNotes.has(d.notification_id),
+              remainingNotes.has(d.notification_id)
           );
           return {
             files: removedVerifications
@@ -197,6 +195,6 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
               ? "Your account has been deleted."
               : "Your organization and its data have been deleted.",
         });
-      }),
+      })
     );
 }

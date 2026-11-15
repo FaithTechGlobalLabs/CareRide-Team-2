@@ -1,19 +1,21 @@
 import { randomUUID, createHash } from "node:crypto";
+
 import type { Db } from "../store/jsonStore.js";
-import { driverCanClaim } from "../store/eligibility.js";
 import type {
   Notification,
   NotificationPreference,
 } from "../types/notification.types.js";
 
+import { driverCanClaim } from "../store/eligibility.js";
+
 export function preference(
   db: Db,
   userId: string,
-  kind: "staff" | "driver",
+  kind: "staff" | "driver"
 ): NotificationPreference {
   db.notificationPreferences ??= [];
   let row = db.notificationPreferences.find(
-    (p) => p.user_id === userId && p.kind === kind,
+    (p) => p.user_id === userId && p.kind === kind
   );
   if (!row) {
     row = {
@@ -32,7 +34,7 @@ export function preference(
 
 function add(
   db: Db,
-  note: Omit<Notification, "id" | "channel" | "status" | "sent_at">,
+  note: Omit<Notification, "id" | "channel" | "status" | "sent_at">
 ) {
   if (db.notifications.some((n) => n.event_key === note.event_key)) return;
   db.notifications.unshift({
@@ -69,7 +71,7 @@ export function reconcileNotifications(before: Db, db: Db): void {
     // Replace legacy single-staff notices emitted during this same mutation.
     const oldIds = new Set(before.notifications.map((n) => n.id));
     db.notifications = db.notifications.filter(
-      (n) => oldIds.has(n.id) || n.ride_request_id !== ride.id || n.event_key,
+      (n) => oldIds.has(n.id) || n.ride_request_id !== ride.id || n.event_key
     );
     const client = db.clients.find((c) => c.id === ride.client_id);
     const name = client
@@ -91,7 +93,7 @@ export function reconcileNotifications(before: Db, db: Db): void {
                   ? "Ride cancelled"
                   : "Booking updated";
     for (const staff of db.staff.filter(
-      (s) => s.is_active && s.organization_id === ride.organization_id,
+      (s) => s.is_active && s.organization_id === ride.organization_id
     )) {
       if (!preference(db, staff.id, "staff").updates_enabled) continue;
       add(db, {
@@ -111,7 +113,7 @@ export function reconcileNotifications(before: Db, db: Db): void {
     if (!old || JSON.stringify(old) === JSON.stringify(client)) continue;
     const revision = randomUUID();
     for (const staff of db.staff.filter(
-      (s) => s.is_active && s.organization_id === client.organization_id,
+      (s) => s.is_active && s.organization_id === client.organization_id
     )) {
       if (!preference(db, staff.id, "staff").updates_enabled) continue;
       add(db, {

@@ -1,4 +1,4 @@
-import { sql, type Kysely } from "kysely"
+import { sql, type Kysely } from "kysely";
 
 // Frozen snapshot of backend/db/001_schema.sql and 002_notifications.sql.
 // Run with Kysely's Migrator against an existing empty PostgreSQL database.
@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS push_deliveries (
   failed boolean NOT NULL DEFAULT false,
   PRIMARY KEY (notification_id, endpoint)
 );
-  `.execute(db)
+  `.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
@@ -330,5 +330,5 @@ export async function down(db: Kysely<unknown>): Promise<void> {
     DROP TABLE organizations;
     DROP FUNCTION care_ride_month_days_ok(smallint[]);
     DROP FUNCTION care_ride_weekdays_ok(smallint[]);
-  `.execute(db)
+  `.execute(db);
 }

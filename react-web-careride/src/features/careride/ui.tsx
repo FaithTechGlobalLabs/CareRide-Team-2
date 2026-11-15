@@ -1,6 +1,6 @@
-import type { ReactNode, FormEvent } from "react"
-import { useState } from "react"
-import { Link } from "@tanstack/react-router"
+import type { ReactNode, FormEvent } from "react";
+
+import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   Check,
@@ -8,12 +8,15 @@ import {
   Plus,
   Search,
   X,
-} from "lucide-react"
-import { useCare } from "./context"
-import { relativeDateLabel, vancouverYmd } from "./dates"
-import { formatKm, useDriveTimes } from "./travel"
-import type { Destination, Ride, Status, Verification } from "./types"
-import { groupRideAppointments } from "./rideGroups"
+} from "lucide-react";
+import { useState } from "react";
+
+import type { Destination, Ride, Status, Verification } from "./types";
+
+import { useCare } from "./context";
+import { relativeDateLabel, vancouverYmd } from "./dates";
+import { groupRideAppointments } from "./rideGroups";
+import { formatKm, useDriveTimes } from "./travel";
 
 export function Brand() {
   return (
@@ -23,7 +26,7 @@ export function Brand() {
       </span>
       CareRide<span className="brand-dot">.</span>
     </span>
-  )
+  );
 }
 export function PageTitle({
   eyebrow,
@@ -31,10 +34,10 @@ export function PageTitle({
   description,
   action,
 }: {
-  eyebrow?: string
-  title: string
-  description: string | React.ReactNode
-  action?: ReactNode
+  eyebrow?: string;
+  title: string;
+  description: string | React.ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <div className="page-heading">
@@ -45,7 +48,7 @@ export function PageTitle({
       </div>
       {action}
     </div>
-  )
+  );
 }
 export function Panel({
   title,
@@ -54,11 +57,11 @@ export function Panel({
   action,
   className = "",
 }: {
-  title?: string
-  description?: string
-  children: ReactNode
-  action?: ReactNode
-  className?: string
+  title?: string;
+  description?: string;
+  children: ReactNode;
+  action?: ReactNode;
+  className?: string;
 }) {
   return (
     <section className={`panel ${className}`}>
@@ -73,7 +76,7 @@ export function Panel({
       )}
       {children}
     </section>
-  )
+  );
 }
 export function Field({
   label,
@@ -81,10 +84,10 @@ export function Field({
   hint,
   wide = false,
 }: {
-  label: string
-  children: ReactNode
-  hint?: string
-  wide?: boolean
+  label: string;
+  children: ReactNode;
+  hint?: string;
+  wide?: boolean;
 }) {
   return (
     <label className={`field ${wide ? "wide" : ""}`}>
@@ -92,16 +95,16 @@ export function Field({
       {children}
       {hint && <small>{hint}</small>}
     </label>
-  )
+  );
 }
 export function Empty({
   title,
   description,
   action,
 }: {
-  title: string
-  description: string
-  action?: ReactNode
+  title: string;
+  description: string;
+  action?: ReactNode;
 }) {
   return (
     <div className="empty">
@@ -112,14 +115,14 @@ export function Empty({
       <p>{description}</p>
       {action}
     </div>
-  )
+  );
 }
 export function ErrorBox({ error }: { error?: string }) {
   return error ? (
     <div className="error-box" role="alert">
       {error}
     </div>
-  ) : null
+  ) : null;
 }
 export function Form({
   children,
@@ -127,28 +130,28 @@ export function Form({
   submit = "Save",
   footer,
 }: {
-  children: ReactNode
-  onSubmit: (data: FormData) => Promise<void>
-  submit?: string
-  footer?: ReactNode
+  children: ReactNode;
+  onSubmit: (data: FormData) => Promise<void>;
+  submit?: string;
+  footer?: ReactNode;
 }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   async function handle(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const body = new FormData(e.currentTarget)
-    setBusy(true)
-    setError("")
+    e.preventDefault();
+    const body = new FormData(e.currentTarget);
+    setBusy(true);
+    setError("");
     try {
-      await onSubmit(body)
+      await onSubmit(body);
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
           : "Something went wrong. Please try again."
-      )
+      );
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
   return (
@@ -165,7 +168,7 @@ export function Form({
         </div>
       </fieldset>
     </form>
-  )
+  );
 }
 const labels: Record<Status, string> = {
   requested: "Awaiting driver",
@@ -174,18 +177,18 @@ const labels: Record<Status, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
   no_show: "No-show",
-}
+};
 export function Badge({
   status,
 }: {
-  status: Status | "approved" | "pending" | "rejected" | "expired"
+  status: Status | "approved" | "pending" | "rejected" | "expired";
 }) {
   return (
     <span className={`badge ${status}`}>
       <span />
       {status in labels ? labels[status as Status] : status.replace(/_/g, " ")}
     </span>
-  )
+  );
 }
 export function dateTime(value: string) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -195,24 +198,24 @@ export function dateTime(value: string) {
     minute: "2-digit",
     hour12: true,
     timeZone: "America/Vancouver",
-  }).format(new Date(value))
+  }).format(new Date(value));
 }
 export function placeLabel(
   ride: Ride,
   kind: "pickup" | "destination",
   destinations: Destination[]
 ) {
-  const named = kind === "pickup" ? ride.pickup_name : ride.destination_name
-  if (named) return named
-  const id = kind === "pickup" ? ride.pickup_id : ride.destination_id
+  const named = kind === "pickup" ? ride.pickup_name : ride.destination_name;
+  if (named) return named;
+  const id = kind === "pickup" ? ride.pickup_id : ride.destination_id;
   const address =
-    kind === "pickup" ? ride.pickup_address : ride.destination_address
+    kind === "pickup" ? ride.pickup_address : ride.destination_address;
   const match = destinations.find(
     (destination) =>
       (id && destination.id === id) ||
       (address && destination.address === address)
-  )
-  return match?.name || address || "Location"
+  );
+  return match?.name || address || "Location";
 }
 
 export function passengerName(
@@ -225,12 +228,12 @@ export function passengerName(
       client?.first_name ||
       ride.client_name?.split(" ")[0] ||
       `${ride.passenger_count} passenger${ride.passenger_count > 1 ? "s" : ""}`
-    )
+    );
   }
   if (client?.first_name) {
-    return [client.first_name, client.last_name].filter(Boolean).join(" ")
+    return [client.first_name, client.last_name].filter(Boolean).join(" ");
   }
-  return ride.client_name || "Client ride"
+  return ride.client_name || "Client ride";
 }
 
 export function RideList({
@@ -238,16 +241,16 @@ export function RideList({
   driver = false,
   hideStatuses = [],
 }: {
-  rides: Ride[]
-  driver?: boolean
-  hideStatuses?: Status[]
+  rides: Ride[];
+  driver?: boolean;
+  hideStatuses?: Status[];
 }) {
-  const { data } = useCare()
-  const driveTimes = useDriveTimes(driver ? rides : [], data.destinations)
+  const { data } = useCare();
+  const driveTimes = useDriveTimes(driver ? rides : [], data.destinations);
   return (
     <div className="ride-list">
       {groupRideAppointments(rides).map((appointment) => {
-        const roundTrip = appointment.length > 1
+        const roundTrip = appointment.length > 1;
         return (
           <div
             key={appointment[0].id}
@@ -260,13 +263,14 @@ export function RideList({
             )}
             {appointment.map((ride) => {
               const client =
-                ride.client ?? data.clients.find((c) => c.id === ride.client_id)
-              const pickup = placeLabel(ride, "pickup", data.destinations)
+                ride.client ??
+                data.clients.find((c) => c.id === ride.client_id);
+              const pickup = placeLabel(ride, "pickup", data.destinations);
               const destination = placeLabel(
                 ride,
                 "destination",
                 data.destinations
-              )
+              );
               return (
                 <Link
                   key={ride.id}
@@ -323,13 +327,13 @@ export function RideList({
                   )}
                   <ArrowRight className="row-arrow" size={18} />
                 </Link>
-              )
+              );
             })}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 export function GroupedRideList({
@@ -337,25 +341,25 @@ export function GroupedRideList({
   driver = false,
   hideStatuses = [],
 }: {
-  rides: Ride[]
-  driver?: boolean
-  hideStatuses?: Status[]
+  rides: Ride[];
+  driver?: boolean;
+  hideStatuses?: Status[];
 }) {
-  const groups = new Map<string, { label: string; rides: Ride[] }>()
+  const groups = new Map<string, { label: string; rides: Ride[] }>();
   groupRideAppointments(rides)
     .sort((a, b) =>
       a[0].requested_pickup_at.localeCompare(b[0].requested_pickup_at)
     )
     .forEach((appointment) => {
-      const ride = appointment[0]
-      const key = vancouverYmd(new Date(ride.requested_pickup_at))
+      const ride = appointment[0];
+      const key = vancouverYmd(new Date(ride.requested_pickup_at));
       const group = groups.get(key) ?? {
         label: relativeDateLabel(ride.requested_pickup_at),
         rides: [],
-      }
-      group.rides.push(...appointment)
-      groups.set(key, group)
-    })
+      };
+      group.rides.push(...appointment);
+      groups.set(key, group);
+    });
   return (
     <div className="ride-groups">
       {[...groups.entries()].map(([key, group]) => (
@@ -369,27 +373,27 @@ export function GroupedRideList({
         </section>
       ))}
     </div>
-  )
+  );
 }
 export function RideSearch({
   rides,
   driver,
 }: {
-  rides: Ride[]
-  driver?: boolean
+  rides: Ride[];
+  driver?: boolean;
 }) {
-  const [query, setQuery] = useState("")
-  const [filter, setFilter] = useState("all")
-  const { data } = useCare()
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const { data } = useCare();
   const filtered = rides.filter((r) => {
-    const client = data.clients.find((c) => c.id === r.client_id)
+    const client = data.clients.find((c) => c.id === r.client_id);
     return (
       (filter === "all" || r.status === filter) &&
       `${client?.first_name ?? ""} ${client?.last_name ?? ""} ${r.client_name ?? ""} ${placeLabel(r, "pickup", data.destinations)} ${placeLabel(r, "destination", data.destinations)} ${r.pickup_address} ${r.destination_address}`
         .toLowerCase()
         .includes(query.toLowerCase())
-    )
-  })
+    );
+  });
   return (
     <>
       <div className="filter-bar">
@@ -424,19 +428,19 @@ export function RideSearch({
         />
       )}
     </>
-  )
+  );
 }
 export function ActionButton({
   onClick,
   children,
   className = "secondary",
 }: {
-  onClick: () => Promise<unknown>
-  children: ReactNode
-  className?: string
+  onClick: () => Promise<unknown>;
+  children: ReactNode;
+  className?: string;
 }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   return (
     <div>
       <button
@@ -444,16 +448,16 @@ export function ActionButton({
         className={`btn ${className}`}
         disabled={busy}
         onClick={async () => {
-          setBusy(true)
-          setError("")
+          setBusy(true);
+          setError("");
           try {
-            await onClick()
+            await onClick();
           } catch (e) {
             setError(
               e instanceof Error ? e.message : "Unable to complete action."
-            )
+            );
           } finally {
-            setBusy(false)
+            setBusy(false);
           }
         }}
       >
@@ -461,16 +465,16 @@ export function ActionButton({
       </button>
       <ErrorBox error={error} />
     </div>
-  )
+  );
 }
 export function ReasonAction({
   title,
   onSubmit,
 }: {
-  title: string
-  onSubmit: (reason: string) => Promise<unknown>
+  title: string;
+  onSubmit: (reason: string) => Promise<unknown>;
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
   return (
     <div className="reason-action">
       {!open ? (
@@ -492,8 +496,8 @@ export function ReasonAction({
           <Form
             submit={title}
             onSubmit={async (f) => {
-              await onSubmit(String(f.get("reason")))
-              setOpen(false)
+              await onSubmit(String(f.get("reason")));
+              setOpen(false);
             }}
           >
             <Field label="Reason" wide>
@@ -508,37 +512,37 @@ export function ReasonAction({
         </div>
       )}
     </div>
-  )
+  );
 }
 export function AddLink({
   to,
   children,
 }: {
-  to: "/book" | "/clients/new" | "/locations/new"
-  children: ReactNode
+  to: "/book" | "/clients/new" | "/locations/new";
+  children: ReactNode;
 }) {
   return (
     <Link to={to} className="btn primary">
       <Plus size={18} />
       {children}
     </Link>
-  )
+  );
 }
 export function ReviewNote({ record }: { record: Verification }) {
-  if (!record.reviewed_by_name && !record.reviewed_at) return null
+  if (!record.reviewed_by_name && !record.reviewed_at) return null;
   const action =
     record.status === "approved"
       ? "Approved"
       : record.status === "rejected"
         ? "Rejected"
-        : "Reviewed"
+        : "Reviewed";
   return (
     <p className="muted">
       {action}
       {record.reviewed_by_name ? ` by ${record.reviewed_by_name}` : ""}
       {record.reviewed_at ? ` · ${dateTime(record.reviewed_at)}` : ""}
     </p>
-  )
+  );
 }
 export function Success({ children }: { children: ReactNode }) {
   return (
@@ -546,5 +550,5 @@ export function Success({ children }: { children: ReactNode }) {
       <Check size={18} />
       {children}
     </div>
-  )
+  );
 }

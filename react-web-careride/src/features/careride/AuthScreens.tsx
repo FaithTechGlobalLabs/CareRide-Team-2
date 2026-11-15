@@ -1,16 +1,18 @@
-import { useState } from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   CarFront,
   Check,
   HeartHandshake,
   ShieldCheck,
-} from "lucide-react"
-import { request, IS_DEMO } from "./api"
-import { useCare } from "./context"
-import { Brand, Field, Form } from "./ui"
-import type { Session } from "./types"
+} from "lucide-react";
+import { useState } from "react";
+
+import type { Session } from "./types";
+
+import { request, IS_DEMO } from "./api";
+import { useCare } from "./context";
+import { Brand, Field, Form } from "./ui";
 
 const demoAccounts = [
   { name: "Alvin", role: "Staff", email: "alvin.demo@careride.local" },
@@ -20,7 +22,7 @@ const demoAccounts = [
   { name: "Derek", role: "Driver", email: "derek.demo@careride.local" },
   { name: "Kenton", role: "Driver", email: "kenton.demo@careride.local" },
   { name: "Eshean", role: "Driver", email: "eshean.demo@careride.local" },
-]
+];
 
 function AuthFrame({ children }: { children: React.ReactNode }) {
   return (
@@ -72,14 +74,14 @@ function AuthFrame({ children }: { children: React.ReactNode }) {
         </small>
       </main>
     </div>
-  )
+  );
 }
 export function LoginScreen() {
-  const { login } = useCare()
-  const navigate = useNavigate()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [reset, setReset] = useState(false)
+  const { login } = useCare();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [reset, setReset] = useState(false);
   return (
     <AuthFrame>
       <span className="eyebrow">WELCOME TO CARERIDE</span>
@@ -97,11 +99,11 @@ export function LoginScreen() {
             null,
             "POST",
             Object.fromEntries(f)
-          )
-          login(session)
+          );
+          login(session);
           await navigate({
             to: session.user.role === "driver" ? "/driver" : "/",
-          })
+          });
         }}
       >
         <Field label="Email address" wide>
@@ -167,8 +169,8 @@ export function LoginScreen() {
               type="button"
               className="btn secondary"
               onClick={() => {
-                setEmail(account.email)
-                setPassword("CareRideDemo1")
+                setEmail(account.email);
+                setPassword("CareRideDemo1");
               }}
             >
               {account.name} · {account.role}
@@ -177,11 +179,11 @@ export function LoginScreen() {
         </div>
       </div>
     </AuthFrame>
-  )
+  );
 }
 export function OrganizationRegistration() {
-  const { login } = useCare()
-  const navigate = useNavigate()
+  const { login } = useCare();
+  const navigate = useNavigate();
   return (
     <AuthFrame>
       <Link to="/login" className="text-link">
@@ -205,9 +207,9 @@ export function OrganizationRegistration() {
             null,
             "POST",
             Object.fromEntries(f)
-          )
-          login(session)
-          await navigate({ to: "/" })
+          );
+          login(session);
+          await navigate({ to: "/" });
         }}
       >
         <Field label="Organization name" wide>
@@ -258,12 +260,12 @@ export function OrganizationRegistration() {
         </Field>
       </Form>
     </AuthFrame>
-  )
+  );
 }
 export function DriverRegistration() {
-  const { login } = useCare()
-  const navigate = useNavigate()
-  const [affiliated, setAffiliated] = useState(false)
+  const { login } = useCare();
+  const navigate = useNavigate();
+  const [affiliated, setAffiliated] = useState(false);
   return (
     <AuthFrame>
       <Link to="/login" className="text-link">
@@ -281,7 +283,7 @@ export function DriverRegistration() {
       <Form
         submit="Register as a driver"
         onSubmit={async (f) => {
-          const values = Object.fromEntries(f)
+          const values = Object.fromEntries(f);
           const session = await request<Session>(
             "/drivers/register",
             null,
@@ -296,9 +298,9 @@ export function DriverRegistration() {
                 wheelchair_accessible: f.has("wheelchair_accessible"),
               },
             }
-          )
-          login(session)
-          await navigate({ to: "/driver/verification" })
+          );
+          login(session);
+          await navigate({ to: "/driver/verification" });
         }}
       >
         <Field label="Full name" wide>
@@ -370,5 +372,5 @@ export function DriverRegistration() {
         </label>
       </Form>
     </AuthFrame>
-  )
+  );
 }

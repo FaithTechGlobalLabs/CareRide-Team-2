@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
-import { vancouverMinutes } from "./dates"
+import { useEffect, useState } from "react";
+
+import { vancouverMinutes } from "./dates";
 
 const staffEyebrows = [
   "LET’S KEEP OUR COMMUNITY MOVING",
@@ -12,7 +13,7 @@ const staffEyebrows = [
   "HELPING OUR NEIGHBOURS GET THERE",
   "EVERY JOURNEY STARTS WITH YOU",
   "LET’S MAKE CARE MORE ACCESSIBLE",
-]
+];
 const staffDescriptions = [
   "A little coordination. A meaningful difference.",
   "Every ride you arrange brings someone closer to care.",
@@ -24,7 +25,7 @@ const staffDescriptions = [
   "A few moments of coordination. A journey that matters.",
   "Helping someone get there starts right here.",
   "Every connection is another step toward care.",
-]
+];
 const driverEyebrows = [
   "YOUR TIME MAKES A DIFFERENCE",
   "A HELPING HAND BEHIND THE WHEEL",
@@ -36,7 +37,7 @@ const driverEyebrows = [
   "THANK YOU FOR MAKING A WAY",
   "GOOD NEIGHBOURS. MEANINGFUL JOURNEYS.",
   "LET’S GET PEOPLE TO CARE",
-]
+];
 const driverDescriptions = [
   "A ride from you can open a world of possibilities.",
   "Your time helps someone reach the care they need.",
@@ -48,7 +49,7 @@ const driverDescriptions = [
   "One ride at a time, you help our community move forward.",
   "A seat in your car can open a door to care.",
   "The time you give makes a meaningful difference.",
-]
+];
 const clearTitles = [
   "A clear day.",
   "A little breathing room.",
@@ -60,7 +61,7 @@ const clearTitles = [
   "Space in your day.",
   "A day with room to spare.",
   "No committed journeys today.",
-]
+];
 const clearDescriptions = [
   "No rides are booked for you today.",
   "Your ride schedule is clear today.",
@@ -72,35 +73,35 @@ const clearDescriptions = [
   "No rides are on your calendar today.",
   "There are no booked journeys for you today.",
   "Your calendar has room today.",
-]
+];
 
 // Draw from a shuffled bag so each phrase gets a turn before it repeats.
-const bags = new Map<readonly string[], string[]>()
+const bags = new Map<readonly string[], string[]>();
 export function shuffledText(choices: readonly string[]) {
-  let bag = bags.get(choices)
+  let bag = bags.get(choices);
   if (!bag?.length) {
-    bag = [...choices]
+    bag = [...choices];
     for (let i = bag.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[bag[i], bag[j]] = [bag[j], bag[i]]
+      const j = Math.floor(Math.random() * (i + 1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
     }
-    bags.set(choices, bag)
+    bags.set(choices, bag);
   }
-  return bag.pop()!
+  return bag.pop()!;
 }
 
 export function useLocalNow() {
-  const [now, setNow] = useState(() => new Date())
+  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000)
-    return () => window.clearInterval(timer)
-  }, [])
-  return now
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
 }
 
 export function timeOfDay(now: Date) {
-  const hour = vancouverMinutes(now.toISOString()) / 60
-  return hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"
+  const hour = vancouverMinutes(now.toISOString()) / 60;
+  return hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
 }
 
 const greetings = [
@@ -111,26 +112,26 @@ const greetings = [
   "time",
   "time",
   "time",
-]
+];
 export function usePersonalText(name: string, driver = false) {
-  const now = useLocalNow()
+  const now = useLocalNow();
   const [copy] = useState(() => ({
     eyebrow: shuffledText(driver ? driverEyebrows : staffEyebrows),
     description: shuffledText(driver ? driverDescriptions : staffDescriptions),
     greeting: shuffledText(greetings),
-  }))
+  }));
   const greeting =
-    copy.greeting === "time" ? `Good ${timeOfDay(now)}` : copy.greeting
-  return { ...copy, title: `${greeting}, ${name}.` }
+    copy.greeting === "time" ? `Good ${timeOfDay(now)}` : copy.greeting;
+  return { ...copy, title: `${greeting}, ${name}.` };
 }
 
 export function useClearDayText(now: Date) {
   const [copy] = useState(() => ({
     title: shuffledText(clearTitles),
     description: shuffledText(clearDescriptions),
-  }))
+  }));
   return {
     ...copy,
     description: `${copy.description} Enjoy a little time for yourself this ${timeOfDay(now)}.`,
-  }
+  };
 }

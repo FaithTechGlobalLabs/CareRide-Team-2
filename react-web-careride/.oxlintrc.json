@@ -8,15 +8,10 @@
   "env": {
     "builtin": true
   },
-  "ignorePatterns": [
-    "dist",
-    "src/routeTree.gen.ts"
-  ],
+  "ignorePatterns": ["dist", "src/routeTree.gen.ts"],
   "overrides": [
     {
-      "files": [
-        "**/*.{ts,tsx}"
-      ],
+      "files": ["**/*.{ts,tsx}"],
       "rules": {
         "for-direction": "error",
         "no-async-promise-executor": "error",
@@ -98,10 +93,7 @@
         "react/unsupported-syntax": "warn",
         "react/only-export-components": "off"
       },
-      "plugins": [
-        "typescript",
-        "react"
-      ],
+      "plugins": ["typescript", "react"],
       "env": {
         "browser": true
       }
@@ -111,9 +103,7 @@
         "**/*.{test,spec}.{ts,tsx,mts,cts}",
         "**/{test,tests,__tests__}/**/*.{ts,tsx,mts,cts}"
       ],
-      "plugins": [
-        "typescript"
-      ],
+      "plugins": ["typescript"],
       "rules": {
         "typescript/no-explicit-any": "off"
       }

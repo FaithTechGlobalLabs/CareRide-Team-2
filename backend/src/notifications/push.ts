@@ -1,4 +1,5 @@
 import webpush from "web-push";
+
 import { pool } from "../db/db.js";
 import { ensureNotificationSchema } from "./sqlStore.js";
 
@@ -27,7 +28,7 @@ async function deliver(): Promise<void> {
   webpush.setVapidDetails(
     process.env.VAPID_SUBJECT!,
     process.env.VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!,
+    process.env.VAPID_PRIVATE_KEY!
   );
   await pool.query(`INSERT INTO push_deliveries (notification_id, endpoint)
     SELECT n.id, s.endpoint FROM notifications n
@@ -53,7 +54,7 @@ async function deliver(): Promise<void> {
         FROM notifications n JOIN push_subscriptions s ON s.endpoint = $2
         JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = s.kind
         WHERE n.id = $1 AND ((s.kind = 'staff' AND n.staff_id = s.user_id) OR (s.kind = 'driver' AND n.driver_id = s.user_id))`,
-          [delivery.notification_id, delivery.endpoint],
+          [delivery.notification_id, delivery.endpoint]
         );
         const row = result.rows[0];
         let success = false;
@@ -81,7 +82,7 @@ async function deliver(): Promise<void> {
                 url: "/notifications",
                 tag: row.id,
               }),
-              { TTL: 3600, timeout: 5000 },
+              { TTL: 3600, timeout: 5000 }
             );
             success = true;
           } catch (error) {
@@ -95,7 +96,7 @@ async function deliver(): Promise<void> {
         if (gone) {
           await pool.query(
             `DELETE FROM push_subscriptions WHERE endpoint = $1`,
-            [delivery.endpoint],
+            [delivery.endpoint]
           );
         } else {
           await pool.query(
@@ -104,10 +105,10 @@ async function deliver(): Promise<void> {
           failed = $4 OR (NOT $3 AND attempts >= 4),
           next_attempt_at = now() + LEAST(interval '1 hour', interval '30 seconds' * power(2, attempts + 1))
           WHERE notification_id = $1 AND endpoint = $2`,
-            [delivery.notification_id, delivery.endpoint, success, terminal],
+            [delivery.notification_id, delivery.endpoint, success, terminal]
           );
         }
-      }),
+      })
     );
   }
 }

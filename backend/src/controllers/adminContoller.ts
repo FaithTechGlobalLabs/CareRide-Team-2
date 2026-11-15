@@ -1,4 +1,5 @@
 import { type Request, type Response } from "express";
+
 import type { StaffRole } from "../types/user.types.js";
 
 import {
@@ -26,7 +27,7 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
 
 export const updateUserRole = async (
   req: Request,
-  res: Response,
+  res: Response
 ): Promise<void> => {
   try {
     const { userId } = req.params;
@@ -74,7 +75,7 @@ export const updateUserRole = async (
 
 export const deleteUser = async (
   req: Request,
-  res: Response,
+  res: Response
 ): Promise<void> => {
   try {
     const { userId } = req.params;

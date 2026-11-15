@@ -1,14 +1,14 @@
+import express from "express";
+import jwt from "jsonwebtoken";
 import assert from "node:assert/strict";
-import test from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import express from "express";
-import jwt from "jsonwebtoken";
+import test from "node:test";
 
 test("merged SQL API registers staff preferences, inbox, read-all and subscriptions without touching JSON", async () => {
   const directory = fs.mkdtempSync(
-    path.join(os.tmpdir(), "careride-merge-test-"),
+    path.join(os.tmpdir(), "careride-merge-test-")
   );
   process.env.CARERIDE_DATA_DIR = directory;
   process.env.JWT_SECRET = "merge-test-only";
@@ -64,11 +64,11 @@ test("merged SQL API registers staff preferences, inbox, read-all and subscripti
     registerApi(app);
     app.use((req, res) => res.status(404).json({ error: "Route not found" }));
     app.use((error, req, res, next) =>
-      res.status(500).json({ message: String(error) }),
+      res.status(500).json({ message: String(error) })
     );
     await new Promise((resolve, reject) => {
       server = app.listen(0, "127.0.0.1", (error) =>
-        error ? reject(error) : resolve(),
+        error ? reject(error) : resolve()
       );
     });
     const origin = `http://127.0.0.1:${server.address().port}`;
@@ -79,7 +79,7 @@ test("merged SQL API registers staff preferences, inbox, read-all and subscripti
         role: "staff",
         organizationId: "00000000-0000-4000-8000-000000000003",
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET
     );
     async function call(url, method = "GET", body, authenticated = true) {
       const response = await fetch(origin + url, {
@@ -95,7 +95,7 @@ test("merged SQL API registers staff preferences, inbox, read-all and subscripti
     assert.equal(
       (await call("/notifications/preferences", "GET", undefined, false))
         .status,
-      401,
+      401
     );
     const prefs = await call("/notifications/preferences");
     assert.equal(prefs.status, 200);
@@ -106,40 +106,40 @@ test("merged SQL API registers staff preferences, inbox, read-all and subscripti
           prompt: "declined",
         })
       ).body.preferences.prompt_dismissed,
-      true,
+      true
     );
     const inbox = await call("/notifications");
     assert.equal(inbox.status, 200);
     assert.equal(
       inbox.body.notifications[0].sent_at,
-      "2026-10-04T12:00:00.000Z",
+      "2026-10-04T12:00:00.000Z"
     );
     assert.equal(inbox.body.notifications[0].type, "completed");
     assert.equal(
       (await call(`/notifications/${noteId}/read`, "POST", {})).status,
-      200,
+      200
     );
     assert.equal(
       (await call("/notifications/read-all", "POST", {})).status,
-      200,
+      200
     );
     assert.equal(
       (await call("/notifications/subscriptions", "DELETE", {})).status,
-      200,
+      200
     );
     assert.equal(
       (await call("/notifications/subscriptions", "POST", {})).status,
-      503,
+      503
     );
     assert.ok(
       queries.some(
-        (q) => q.sql.includes("WHERE staff_id = $1") && q.values[0] === userId,
-      ),
+        (q) => q.sql.includes("WHERE staff_id = $1") && q.values[0] === userId
+      )
     );
     assert.ok(
       queries.some((q) =>
-        q.sql.includes("CREATE TABLE IF NOT EXISTS notification_preferences"),
-      ),
+        q.sql.includes("CREATE TABLE IF NOT EXISTS notification_preferences")
+      )
     );
     assert.equal(fs.existsSync(path.join(directory, "store.json")), false);
   } finally {

@@ -1,8 +1,7 @@
+import bcrypt from "bcrypt";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-import bcrypt from "bcrypt";
 
 import { pool, withTransaction } from "./db.js";
 
@@ -35,10 +34,62 @@ async function seed(): Promise<void> {
   const passwordHash = await bcrypt.hash("CareRideDemo1", 10);
   const document = Buffer.from("Seed identity record for the demo approval.");
   const drivers = [
-    [oliveId, "Olive", "Demo", "1990-04-12", "olive.demo@careride.local", "604-555-0102", "Toyota", "Corolla", "CR1234", 3, false, 25000],
-    [derekId, "Derek", "Demo", "1987-08-21", "derek.demo@careride.local", "604-555-0103", "Honda", "Civic", "CR2201", 3, false, 30000],
-    [kentonId, "Kenton", "Demo", "1992-02-16", "kenton.demo@careride.local", "604-555-0104", "Kia", "Carnival", "CR2202", 6, true, 35000],
-    [esheanId, "Eshean", "Demo", "1985-11-30", "eshean.demo@careride.local", "604-555-0105", "Subaru", "Outback", "CR2203", 4, false, 40000],
+    [
+      oliveId,
+      "Olive",
+      "Demo",
+      "1990-04-12",
+      "olive.demo@careride.local",
+      "604-555-0102",
+      "Toyota",
+      "Corolla",
+      "CR1234",
+      3,
+      false,
+      25000,
+    ],
+    [
+      derekId,
+      "Derek",
+      "Demo",
+      "1987-08-21",
+      "derek.demo@careride.local",
+      "604-555-0103",
+      "Honda",
+      "Civic",
+      "CR2201",
+      3,
+      false,
+      30000,
+    ],
+    [
+      kentonId,
+      "Kenton",
+      "Demo",
+      "1992-02-16",
+      "kenton.demo@careride.local",
+      "604-555-0104",
+      "Kia",
+      "Carnival",
+      "CR2202",
+      6,
+      true,
+      35000,
+    ],
+    [
+      esheanId,
+      "Eshean",
+      "Demo",
+      "1985-11-30",
+      "eshean.demo@careride.local",
+      "604-555-0105",
+      "Subaru",
+      "Outback",
+      "CR2203",
+      4,
+      false,
+      40000,
+    ],
   ] as const;
 
   const client = await pool.connect();
@@ -47,7 +98,7 @@ async function seed(): Promise<void> {
     await client.query(
       `INSERT INTO organizations (id, name, email, phone)
        VALUES ($1, 'Belkin Communities of Hope', 'belkin@careride.local', '604-555-0100')`,
-      [orgId],
+      [orgId]
     );
     await client.query(
       `INSERT INTO staff (id, organization_id, name, email, phone, password_hash)
@@ -55,7 +106,7 @@ async function seed(): Promise<void> {
          ($1, $4, 'Alvin Demo', 'alvin.demo@careride.local', '604-555-0101', $5),
          ($2, $4, 'Aretha Franklin', 'aretha.demo@careride.local', '604-555-0106', $5),
          ($3, $4, 'Billy Bob Joe', 'billy.demo@careride.local', '604-555-0107', $5)`,
-      [alvinId, arethaId, billyId, orgId, passwordHash],
+      [alvinId, arethaId, billyId, orgId, passwordHash]
     );
     await client.query(
       `INSERT INTO clients
@@ -65,7 +116,7 @@ async function seed(): Promise<void> {
          ($2, $5, 'Chong', 'Demo', '1991-06-18', 'Belkin House', true, '604-555-0196', 'Demo client record'),
          ($3, $5, 'Winnie', 'Demo', '1989-10-09', 'Belkin House', true, '604-555-0197', 'Demo client record'),
          ($4, $5, 'Joe', 'Demo', '1975-01-24', 'Belkin House', false, '604-555-0198', 'Demo client record')`,
-      [jamieId, chongId, winnieId, joeId, orgId],
+      [jamieId, chongId, winnieId, joeId, orgId]
     );
     await client.query(
       `INSERT INTO addresses
@@ -73,20 +124,33 @@ async function seed(): Promise<void> {
        VALUES
          ($1, $3, 'Belkin House', '228 W. 5th Ave, Vancouver', 49.2665, -123.1128, 'shelter'),
          ($2, $3, 'St. Paul''s Hospital', '1081 Burrard St, Vancouver', 49.2806, -123.128, 'hospital')`,
-      [belkinHouseId, stPaulsId, orgId],
+      [belkinHouseId, stPaulsId, orgId]
     );
 
     for (const driver of drivers) {
-      const [id, first, last, dob, email, phone, make, model, plate, seats, wheelchair, radius] = driver;
+      const [
+        id,
+        first,
+        last,
+        dob,
+        email,
+        phone,
+        make,
+        model,
+        plate,
+        seats,
+        wheelchair,
+        radius,
+      ] = driver;
       await client.query(
         `INSERT INTO drivers (id, first_name, last_name, dob, email, phone, password_hash)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [id, first, last, dob, email, phone, passwordHash],
+        [id, first, last, dob, email, phone, passwordHash]
       );
       await client.query(
         `INSERT INTO vehicles (driver_id, make, model, plate_number, seats, wheelchair_accessible)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, make, model, plate, seats, wheelchair],
+        [id, make, model, plate, seats, wheelchair]
       );
       await client.query(
         `INSERT INTO driver_availabilities
@@ -103,13 +167,13 @@ async function seed(): Promise<void> {
            ARRAY[0, 1, 2, 3, 4, 5, 6]::smallint[],
            'Demo availability covering the user-test day.'
          )`,
-        [id, radius],
+        [id, radius]
       );
       await client.query(
         `INSERT INTO driver_verifications
            (driver_id, approved_by_org_id, approved_by_staff_id, document_type, document, document_filename, status, reviewed_at)
          VALUES ($1, $2, $3, 'identity', $4, 'seed-identity.txt', 'approved', now())`,
-        [id, orgId, alvinId, document],
+        [id, orgId, alvinId, document]
       );
     }
 
@@ -131,15 +195,17 @@ async function seed(): Promise<void> {
          now() - interval '26 hours', now() - interval '26 hours', now() - interval '26 hours',
          true, true, 'outbound'
        )`,
-      [sampleRideId, jamieId, alvinId, orgId, stPaulsId, oliveId],
+      [sampleRideId, jamieId, alvinId, orgId, stPaulsId, oliveId]
     );
     await client.query(
       `INSERT INTO dispatches (ride_request_id, driver_id, response, responded_at, offered_at)
        VALUES ($1, $2, 'accepted', now() - interval '26 hours', now() - interval '26 hours')`,
-      [sampleRideId, oliveId],
+      [sampleRideId, oliveId]
     );
     await client.query("COMMIT");
-    console.log("Seeded Belkin, staff, drivers, clients, and one completed ride.");
+    console.log(
+      "Seeded Belkin, staff, drivers, clients, and one completed ride."
+    );
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -150,7 +216,9 @@ async function seed(): Promise<void> {
 
 try {
   const schema = fs.readFileSync(schemaPath, "utf8");
-  const exists = await pool.query("SELECT to_regclass('public.organizations') AS name");
+  const exists = await pool.query(
+    "SELECT to_regclass('public.organizations') AS name"
+  );
   if (!exists.rows[0]?.name) {
     // Install the initial schema atomically, so a failure does not leave half the tables.
     await withTransaction(async (client) => {

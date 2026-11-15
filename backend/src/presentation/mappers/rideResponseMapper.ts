@@ -1,6 +1,6 @@
-import type { RideResponse } from "@careride/api-contracts/rides/ride-responses"
+import type { RideResponse } from "@careride/api-contracts/rides/ride-responses";
 
-import type { RideDetails } from "../../application/ports/rideQueries.js"
+import type { RideDetails } from "../../application/ports/rideQueries.js";
 
 export function toRideResponse(ride: RideDetails): RideResponse {
   return {
@@ -42,5 +42,5 @@ export function toRideResponse(ride: RideDetails): RideResponse {
     driver_phone: ride.driver?.phone ?? null,
     vehicle: ride.vehicle,
     sample: ride.id === "66666666-6666-4666-8666-666666666601",
-  }
+  };
 }

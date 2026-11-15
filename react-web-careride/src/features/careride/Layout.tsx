@@ -1,5 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { Link, useLocation, useNavigate } from "@tanstack/react-router"
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Bell,
   Calendar,
@@ -18,39 +17,41 @@ import {
   Settings,
   Users,
   X,
-} from "lucide-react"
-import { useCare } from "./context"
-import { Brand, ErrorBox } from "./ui"
-import { IS_DEMO } from "./api"
+} from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+
+import { IS_DEMO } from "./api";
+import { useCare } from "./context";
 import {
   clearPendingInstallHelp,
   hasPendingInstallHelp,
   isAndroidBrowser,
   isIOSSafari,
   isStandaloneWebApp,
-} from "./iosInstall"
-import { NotificationControls } from "./NotificationControls"
+} from "./iosInstall";
+import { NotificationControls } from "./NotificationControls";
+import { Brand, ErrorBox } from "./ui";
 
 export function Layout({
   children,
   driver = false,
   showNotificationPrompt = true,
 }: {
-  children: ReactNode
-  driver?: boolean
-  showNotificationPrompt?: boolean
+  children: ReactNode;
+  driver?: boolean;
+  showNotificationPrompt?: boolean;
 }) {
-  const { session, logout, data, error } = useCare()
-  const path = useLocation({ select: (s) => s.pathname })
-  const navigate = useNavigate()
-  const [accountOpenPath, setAccountOpenPath] = useState<string | null>(null)
-  const [installHelpOpen, setInstallHelpOpen] = useState(hasPendingInstallHelp)
-  const accountOpen = accountOpenPath === path
-  const android = isAndroidBrowser()
-  const showInstallHelp = (isIOSSafari() || android) && !isStandaloneWebApp()
+  const { session, logout, data, error } = useCare();
+  const path = useLocation({ select: (s) => s.pathname });
+  const navigate = useNavigate();
+  const [accountOpenPath, setAccountOpenPath] = useState<string | null>(null);
+  const [installHelpOpen, setInstallHelpOpen] = useState(hasPendingInstallHelp);
+  const accountOpen = accountOpenPath === path;
+  const android = isAndroidBrowser();
+  const showInstallHelp = (isIOSSafari() || android) && !isStandaloneWebApp();
   useEffect(() => {
-    if (installHelpOpen) clearPendingInstallHelp()
-  }, [installHelpOpen])
+    if (installHelpOpen) clearPendingInstallHelp();
+  }, [installHelpOpen]);
   if (!session)
     return (
       <main className="access-page">
@@ -61,7 +62,7 @@ export function Layout({
           Go to login
         </Link>
       </main>
-    )
+    );
   if ((session.user.role === "driver") !== driver)
     return (
       <main className="access-page">
@@ -74,7 +75,7 @@ export function Layout({
           Back to my dashboard
         </Link>
       </main>
-    )
+    );
   const nav = driver
     ? [
         { to: "/driver", title: "My rides", icon: CarFront },
@@ -98,18 +99,18 @@ export function Layout({
         { to: "/locations", title: "Address book", icon: MapPin },
         { to: "/approvals", title: "Driver approvals", icon: ClipboardCheck },
         { to: "/notifications", title: "Notifications", icon: Bell },
-      ]
-  const unread = data.notifications.filter((n) => !n.read_at).length
+      ];
+  const unread = data.notifications.filter((n) => !n.read_at).length;
   const navActive = (to: string) => {
-    if (to === "/") return path === "/"
+    if (to === "/") return path === "/";
     if (to === "/driver")
-      return path === "/driver" || path.startsWith("/rides/")
-    return path === to || path.startsWith(`${to}/`)
-  }
+      return path === "/driver" || path.startsWith("/rides/");
+    return path === to || path.startsWith(`${to}/`);
+  };
   const signOut = async () => {
-    await logout()
-    void navigate({ to: "/login" })
-  }
+    await logout();
+    void navigate({ to: "/login" });
+  };
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
@@ -242,8 +243,8 @@ export function Layout({
                     type="button"
                     className="btn secondary install-menu-button"
                     onClick={() => {
-                      setAccountOpenPath(null)
-                      setInstallHelpOpen(true)
+                      setAccountOpenPath(null);
+                      setInstallHelpOpen(true);
                     }}
                   >
                     <SquarePlus size={16} /> Add to Home Screen
@@ -309,7 +310,7 @@ export function Layout({
           className="install-dialog-backdrop"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setInstallHelpOpen(false)
+            if (event.currentTarget === event.target) setInstallHelpOpen(false);
           }}
         >
           <section
@@ -406,5 +407,5 @@ export function Layout({
         </div>
       )}
     </div>
-  )
+  );
 }

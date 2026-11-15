@@ -1,7 +1,7 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import express from "express";
 import jwt from "jsonwebtoken";
+import assert from "node:assert/strict";
+import test from "node:test";
 
 process.env.JWT_SECRET = "accepted-rides-test-only";
 const { pool } = await import("../src/db/db.ts");
@@ -49,8 +49,11 @@ test("SQL acceptance remains visible after reload to its driver and staff, and c
         return { rows: ride.driver_id === values[0] ? [{ ...ride }] : [] };
       if (sql.includes("WHERE r.organization_id = $1"))
         return {
-          rows: ride.organization_id === values[0] && (!values[1] || ride.status === values[1])
-            ? [{ ...ride }] : [],
+          rows:
+            ride.organization_id === values[0] &&
+            (!values[1] || ride.status === values[1])
+              ? [{ ...ride }]
+              : [],
         };
       if (sql.includes("r.status = 'requested'"))
         return { rows: ride.status === "requested" ? [{ ...ride }] : [] };
@@ -66,38 +69,72 @@ test("SQL acceptance remains visible after reload to its driver and staff, and c
     const app = express();
     app.use(express.json());
     registerApi(app);
-    app.use((error, req, res, next) => res.status(500).json({ message: String(error) }));
-    await new Promise((resolve) => { server = app.listen(0, "127.0.0.1", resolve); });
+    app.use((error, req, res, next) =>
+      res.status(500).json({ message: String(error) })
+    );
+    await new Promise((resolve) => {
+      server = app.listen(0, "127.0.0.1", resolve);
+    });
     async function call(path, method = "GET", kind = "driver", id = kind) {
-      const token = jwt.sign({ sub: id, kind, role: kind, organizationId: "org" }, process.env.JWT_SECRET);
-      const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {
-        method,
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const token = jwt.sign(
+        { sub: id, kind, role: kind, organizationId: "org" },
+        process.env.JWT_SECRET
+      );
+      const response = await fetch(
+        `http://127.0.0.1:${server.address().port}${path}`,
+        {
+          method,
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       assert.equal(response.status, 200);
       return response.json();
     }
     assert.equal((await call("/drivers/me/rides/available")).rides.length, 1);
     const accepted = (await call("/rides/ride/accept", "POST")).ride;
-    assert.equal(ride.status, "approved", "Preserve the database lifecycle status");
+    assert.equal(
+      ride.status,
+      "approved",
+      "Preserve the database lifecycle status"
+    );
     assert.equal(accepted.status, "accepted");
     assert.equal(accepted.accepted_at, ride.approved_at.toISOString());
     assert.equal((await call("/drivers/me/rides/available")).rides.length, 0);
 
     // Reload through the same endpoint as the non-demo dashboard.
     const assigned = (await call("/drivers/me/rides")).rides;
-    assert.deepEqual(assigned.filter(r => ["accepted", "in_progress"].includes(r.status)).map(r => r.id), [ride.id]);
+    assert.deepEqual(
+      assigned
+        .filter((r) => ["accepted", "in_progress"].includes(r.status))
+        .map((r) => r.id),
+      [ride.id]
+    );
     assert.equal(assigned[0].accepted_at, accepted.accepted_at);
-    assert.deepEqual((await call("/drivers/me/rides", "GET", "driver", "other-driver")).rides, []);
+    assert.deepEqual(
+      (await call("/drivers/me/rides", "GET", "driver", "other-driver")).rides,
+      []
+    );
     assert.equal((await call("/rides/ride")).ride.status, "accepted");
-    assert.equal((await call("/rides", "GET", "staff")).rides[0].status, "accepted");
-    assert.equal((await call("/rides?status=accepted", "GET", "staff")).rides[0].id, ride.id);
-    assert.equal((await call("/rides/ride/pickup", "POST")).ride.status, "in_progress");
-    assert.equal((await call("/drivers/me/rides")).rides[0].status, "in_progress");
+    assert.equal(
+      (await call("/rides", "GET", "staff")).rides[0].status,
+      "accepted"
+    );
+    assert.equal(
+      (await call("/rides?status=accepted", "GET", "staff")).rides[0].id,
+      ride.id
+    );
+    assert.equal(
+      (await call("/rides/ride/pickup", "POST")).ride.status,
+      "in_progress"
+    );
+    assert.equal(
+      (await call("/drivers/me/rides")).rides[0].status,
+      "in_progress"
+    );
   } finally {
     pool.query = originalQuery;
     pool.connect = originalConnect;
-    if (server) await new Promise(resolve => server.close(resolve));
+    if (server) await new Promise((resolve) => server.close(resolve));
     await pool.end();
   }
 });

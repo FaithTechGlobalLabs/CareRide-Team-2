@@ -1,9 +1,9 @@
-import { sql } from "kysely"
-import { jsonArrayFrom } from "kysely/helpers/postgres"
+import { sql } from "kysely";
+import { jsonArrayFrom } from "kysely/helpers/postgres";
 
-import type { DatabaseTransaction } from "../../../application/ports/database.js"
-import type { IDriverEligibilityQuery } from "../../../application/ports/driverEligibilityQuery.js"
-import type { DriverEligibilityFacts } from "../../../domain/rides/rideAcceptancePolicy.js"
+import type { DatabaseTransaction } from "../../../application/ports/database.js";
+import type { IDriverEligibilityQuery } from "../../../application/ports/driverEligibilityQuery.js";
+import type { DriverEligibilityFacts } from "../../../domain/rides/rideAcceptancePolicy.js";
 
 /** PostgreSQL owns timezone / geography mechanics. Both the facts query and
  * final conditional claim use these exact same expressions.
@@ -22,7 +22,7 @@ export function availabilityComparisons() {
     pickupWithinRadius: sql<boolean>`ST_DWithin(a.centre,
       ST_SetSRID(ST_MakePoint(r.pickup_lng, r.pickup_lat), 4326)::geography,
       a.radius_m)`,
-  }
+  };
 }
 
 export class DriverEligibilityQuery implements IDriverEligibilityQuery {
@@ -33,7 +33,7 @@ export class DriverEligibilityQuery implements IDriverEligibilityQuery {
   ): Promise<DriverEligibilityFacts> {
     // One statement snapshot, matching PostgreSQL's existing decision semantics.
     // Keep timezone recurrence and PostGIS calculations at the database adapter.
-    const comparisons = availabilityComparisons()
+    const comparisons = availabilityComparisons();
     const result = await transaction
       .selectFrom("ride_requests as r")
       .where("r.id", "=", rideId)
@@ -73,7 +73,7 @@ export class DriverEligibilityQuery implements IDriverEligibilityQuery {
             ])
         ).as("availabilities"),
       ])
-      .executeTakeFirstOrThrow()
-    return result
+      .executeTakeFirstOrThrow();
+    return result;
   }
 }

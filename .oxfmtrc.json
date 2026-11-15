@@ -1,6 +1,6 @@
 {
   "endOfLine": "lf",
-  "semi": false,
+  "semi": true,
   "singleQuote": false,
   "tabWidth": 2,
   "trailingComma": "es5",
@@ -8,10 +8,7 @@
   "sortPackageJson": false,
   "sortTailwindcss": {
     "stylesheet": "src/index.css",
-    "functions": [
-      "cn",
-      "cva"
-    ]
+    "functions": ["cn", "cva"]
   },
   "sortImports": {
     "groups": [
@@ -31,6 +28,9 @@
     "pnpm-lock.yaml",
     "package-lock.json",
     "pnpm-lock.yaml",
-    "yarn.lock"
+    "yarn.lock",
+    "*.md",
+    "*.yaml",
+    "output/**"
   ]
 }

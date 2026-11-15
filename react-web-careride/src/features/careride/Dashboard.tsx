@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react"
-import { Link } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   CalendarDays,
@@ -10,10 +9,14 @@ import {
   MapPin,
   Plus,
   Users,
-} from "lucide-react"
-import { useCare } from "./context"
-import { Layout } from "./Layout"
-import { AddToCalendar } from "./AddToCalendar"
+} from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { AddToCalendar } from "./AddToCalendar";
+import { useCare } from "./context";
+import { Layout } from "./Layout";
+import { NotificationControls } from "./NotificationControls";
+import { usePersonalText } from "./personalText";
 import {
   AddLink,
   Empty,
@@ -23,23 +26,21 @@ import {
   RideList,
   RideSearch,
   Success,
-} from "./ui"
-import { RideSchedule, TodayColumn } from "./WeekCalendar"
-import { usePersonalText } from "./personalText"
-import { NotificationControls } from "./NotificationControls"
+} from "./ui";
+import { RideSchedule, TodayColumn } from "./WeekCalendar";
 export function Dashboard() {
-  const { data, session } = useCare()
-  const copy = usePersonalText(session?.user.name.split(" ")[0] ?? "there")
+  const { data, session } = useCare();
+  const copy = usePersonalText(session?.user.name.split(" ")[0] ?? "there");
   const pendingApprovals = data.verifications.filter(
     (v) => v.status === "pending"
-  ).length
+  ).length;
   const upcoming = data.rides
     .filter((r) => ["requested", "accepted", "in_progress"].includes(r.status))
-    .sort((a, b) => a.requested_pickup_at.localeCompare(b.requested_pickup_at))
-  const awaiting = upcoming.filter((r) => r.status === "requested")
-  const assigned = upcoming.filter((r) => r.status !== "requested")
-  const completed = data.rides.filter((r) => r.status === "completed")
-  const unread = data.notifications.filter((n) => !n.read_at).length
+    .sort((a, b) => a.requested_pickup_at.localeCompare(b.requested_pickup_at));
+  const awaiting = upcoming.filter((r) => r.status === "requested");
+  const assigned = upcoming.filter((r) => r.status !== "requested");
+  const completed = data.rides.filter((r) => r.status === "completed");
+  const unread = data.notifications.filter((n) => !n.read_at).length;
   return (
     <Layout>
       <PageTitle
@@ -195,7 +196,7 @@ export function Dashboard() {
         </div>
       </div>
     </Layout>
-  )
+  );
 }
 function Stat({
   icon,
@@ -205,12 +206,12 @@ function Stat({
   tone = "",
   className = "",
 }: {
-  icon: React.ReactNode
-  title: string
-  value: number
-  note: string
-  tone?: string
-  className?: string
+  icon: React.ReactNode;
+  title: string;
+  value: number;
+  note: string;
+  tone?: string;
+  className?: string;
 }) {
   return (
     <Link to="/rides" className={`stat-card ${tone} ${className}`}>
@@ -221,10 +222,10 @@ function Stat({
       <strong>{value.toString().padStart(2, "0")}</strong>
       <small>{note}</small>
     </Link>
-  )
+  );
 }
 export function RidesScreen() {
-  const { data } = useCare()
+  const { data } = useCare();
   return (
     <Layout>
       <PageTitle
@@ -242,28 +243,28 @@ export function RidesScreen() {
         <RideSearch rides={data.rides} />
       </Panel>
     </Layout>
-  )
+  );
 }
 export function DriverDashboard() {
-  const { data, session } = useCare()
+  const { data, session } = useCare();
   const [confirmation] = useState(
     () => sessionStorage.getItem("careride-driver-confirmation") ?? ""
-  )
+  );
   const [acceptedRideId] = useState(
     () => sessionStorage.getItem("careride-driver-accepted-ride") ?? ""
-  )
+  );
   useEffect(() => {
-    if (confirmation) sessionStorage.removeItem("careride-driver-confirmation")
-    sessionStorage.removeItem("careride-driver-accepted-ride")
-  }, [confirmation])
-  const acceptedRide = data.rides.find((ride) => ride.id === acceptedRideId)
+    if (confirmation) sessionStorage.removeItem("careride-driver-confirmation");
+    sessionStorage.removeItem("careride-driver-accepted-ride");
+  }, [confirmation]);
+  const acceptedRide = data.rides.find((ride) => ride.id === acceptedRideId);
   const active = data.rides.filter((r) =>
     ["accepted", "in_progress"].includes(r.status)
-  )
+  );
   const copy = usePersonalText(
     session?.user.name.split(" ")[0] ?? "driver",
     true
-  )
+  );
   return (
     <Layout driver showNotificationPrompt={!confirmation}>
       <PageTitle
@@ -352,11 +353,11 @@ export function DriverDashboard() {
         </aside>
       </div>
     </Layout>
-  )
+  );
 }
 
 export function DriverScheduleScreen() {
-  const { data } = useCare()
+  const { data } = useCare();
   return (
     <Layout driver>
       <PageTitle
@@ -368,5 +369,5 @@ export function DriverScheduleScreen() {
         <RideSchedule rides={data.rides} driver />
       </Panel>
     </Layout>
-  )
+  );
 }

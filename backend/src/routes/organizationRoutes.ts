@@ -1,4 +1,5 @@
 import express from "express";
+
 import { registerOrganization } from "../controllers/organizationController.js";
 
 const router = express.Router();

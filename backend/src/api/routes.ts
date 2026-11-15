@@ -1,12 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
 import type { Express } from "express";
+import type { PoolClient } from "pg";
+
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import type { PoolClient } from "pg";
 
-import { registerPersonalApi } from "./personal.js";
 import { pool } from "../db/db.js";
+import { registerPersonalApi } from "./personal.js";
 
 const secret = process.env.JWT_SECRET || "careride-dev-secret";
 const upload = multer({
@@ -89,7 +90,9 @@ function requireAuth(kind?: Auth["kind"]) {
     try {
       const auth = jwt.verify(token, secret) as Auth;
       if (kind && auth.kind !== kind) {
-        res.status(403).json({ message: "This account cannot open that page." });
+        res
+          .status(403)
+          .json({ message: "This account cannot open that page." });
         return;
       }
       req.auth = auth;
@@ -122,10 +125,17 @@ function clock(value: unknown): string {
 }
 
 function needs(body: unknown): string[] {
-  if (Array.isArray(body)) return body.map(String).map((item) => item.trim()).filter(Boolean);
+  if (Array.isArray(body))
+    return body
+      .map(String)
+      .map((item) => item.trim())
+      .filter(Boolean);
   const text = String(body ?? "").trim();
   if (!text) return [];
-  return text.split(",").map((item) => item.trim()).filter(Boolean);
+  return text
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function rideMessage(input: {
@@ -144,7 +154,8 @@ function rideMessage(input: {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(input.when));
-  const people = input.passengers === 1 ? "1 passenger" : `${input.passengers} passengers`;
+  const people =
+    input.passengers === 1 ? "1 passenger" : `${input.passengers} passengers`;
   const way = input.leg === "return" ? "Return leg" : "One way";
   return `${input.firstName}: ${when}: ${input.pickup} to ${input.destination}. ${way}, ${people}.`;
 }
@@ -152,7 +163,7 @@ function rideMessage(input: {
 async function notifyStaff(
   client: PoolClient,
   rideId: string,
-  title: string,
+  title: string
 ): Promise<void> {
   const ride = await client.query(
     `SELECT r.id, r.organization_id, r.pickup_address, r.destination_id, r.requested_by_staff_id,
@@ -165,7 +176,7 @@ async function notifyStaff(
      LEFT JOIN addresses pickup
        ON pickup.organization_id = r.organization_id AND pickup.address = r.pickup_address
      WHERE r.id = $1`,
-    [rideId],
+    [rideId]
   );
   const row = ride.rows[0] as
     | {
@@ -201,7 +212,7 @@ async function notifyStaff(
         passenger_count: row.passenger_count,
         trip_leg: row.trip_leg,
       }),
-    ],
+    ]
   );
 }
 
@@ -223,7 +234,7 @@ async function presentRide(client: PoolClient | typeof pool, id: string) {
        LIMIT 1
      ) v ON true
      WHERE r.id = $1`,
-    [id],
+    [id]
   );
   const row = result.rows[0] as Record<string, unknown> | undefined;
   if (!row) return null;
@@ -291,7 +302,7 @@ async function markTimedOut(): Promise<void> {
      SET status = 'timed_out', updated_at = now()
      WHERE status = 'requested'
        AND driver_id IS NULL
-       AND requested_pickup_at <= now()`,
+       AND requested_pickup_at <= now()`
   );
 }
 
@@ -315,19 +326,32 @@ export function registerApi(app: Express): void {
   app.post(
     "/auth/login",
     asyncRoute(async (req, res) => {
-      const email = String(req.body.email ?? "").trim().toLowerCase();
+      const email = String(req.body.email ?? "")
+        .trim()
+        .toLowerCase();
       const password = String(req.body.password ?? "");
       const staff = await pool.query(
         `SELECT s.*, o.name AS organization_name
          FROM staff s
          JOIN organizations o ON o.id = s.organization_id
          WHERE lower(s.email) = $1 AND s.is_active`,
-        [email],
+        [email]
       );
       const staffRow = staff.rows[0] as
-        | { id: string; organization_id: string; name: string; email: string; phone: string; password_hash: string; organization_name: string }
+        | {
+            id: string;
+            organization_id: string;
+            name: string;
+            email: string;
+            phone: string;
+            password_hash: string;
+            organization_name: string;
+          }
         | undefined;
-      if (staffRow && (await bcrypt.compare(password, staffRow.password_hash))) {
+      if (
+        staffRow &&
+        (await bcrypt.compare(password, staffRow.password_hash))
+      ) {
         const auth: Auth = {
           sub: staffRow.id,
           kind: "staff",
@@ -351,13 +375,28 @@ export function registerApi(app: Express): void {
       }
       const driver = await pool.query(
         `SELECT * FROM drivers WHERE lower(email) = $1`,
-        [email],
+        [email]
       );
       const driverRow = driver.rows[0] as
-        | { id: string; first_name: string; last_name: string; email: string; phone: string; password_hash: string; dob: string }
+        | {
+            id: string;
+            first_name: string;
+            last_name: string;
+            email: string;
+            phone: string;
+            password_hash: string;
+            dob: string;
+          }
         | undefined;
-      if (driverRow && (await bcrypt.compare(password, driverRow.password_hash))) {
-        const auth: Auth = { sub: driverRow.id, kind: "driver", role: "driver" };
+      if (
+        driverRow &&
+        (await bcrypt.compare(password, driverRow.password_hash))
+      ) {
+        const auth: Auth = {
+          sub: driverRow.id,
+          kind: "driver",
+          role: "driver",
+        };
         res.json({
           token: sign(auth),
           user: {
@@ -375,7 +414,7 @@ export function registerApi(app: Express): void {
         return;
       }
       res.status(401).json({ message: "Email or password is incorrect." });
-    }),
+    })
   );
 
   app.get(
@@ -392,7 +431,7 @@ export function registerApi(app: Express): void {
           `SELECT s.id, s.organization_id, s.name, s.email, s.phone, o.name AS organization_name
            FROM staff s JOIN organizations o ON o.id = s.organization_id
            WHERE s.id = $1`,
-          [auth.sub],
+          [auth.sub]
         );
         const row = staff.rows[0];
         if (!row) {
@@ -404,22 +443,29 @@ export function registerApi(app: Express): void {
       }
       const driver = await pool.query(
         `SELECT id, first_name, last_name, email, phone, dob FROM drivers WHERE id = $1`,
-        [auth.sub],
+        [auth.sub]
       );
-      const row = driver.rows[0] as { first_name: string; last_name: string } | undefined;
+      const row = driver.rows[0] as
+        | { first_name: string; last_name: string }
+        | undefined;
       if (!row) {
         res.status(401).json({ message: "Login required." });
         return;
       }
       res.json({
-        user: { ...row, name: `${row.first_name} ${row.last_name}`, kind: "driver", role: "driver" },
+        user: {
+          ...row,
+          name: `${row.first_name} ${row.last_name}`,
+          kind: "driver",
+          role: "driver",
+        },
       });
-    }),
+    })
   );
 
   app.get("/organizations", async (_req, res) => {
     const result = await pool.query(
-      `SELECT id, name FROM organizations ORDER BY name`,
+      `SELECT id, name FROM organizations ORDER BY name`
     );
     res.json({ organizations: result.rows });
   });
@@ -428,14 +474,28 @@ export function registerApi(app: Express): void {
     "/organizations/register",
     asyncRoute(async (req, res) => {
       const name = String(req.body.name ?? "").trim();
-      const email = String(req.body.email ?? "").trim().toLowerCase();
+      const email = String(req.body.email ?? "")
+        .trim()
+        .toLowerCase();
       const phone = String(req.body.phone ?? "").trim();
       const adminName = String(req.body.admin_name ?? "").trim();
-      const adminEmail = String(req.body.admin_email ?? "").trim().toLowerCase();
+      const adminEmail = String(req.body.admin_email ?? "")
+        .trim()
+        .toLowerCase();
       const adminPassword = String(req.body.admin_password ?? "");
       const adminPhone = String(req.body.admin_phone ?? phone).trim();
-      if (!name || !email || !phone || !adminName || !adminEmail || adminPassword.length < 8) {
-        res.status(400).json({ message: "Fill in the organization and a password of at least 8 characters." });
+      if (
+        !name ||
+        !email ||
+        !phone ||
+        !adminName ||
+        !adminEmail ||
+        adminPassword.length < 8
+      ) {
+        res.status(400).json({
+          message:
+            "Fill in the organization and a password of at least 8 characters.",
+        });
         return;
       }
       const passwordHash = await bcrypt.hash(adminPassword, 10);
@@ -449,7 +509,7 @@ export function registerApi(app: Express): void {
            INSERT INTO staff (organization_id, name, email, phone, password_hash)
            SELECT id, $4, $5, $6, $7 FROM org
            RETURNING id, organization_id, name, email, phone`,
-          [name, email, phone, adminName, adminEmail, adminPhone, passwordHash],
+          [name, email, phone, adminName, adminEmail, adminPhone, passwordHash]
         );
         const staff = created.rows[0] as {
           id: string;
@@ -458,7 +518,10 @@ export function registerApi(app: Express): void {
           email: string;
           phone: string;
         };
-        const org = await pool.query(`SELECT name FROM organizations WHERE id = $1`, [staff.organization_id]);
+        const org = await pool.query(
+          `SELECT name FROM organizations WHERE id = $1`,
+          [staff.organization_id]
+        );
         const auth: Auth = {
           sub: staff.id,
           kind: "staff",
@@ -477,19 +540,23 @@ export function registerApi(app: Express): void {
       } catch (error) {
         const code = (error as { code?: string }).code;
         if (code === "23505") {
-          res.status(409).json({ message: "That email is already registered." });
+          res
+            .status(409)
+            .json({ message: "That email is already registered." });
           return;
         }
         throw error;
       }
-    }),
+    })
   );
 
   app.get(
     "/clients",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const q = String(req.query.q ?? "").trim().toLowerCase();
+      const q = String(req.query.q ?? "")
+        .trim()
+        .toLowerCase();
       const result = await pool.query(
         `SELECT id, organization_id, first_name, last_name, dob::text, address, has_smartphone,
                 phone, email, emergency_contact_name, emergency_contact_phone, notes, created_at
@@ -497,12 +564,15 @@ export function registerApi(app: Express): void {
          WHERE organization_id = $1
            AND ($2 = '' OR lower(first_name || ' ' || last_name) LIKE '%' || $2 || '%')
          ORDER BY last_name, first_name`,
-        [req.auth?.organizationId, q],
+        [req.auth?.organizationId, q]
       );
       res.json({
-        clients: result.rows.map((row) => ({ ...row, created_at: iso(row.created_at) })),
+        clients: result.rows.map((row) => ({
+          ...row,
+          created_at: iso(row.created_at),
+        })),
       });
-    }),
+    })
   );
 
   app.post(
@@ -514,11 +584,15 @@ export function registerApi(app: Express): void {
       const dob = String(req.body.dob ?? "").trim();
       const notes = String(req.body.notes ?? "").trim();
       if (!first || !last || !dob) {
-        res.status(400).json({ message: "First name, last name, and date of birth are required." });
+        res.status(400).json({
+          message: "First name, last name, and date of birth are required.",
+        });
         return;
       }
       if (notes.length > 50) {
-        res.status(400).json({ message: "Accommodations must be 50 characters or fewer." });
+        res
+          .status(400)
+          .json({ message: "Accommodations must be 50 characters or fewer." });
         return;
       }
       const result = await pool.query(
@@ -540,19 +614,27 @@ export function registerApi(app: Express): void {
           String(req.body.emergency_contact_name ?? "").trim(),
           String(req.body.emergency_contact_phone ?? "").trim(),
           notes,
-        ],
+        ]
       );
-      res.status(201).json({ client: { ...result.rows[0], created_at: iso(result.rows[0]?.created_at) } });
-    }),
+      res.status(201).json({
+        client: {
+          ...result.rows[0],
+          created_at: iso(result.rows[0]?.created_at),
+        },
+      });
+    })
   );
 
   app.patch(
     "/clients/:id",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const notes = req.body.notes === undefined ? null : String(req.body.notes).trim();
+      const notes =
+        req.body.notes === undefined ? null : String(req.body.notes).trim();
       if (notes && notes.length > 50) {
-        res.status(400).json({ message: "Accommodations must be 50 characters or fewer." });
+        res
+          .status(400)
+          .json({ message: "Accommodations must be 50 characters or fewer." });
         return;
       }
       const result = await pool.query(
@@ -579,26 +661,39 @@ export function registerApi(app: Express): void {
           req.body.address === undefined ? null : String(req.body.address),
           req.body.phone === undefined ? null : String(req.body.phone),
           req.body.email === undefined ? null : String(req.body.email),
-          req.body.emergency_contact_name === undefined ? null : String(req.body.emergency_contact_name),
-          req.body.emergency_contact_phone === undefined ? null : String(req.body.emergency_contact_phone),
+          req.body.emergency_contact_name === undefined
+            ? null
+            : String(req.body.emergency_contact_name),
+          req.body.emergency_contact_phone === undefined
+            ? null
+            : String(req.body.emergency_contact_phone),
           req.body.notes !== undefined,
           notes ?? "",
-          req.body.has_smartphone === undefined ? null : Boolean(req.body.has_smartphone),
-        ],
+          req.body.has_smartphone === undefined
+            ? null
+            : Boolean(req.body.has_smartphone),
+        ]
       );
       if (!result.rows[0]) {
         res.status(404).json({ message: "Client not found." });
         return;
       }
-      res.json({ client: { ...result.rows[0], created_at: iso(result.rows[0].created_at) } });
-    }),
+      res.json({
+        client: {
+          ...result.rows[0],
+          created_at: iso(result.rows[0].created_at),
+        },
+      });
+    })
   );
 
   app.get(
     "/destinations",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const q = String(req.query.q ?? "").trim().toLowerCase();
+      const q = String(req.query.q ?? "")
+        .trim()
+        .toLowerCase();
       const type = String(req.query.type ?? "");
       const result = await pool.query(
         `SELECT id, organization_id, name, location_type AS type, address,
@@ -608,10 +703,10 @@ export function registerApi(app: Express): void {
            AND ($2 = '' OR location_type = $2)
            AND ($3 = '' OR lower(name || ' ' || address) LIKE '%' || $3 || '%')
          ORDER BY name`,
-        [req.auth?.organizationId, type === "all" ? "" : type, q],
+        [req.auth?.organizationId, type === "all" ? "" : type, q]
       );
       res.json({ destinations: result.rows });
-    }),
+    })
   );
 
   app.post(
@@ -623,8 +718,14 @@ export function registerApi(app: Express): void {
       const address = String(req.body.address ?? "").trim();
       const lat = Number(req.body.lat);
       const lng = Number(req.body.lng);
-      if (!name || !address || !["hospital", "shelter", "service"].includes(type)) {
-        res.status(400).json({ message: "Name, type, and address are required." });
+      if (
+        !name ||
+        !address ||
+        !["hospital", "shelter", "service"].includes(type)
+      ) {
+        res
+          .status(400)
+          .json({ message: "Name, type, and address are required." });
         return;
       }
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -635,10 +736,18 @@ export function registerApi(app: Express): void {
         `INSERT INTO addresses (organization_id, name, address, latitude, longitude, location_type, is_active)
          VALUES ($1,$2,$3,$4,$5,$6,$7)
          RETURNING id, organization_id, name, location_type AS type, address, latitude AS lat, longitude AS lng, is_active`,
-        [req.auth?.organizationId, name, address, lat, lng, type, req.body.is_active !== false],
+        [
+          req.auth?.organizationId,
+          name,
+          address,
+          lat,
+          lng,
+          type,
+          req.body.is_active !== false,
+        ]
       );
       res.status(201).json({ destination: result.rows[0] });
-    }),
+    })
   );
 
   app.patch(
@@ -667,14 +776,14 @@ export function registerApi(app: Express): void {
           req.body.lat === undefined ? null : Number(req.body.lat),
           req.body.lng === undefined ? null : Number(req.body.lng),
           req.body.is_active === undefined ? null : Boolean(req.body.is_active),
-        ],
+        ]
       );
       if (!result.rows[0]) {
         res.status(404).json({ message: "Location not found." });
         return;
       }
       res.json({ destination: result.rows[0] });
-    }),
+    })
   );
 
   app.get(
@@ -683,8 +792,11 @@ export function registerApi(app: Express): void {
     asyncRoute(async (req, res) => {
       await markTimedOut();
       const requestedStatus = String(req.query.status ?? "");
-      const status = requestedStatus === "accepted" ? "approved" : requestedStatus;
-      const q = String(req.query.q ?? "").trim().toLowerCase();
+      const status =
+        requestedStatus === "accepted" ? "approved" : requestedStatus;
+      const q = String(req.query.q ?? "")
+        .trim()
+        .toLowerCase();
       const result = await pool.query(
         `${rideListSql}
          WHERE r.organization_id = $1
@@ -694,10 +806,14 @@ export function registerApi(app: Express): void {
              OR lower(c.first_name || ' ' || c.last_name || ' ' || r.pickup_address || ' ' || r.destination_address) LIKE '%' || $3 || '%'
            )
          ORDER BY r.requested_pickup_at`,
-        [req.auth?.organizationId, status, q],
+        [req.auth?.organizationId, status, q]
       );
-      res.json({ rides: result.rows.map((row) => shapeRide(row as Record<string, unknown>)) });
-    }),
+      res.json({
+        rides: result.rows.map((row) =>
+          shapeRide(row as Record<string, unknown>)
+        ),
+      });
+    })
   );
 
   app.get(
@@ -712,7 +828,8 @@ export function registerApi(app: Express): void {
       }
       const auth = req.auth;
       const allowed =
-        (auth?.kind === "staff" && auth.organizationId === ride.organization_id) ||
+        (auth?.kind === "staff" &&
+          auth.organizationId === ride.organization_id) ||
         (auth?.kind === "driver" && ride.driver_id === auth.sub) ||
         (auth?.kind === "driver" && ride.status === "requested");
       if (!allowed) {
@@ -720,7 +837,7 @@ export function registerApi(app: Express): void {
         return;
       }
       res.json({ ride });
-    }),
+    })
   );
 
   app.post(
@@ -736,12 +853,24 @@ export function registerApi(app: Express): void {
       const passengers = Number(req.body.passenger_count);
       const tripType = String(req.body.trip_type ?? "one_way");
       const returnAt = String(req.body.return_pickup_at ?? "");
-      if (!clientId || !pickupId || !destinationId || !pickupAt || !Number.isFinite(passengers) || passengers < 1) {
-        res.status(400).json({ message: "Client, pickup, destination, pickup time, and passenger count are required." });
+      if (
+        !clientId ||
+        !pickupId ||
+        !destinationId ||
+        !pickupAt ||
+        !Number.isFinite(passengers) ||
+        passengers < 1
+      ) {
+        res.status(400).json({
+          message:
+            "Client, pickup, destination, pickup time, and passenger count are required.",
+        });
         return;
       }
       if (tripType === "round_trip" && !returnAt) {
-        res.status(400).json({ message: "Round trips need a return pickup time." });
+        res
+          .status(400)
+          .json({ message: "Round trips need a return pickup time." });
         return;
       }
       const db = await pool.connect();
@@ -749,23 +878,40 @@ export function registerApi(app: Express): void {
         await db.query("BEGIN");
         const client = await db.query(
           `SELECT id, first_name FROM clients WHERE id = $1 AND organization_id = $2`,
-          [clientId, orgId],
+          [clientId, orgId]
         );
         const pickup = await db.query(
           `SELECT id, name, address, latitude, longitude FROM addresses
            WHERE id = $1 AND organization_id = $2 AND is_active`,
-          [pickupId, orgId],
+          [pickupId, orgId]
         );
         const destination = await db.query(
           `SELECT id, name, address, latitude, longitude FROM addresses
            WHERE id = $1 AND organization_id = $2 AND is_active`,
-          [destinationId, orgId],
+          [destinationId, orgId]
         );
-        const pickupRow = pickup.rows[0] as { name: string; address: string; latitude: number; longitude: number } | undefined;
-        const destinationRow = destination.rows[0] as { id: string; name: string; address: string; latitude: number; longitude: number } | undefined;
+        const pickupRow = pickup.rows[0] as
+          | {
+              name: string;
+              address: string;
+              latitude: number;
+              longitude: number;
+            }
+          | undefined;
+        const destinationRow = destination.rows[0] as
+          | {
+              id: string;
+              name: string;
+              address: string;
+              latitude: number;
+              longitude: number;
+            }
+          | undefined;
         if (!client.rows[0] || !pickupRow || !destinationRow) {
           await db.query("ROLLBACK");
-          res.status(400).json({ message: "Choose an active client and address-book locations." });
+          res.status(400).json({
+            message: "Choose an active client and address-book locations.",
+          });
           return;
         }
         const needList = needs(req.body.accessibility_needs);
@@ -784,13 +930,27 @@ export function registerApi(app: Express): void {
            )
            RETURNING id, trip_group_id`,
           [
-            clientId, staffId, orgId,
-            pickupRow.address, pickupRow.latitude, pickupRow.longitude,
-            destinationRow.id, destinationRow.address, destinationRow.latitude, destinationRow.longitude,
-            pickupAt, passengers, needList, notes, group,
-          ],
+            clientId,
+            staffId,
+            orgId,
+            pickupRow.address,
+            pickupRow.latitude,
+            pickupRow.longitude,
+            destinationRow.id,
+            destinationRow.address,
+            destinationRow.latitude,
+            destinationRow.longitude,
+            pickupAt,
+            passengers,
+            needList,
+            notes,
+            group,
+          ]
         );
-        const outbound = inserted.rows[0] as { id: string; trip_group_id: string | null };
+        const outbound = inserted.rows[0] as {
+          id: string;
+          trip_group_id: string | null;
+        };
         const ids = [outbound.id];
         if (group && outbound.trip_group_id) {
           const inbound = await db.query(
@@ -804,14 +964,29 @@ export function registerApi(app: Express): void {
                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULLIF($14,''),'requested','free','return',$15,$16
              ) RETURNING id`,
             [
-              clientId, staffId, orgId,
-              destinationRow.address, destinationRow.latitude, destinationRow.longitude,
-              pickupId, pickupRow.address, pickupRow.latitude, pickupRow.longitude,
-              returnAt, passengers, needList, notes, outbound.trip_group_id, outbound.id,
-            ],
+              clientId,
+              staffId,
+              orgId,
+              destinationRow.address,
+              destinationRow.latitude,
+              destinationRow.longitude,
+              pickupId,
+              pickupRow.address,
+              pickupRow.latitude,
+              pickupRow.longitude,
+              returnAt,
+              passengers,
+              needList,
+              notes,
+              outbound.trip_group_id,
+              outbound.id,
+            ]
           );
           const returnId = (inbound.rows[0] as { id: string }).id;
-          await db.query(`UPDATE ride_requests SET linked_ride_id = $2 WHERE id = $1`, [outbound.id, returnId]);
+          await db.query(
+            `UPDATE ride_requests SET linked_ride_id = $2 WHERE id = $1`,
+            [outbound.id, returnId]
+          );
           ids.push(returnId);
         }
         for (const id of ids) await notifyStaff(db, id, "Ride booked");
@@ -828,7 +1003,7 @@ export function registerApi(app: Express): void {
       } finally {
         db.release();
       }
-    }),
+    })
   );
 
   app.post(
@@ -848,17 +1023,19 @@ export function registerApi(app: Express): void {
            SET status = 'cancelled', cancelled_reason = $3, updated_at = now()
            WHERE id = $1 AND organization_id = $2 AND status IN ('requested', 'approved')
            RETURNING id`,
-          [param(req, "id"), req.auth?.organizationId, reason],
+          [param(req, "id"), req.auth?.organizationId, reason]
         );
         if (!updated.rows[0]) {
           await db.query("ROLLBACK");
-          res.status(409).json({ message: "This ride can no longer be cancelled." });
+          res
+            .status(409)
+            .json({ message: "This ride can no longer be cancelled." });
           return;
         }
         await db.query(
           `UPDATE dispatches SET response = 'expired', responded_at = now()
            WHERE ride_request_id = $1 AND response = 'accepted'`,
-          [param(req, "id")],
+          [param(req, "id")]
         );
         await notifyStaff(db, param(req, "id"), "Ride cancelled");
         await db.query("COMMIT");
@@ -869,7 +1046,7 @@ export function registerApi(app: Express): void {
         db.release();
       }
       res.json({ ride: await presentRide(pool, param(req, "id")) });
-    }),
+    })
   );
 
   app.get(
@@ -880,10 +1057,14 @@ export function registerApi(app: Express): void {
       await markTimedOut();
       const result = await pool.query(
         `${rideListSql} WHERE ${eligibleSql.replaceAll("$DRIVER", "$1")} ORDER BY r.requested_pickup_at`,
-        [req.auth?.sub],
+        [req.auth?.sub]
       );
-      res.json({ rides: result.rows.map(row => shapeRide(row as Record<string, unknown>)) });
-    }),
+      res.json({
+        rides: result.rows.map((row) =>
+          shapeRide(row as Record<string, unknown>)
+        ),
+      });
+    })
   );
 
   app.get(
@@ -892,10 +1073,14 @@ export function registerApi(app: Express): void {
     asyncRoute(async (req, res) => {
       const result = await pool.query(
         `${rideListSql} WHERE r.driver_id = $1 ORDER BY r.requested_pickup_at`,
-        [req.auth?.sub],
+        [req.auth?.sub]
       );
-      res.json({ rides: result.rows.map((row) => shapeRide(row as Record<string, unknown>)) });
-    }),
+      res.json({
+        rides: result.rows.map((row) =>
+          shapeRide(row as Record<string, unknown>)
+        ),
+      });
+    })
   );
 
   app.post(
@@ -909,9 +1094,15 @@ export function registerApi(app: Express): void {
         await db.query("BEGIN");
         const locked = await db.query(
           `SELECT status, driver_id, requested_pickup_at FROM ride_requests WHERE id = $1 FOR UPDATE`,
-          [rideId],
+          [rideId]
         );
-        const current = locked.rows[0] as { status: string; driver_id: string | null; requested_pickup_at: Date } | undefined;
+        const current = locked.rows[0] as
+          | {
+              status: string;
+              driver_id: string | null;
+              requested_pickup_at: Date;
+            }
+          | undefined;
         if (!current) {
           await db.query("ROLLBACK");
           res.status(404).json({ message: "Ride not found." });
@@ -925,7 +1116,7 @@ export function registerApi(app: Express): void {
         if (current.requested_pickup_at.getTime() <= Date.now()) {
           await db.query(
             `UPDATE ride_requests SET status = 'timed_out', updated_at = now() WHERE id = $1`,
-            [rideId],
+            [rideId]
           );
           await db.query("COMMIT");
           res.status(409).json({ message: "This ride timed out." });
@@ -939,17 +1130,19 @@ export function registerApi(app: Express): void {
              AND r.driver_id IS NULL
              AND ${eligibleSql.replaceAll("$DRIVER", "$2")}
            RETURNING id`,
-          [rideId, driverId],
+          [rideId, driverId]
         );
         if (!claimed.rows[0]) {
           await db.query("ROLLBACK");
-          res.status(403).json({ message: "You are not eligible for this ride." });
+          res
+            .status(403)
+            .json({ message: "You are not eligible for this ride." });
           return;
         }
         await db.query(
           `INSERT INTO dispatches (ride_request_id, driver_id, response, responded_at)
            VALUES ($1, $2, 'accepted', now())`,
-          [rideId, driverId],
+          [rideId, driverId]
         );
         await notifyStaff(db, rideId, "Driver assigned");
         await db.query("COMMIT");
@@ -965,24 +1158,26 @@ export function registerApi(app: Express): void {
         db.release();
       }
       res.json({ ride: await presentRide(pool, rideId) });
-    }),
+    })
   );
 
   async function driverMove(
     req: AuthedRequest,
     res: Response,
     from: string,
-    changes: string,
+    changes: string
   ) {
     const result = await pool.query(
       `UPDATE ride_requests
        SET ${changes}, updated_at = now()
        WHERE id = $1 AND driver_id = $2 AND status = $3
        RETURNING id`,
-      [param(req, "id"), req.auth?.sub, from],
+      [param(req, "id"), req.auth?.sub, from]
     );
     if (!result.rows[0]) {
-      res.status(409).json({ message: "That ride is not ready for this action." });
+      res
+        .status(409)
+        .json({ message: "That ride is not ready for this action." });
       return;
     }
     res.json({ ride: await presentRide(pool, param(req, "id")) });
@@ -992,8 +1187,13 @@ export function registerApi(app: Express): void {
     "/rides/:id/pickup",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      await driverMove(req, res, "approved", "status = 'in_progress', is_client_picked_up = true");
-    }),
+      await driverMove(
+        req,
+        res,
+        "approved",
+        "status = 'in_progress', is_client_picked_up = true"
+      );
+    })
   );
 
   app.post(
@@ -1008,11 +1208,13 @@ export function registerApi(app: Express): void {
            SET status = 'completed', is_client_dropped_off = true, completed_at = now(), updated_at = now()
            WHERE id = $1 AND driver_id = $2 AND status = 'in_progress' AND is_client_picked_up
            RETURNING id`,
-          [param(req, "id"), req.auth?.sub],
+          [param(req, "id"), req.auth?.sub]
         );
         if (!result.rows[0]) {
           await db.query("ROLLBACK");
-          res.status(409).json({ message: "That ride is not ready for this action." });
+          res
+            .status(409)
+            .json({ message: "That ride is not ready for this action." });
           return;
         }
         await notifyStaff(db, param(req, "id"), "Ride completed");
@@ -1024,7 +1226,7 @@ export function registerApi(app: Express): void {
         db.release();
       }
       res.json({ ride: await presentRide(pool, param(req, "id")) });
-    }),
+    })
   );
 
   app.post(
@@ -1040,11 +1242,13 @@ export function registerApi(app: Express): void {
            SET status = 'no_show', cancelled_reason = $3, updated_at = now()
            WHERE id = $1 AND driver_id = $2 AND status = 'approved'
            RETURNING id`,
-          [param(req, "id"), req.auth?.sub, reason],
+          [param(req, "id"), req.auth?.sub, reason]
         );
         if (!result.rows[0]) {
           await db.query("ROLLBACK");
-          res.status(409).json({ message: "That ride is not ready for this action." });
+          res
+            .status(409)
+            .json({ message: "That ride is not ready for this action." });
           return;
         }
         await notifyStaff(db, param(req, "id"), "Ride no-show");
@@ -1056,7 +1260,7 @@ export function registerApi(app: Express): void {
         db.release();
       }
       res.json({ ride: await presentRide(pool, param(req, "id")) });
-    }),
+    })
   );
 
   app.post(
@@ -1077,17 +1281,19 @@ export function registerApi(app: Express): void {
                cancelled_reason = $3, updated_at = now()
            WHERE id = $1 AND driver_id = $2 AND status = 'approved'
            RETURNING id`,
-          [param(req, "id"), req.auth?.sub, reason],
+          [param(req, "id"), req.auth?.sub, reason]
         );
         if (!result.rows[0]) {
           await db.query("ROLLBACK");
-          res.status(409).json({ message: "Only an approved ride can be released." });
+          res
+            .status(409)
+            .json({ message: "Only an approved ride can be released." });
           return;
         }
         await db.query(
           `UPDATE dispatches SET response = 'expired', responded_at = now()
            WHERE ride_request_id = $1 AND driver_id = $2 AND response = 'accepted'`,
-          [param(req, "id"), req.auth?.sub],
+          [param(req, "id"), req.auth?.sub]
         );
         await notifyStaff(db, param(req, "id"), "Driver released ride");
         await db.query("COMMIT");
@@ -1098,25 +1304,48 @@ export function registerApi(app: Express): void {
         db.release();
       }
       res.json({ ride: await presentRide(pool, param(req, "id")) });
-    }),
+    })
   );
 
   app.post(
     "/drivers/register",
     asyncRoute(async (req, res) => {
       const full = String(req.body.name ?? "").trim();
-      const first = String(req.body.first_name ?? full.split(" ")[0] ?? "").trim();
-      const last = String(req.body.last_name ?? full.split(" ").slice(1).join(" ") ?? "").trim();
+      const first = String(
+        req.body.first_name ?? full.split(" ")[0] ?? ""
+      ).trim();
+      const last = String(
+        req.body.last_name ?? full.split(" ").slice(1).join(" ") ?? ""
+      ).trim();
       const dob = String(req.body.dob ?? "").trim();
-      const email = String(req.body.email ?? "").trim().toLowerCase();
+      const email = String(req.body.email ?? "")
+        .trim()
+        .toLowerCase();
       const phone = String(req.body.phone ?? "").trim();
       const password = String(req.body.password ?? "");
-      const plate = String(req.body.plate ?? "").trim().slice(0, 8);
+      const plate = String(req.body.plate ?? "")
+        .trim()
+        .slice(0, 8);
       const seats = Number(req.body.seats);
       const make = String(req.body.make ?? "").trim();
       const model = String(req.body.model ?? "").trim();
-      if (!first || !last || !dob || !email || !phone || password.length < 8 || !plate || !make || !model || !Number.isFinite(seats) || seats < 1) {
-        res.status(400).json({ message: "First name, last name, date of birth, contact, vehicle, and a password of at least 8 characters are required." });
+      if (
+        !first ||
+        !last ||
+        !dob ||
+        !email ||
+        !phone ||
+        password.length < 8 ||
+        !plate ||
+        !make ||
+        !model ||
+        !Number.isFinite(seats) ||
+        seats < 1
+      ) {
+        res.status(400).json({
+          message:
+            "First name, last name, date of birth, contact, vehicle, and a password of at least 8 characters are required.",
+        });
         return;
       }
       const passwordHash = await bcrypt.hash(password, 10);
@@ -1127,19 +1356,37 @@ export function registerApi(app: Express): void {
           `INSERT INTO drivers (first_name, last_name, dob, email, phone, password_hash)
            VALUES ($1,$2,$3,$4,$5,$6)
            RETURNING id, first_name, last_name, email, phone, dob::text`,
-          [first, last, dob, email, phone, passwordHash],
+          [first, last, dob, email, phone, passwordHash]
         );
-        const row = driver.rows[0] as { id: string; first_name: string; last_name: string; email: string; phone: string };
+        const row = driver.rows[0] as {
+          id: string;
+          first_name: string;
+          last_name: string;
+          email: string;
+          phone: string;
+        };
         await db.query(
           `INSERT INTO vehicles (driver_id, make, model, plate_number, seats, wheelchair_accessible)
            VALUES ($1,$2,$3,$4,$5,$6)`,
-          [row.id, make, model, plate, seats, Boolean(req.body.wheelchair_accessible)],
+          [
+            row.id,
+            make,
+            model,
+            plate,
+            seats,
+            Boolean(req.body.wheelchair_accessible),
+          ]
         );
         await db.query("COMMIT");
         const auth: Auth = { sub: row.id, kind: "driver", role: "driver" };
         res.status(201).json({
           token: sign(auth),
-          user: { ...row, name: `${row.first_name} ${row.last_name}`, kind: "driver", role: "driver" },
+          user: {
+            ...row,
+            name: `${row.first_name} ${row.last_name}`,
+            kind: "driver",
+            role: "driver",
+          },
         });
       } catch (error) {
         await db.query("ROLLBACK");
@@ -1151,7 +1398,7 @@ export function registerApi(app: Express): void {
       } finally {
         db.release();
       }
-    }),
+    })
   );
 
   app.get(
@@ -1166,12 +1413,15 @@ export function registerApi(app: Express): void {
          JOIN organizations o ON o.id = v.approved_by_org_id
          WHERE v.driver_id = $1
          ORDER BY v.reviewed_at DESC NULLS FIRST`,
-        [req.auth?.sub],
+        [req.auth?.sub]
       );
       res.json({
-        verifications: result.rows.map((row) => ({ ...row, reviewed_at: iso(row.reviewed_at) })),
+        verifications: result.rows.map((row) => ({
+          ...row,
+          reviewed_at: iso(row.reviewed_at),
+        })),
       });
-    }),
+    })
   );
 
   app.post(
@@ -1180,15 +1430,22 @@ export function registerApi(app: Express): void {
     upload.single("document"),
     asyncRoute(async (req, res) => {
       const orgId = String(req.body.organization_id ?? "");
-      const documentType = String(req.body.check_type ?? req.body.document_type ?? "identity").trim();
+      const documentType = String(
+        req.body.check_type ?? req.body.document_type ?? "identity"
+      ).trim();
       const file = req.file;
       if (!file) {
         res.status(400).json({ message: "Upload a document." });
         return;
       }
-      const org = await pool.query(`SELECT id FROM organizations WHERE id = $1`, [orgId]);
+      const org = await pool.query(
+        `SELECT id FROM organizations WHERE id = $1`,
+        [orgId]
+      );
       if (!org.rows[0]) {
-        res.status(400).json({ message: "Choose the organization that should approve you." });
+        res.status(400).json({
+          message: "Choose the organization that should approve you.",
+        });
         return;
       }
       const result = await pool.query(
@@ -1203,10 +1460,10 @@ export function registerApi(app: Express): void {
           file.buffer,
           file.originalname,
           String(req.body.expires_on ?? ""),
-        ],
+        ]
       );
       res.status(201).json({ verification: result.rows[0] });
-    }),
+    })
   );
 
   app.get(
@@ -1223,7 +1480,7 @@ export function registerApi(app: Express): void {
          FROM driver_availabilities
          WHERE driver_id = $1
          ORDER BY start_time`,
-        [req.auth?.sub],
+        [req.auth?.sub]
       );
       res.json({
         availability: result.rows.map((row) => ({
@@ -1232,7 +1489,7 @@ export function registerApi(app: Express): void {
           end_time: clock(row.end_time),
         })),
       });
-    }),
+    })
   );
 
   app.post(
@@ -1245,27 +1502,51 @@ export function registerApi(app: Express): void {
       const lat = Number(req.body.centre_lat);
       const lng = Number(req.body.centre_lng);
       const radiusKm = Number(req.body.radius_km);
-      if (!["one_time", "weekly", "monthly"].includes(kind) || !start || !end || end <= start) {
-        res.status(400).json({ message: "Choose a schedule and an end time after the start time." });
+      if (
+        !["one_time", "weekly", "monthly"].includes(kind) ||
+        !start ||
+        !end ||
+        end <= start
+      ) {
+        res.status(400).json({
+          message: "Choose a schedule and an end time after the start time.",
+        });
         return;
       }
-      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(radiusKm) || radiusKm <= 0) {
-        res.status(400).json({ message: "Drop a service-area pin and enter a radius in kilometres." });
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        !Number.isFinite(radiusKm) ||
+        radiusKm <= 0
+      ) {
+        res.status(400).json({
+          message: "Drop a service-area pin and enter a radius in kilometres.",
+        });
         return;
       }
-      const weekdays = Array.isArray(req.body.weekdays) ? req.body.weekdays.map(Number) : [];
-      const monthDays = Array.isArray(req.body.month_days) ? req.body.month_days.map(Number) : [];
+      const weekdays = Array.isArray(req.body.weekdays)
+        ? req.body.weekdays.map(Number)
+        : [];
+      const monthDays = Array.isArray(req.body.month_days)
+        ? req.body.month_days.map(Number)
+        : [];
       const onDate = String(req.body.on_date ?? "");
       if (kind === "one_time" && !onDate) {
-        res.status(400).json({ message: "One-time availability needs a date." });
+        res
+          .status(400)
+          .json({ message: "One-time availability needs a date." });
         return;
       }
       if (kind === "weekly" && weekdays.length === 0) {
-        res.status(400).json({ message: "Weekly availability needs at least one weekday." });
+        res
+          .status(400)
+          .json({ message: "Weekly availability needs at least one weekday." });
         return;
       }
       if (kind === "monthly" && monthDays.length === 0) {
-        res.status(400).json({ message: "Monthly availability needs at least one day of the month." });
+        res.status(400).json({
+          message: "Monthly availability needs at least one day of the month.",
+        });
         return;
       }
       const result = await pool.query(
@@ -1293,10 +1574,10 @@ export function registerApi(app: Express): void {
           kind === "weekly" ? weekdays : null,
           kind === "monthly" ? monthDays : null,
           String(req.body.note ?? ""),
-        ],
+        ]
       );
       res.status(201).json({ availability: result.rows[0] });
-    }),
+    })
   );
 
   app.patch(
@@ -1304,10 +1585,22 @@ export function registerApi(app: Express): void {
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
       req.body ??= {};
-      const editingSchedule = ["kind", "start_time", "end_time", "centre_lat", "centre_lng", "radius_km", "on_date", "weekdays", "month_days", "note"].some(
-        (key) => Object.hasOwn(req.body, key),
-      );
-      if (req.body.is_active !== undefined && typeof req.body.is_active !== "boolean") {
+      const editingSchedule = [
+        "kind",
+        "start_time",
+        "end_time",
+        "centre_lat",
+        "centre_lng",
+        "radius_km",
+        "on_date",
+        "weekdays",
+        "month_days",
+        "note",
+      ].some((key) => Object.hasOwn(req.body, key));
+      if (
+        req.body.is_active !== undefined &&
+        typeof req.body.is_active !== "boolean"
+      ) {
         res.status(400).json({ message: "Active must be true or false." });
         return;
       }
@@ -1324,28 +1617,74 @@ export function registerApi(app: Express): void {
         const lng = Number(req.body.centre_lng);
         const radiusKm = Number(req.body.radius_km);
         const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
-        if (!["one_time", "weekly", "monthly"].includes(kind) || !timePattern.test(start) || !timePattern.test(end) || end <= start) {
-          res.status(400).json({ message: "Choose a schedule and an end time after the start time." });
+        if (
+          !["one_time", "weekly", "monthly"].includes(kind) ||
+          !timePattern.test(start) ||
+          !timePattern.test(end) ||
+          end <= start
+        ) {
+          res.status(400).json({
+            message: "Choose a schedule and an end time after the start time.",
+          });
           return;
         }
-        if (req.body.centre_lat == null || req.body.centre_lng == null || !Number.isFinite(lat) || Math.abs(lat) > 90 || !Number.isFinite(lng) || Math.abs(lng) > 180 || !Number.isFinite(radiusKm) || radiusKm <= 0) {
-          res.status(400).json({ message: "Drop a service-area pin and enter a radius in kilometres." });
+        if (
+          req.body.centre_lat == null ||
+          req.body.centre_lng == null ||
+          !Number.isFinite(lat) ||
+          Math.abs(lat) > 90 ||
+          !Number.isFinite(lng) ||
+          Math.abs(lng) > 180 ||
+          !Number.isFinite(radiusKm) ||
+          radiusKm <= 0
+        ) {
+          res.status(400).json({
+            message:
+              "Drop a service-area pin and enter a radius in kilometres.",
+          });
           return;
         }
-        const weekdays = Array.isArray(req.body.weekdays) ? req.body.weekdays.map(Number) : [];
-        const monthDays = Array.isArray(req.body.month_days) ? req.body.month_days.map(Number) : [];
+        const weekdays = Array.isArray(req.body.weekdays)
+          ? req.body.weekdays.map(Number)
+          : [];
+        const monthDays = Array.isArray(req.body.month_days)
+          ? req.body.month_days.map(Number)
+          : [];
         const onDate = String(req.body.on_date ?? "");
         const date = new Date(`${onDate}T00:00:00Z`);
-        if (kind === "one_time" && (!/^\d{4}-\d{2}-\d{2}$/.test(onDate) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== onDate)) {
-          res.status(400).json({ message: "One-time availability needs a valid date." });
+        if (
+          kind === "one_time" &&
+          (!/^\d{4}-\d{2}-\d{2}$/.test(onDate) ||
+            !Number.isFinite(date.getTime()) ||
+            date.toISOString().slice(0, 10) !== onDate)
+        ) {
+          res
+            .status(400)
+            .json({ message: "One-time availability needs a valid date." });
           return;
         }
-        if (kind === "weekly" && (!weekdays.length || weekdays.some((day: number) => !Number.isInteger(day) || day < 0 || day > 6))) {
-          res.status(400).json({ message: "Weekly availability needs valid weekdays." });
+        if (
+          kind === "weekly" &&
+          (!weekdays.length ||
+            weekdays.some(
+              (day: number) => !Number.isInteger(day) || day < 0 || day > 6
+            ))
+        ) {
+          res
+            .status(400)
+            .json({ message: "Weekly availability needs valid weekdays." });
           return;
         }
-        if (kind === "monthly" && (!monthDays.length || monthDays.some((day: number) => !Number.isInteger(day) || day < 1 || day > 31))) {
-          res.status(400).json({ message: "Monthly availability needs valid days of the month." });
+        if (
+          kind === "monthly" &&
+          (!monthDays.length ||
+            monthDays.some(
+              (day: number) => !Number.isInteger(day) || day < 1 || day > 31
+            ))
+        ) {
+          res.status(400).json({
+            message: "Monthly availability needs valid days of the month.",
+          });
           return;
         }
         result = await pool.query(
@@ -1357,9 +1696,21 @@ export function registerApi(app: Express): void {
                is_active = COALESCE($13::boolean, is_active)
            WHERE id = $1 AND driver_id = $2
            RETURNING id, is_active`,
-          [param(req, "id"), req.auth?.sub, lng, lat, radiusKm * 1000, kind, start, end,
-            kind === "one_time" ? onDate : "", kind === "weekly" ? weekdays : null,
-            kind === "monthly" ? monthDays : null, String(req.body.note ?? ""), req.body.is_active ?? null],
+          [
+            param(req, "id"),
+            req.auth?.sub,
+            lng,
+            lat,
+            radiusKm * 1000,
+            kind,
+            start,
+            end,
+            kind === "one_time" ? onDate : "",
+            kind === "weekly" ? weekdays : null,
+            kind === "monthly" ? monthDays : null,
+            String(req.body.note ?? ""),
+            req.body.is_active ?? null,
+          ]
         );
       } else {
         result = await pool.query(
@@ -1367,7 +1718,7 @@ export function registerApi(app: Express): void {
            SET is_active = $3
            WHERE id = $1 AND driver_id = $2
            RETURNING id, is_active`,
-          [param(req, "id"), req.auth?.sub, req.body.is_active],
+          [param(req, "id"), req.auth?.sub, req.body.is_active]
         );
       }
       if (!result.rows[0]) {
@@ -1375,7 +1726,7 @@ export function registerApi(app: Express): void {
         return;
       }
       res.json({ availability: result.rows[0] });
-    }),
+    })
   );
 
   app.delete(
@@ -1384,14 +1735,14 @@ export function registerApi(app: Express): void {
     asyncRoute(async (req, res) => {
       const result = await pool.query(
         `DELETE FROM driver_availabilities WHERE id = $1 AND driver_id = $2`,
-        [param(req, "id"), req.auth?.sub],
+        [param(req, "id"), req.auth?.sub]
       );
       if (!result.rowCount) {
         res.status(404).json({ message: "Availability not found." });
         return;
       }
       res.json({ ok: true });
-    }),
+    })
   );
 
   app.get(
@@ -1412,7 +1763,7 @@ export function registerApi(app: Express): void {
          ) veh ON true
          WHERE v.approved_by_org_id = $1
          ORDER BY v.status, v.reviewed_at DESC NULLS FIRST`,
-        [req.auth?.organizationId],
+        [req.auth?.organizationId]
       );
       res.json({
         verifications: result.rows.map((row) => ({
@@ -1429,7 +1780,7 @@ export function registerApi(app: Express): void {
             : null,
         })),
       });
-    }),
+    })
   );
 
   app.post(
@@ -1441,14 +1792,19 @@ export function registerApi(app: Express): void {
          SET status = 'approved', approved_by_staff_id = $3, reviewed_at = now()
          WHERE id = $1 AND approved_by_org_id = $2
          RETURNING id, status, reviewed_at`,
-        [param(req, "id"), req.auth?.organizationId, req.auth?.sub],
+        [param(req, "id"), req.auth?.organizationId, req.auth?.sub]
       );
       if (!result.rows[0]) {
         res.status(404).json({ message: "Verification not found." });
         return;
       }
-      res.json({ verification: { ...result.rows[0], reviewed_at: iso(result.rows[0].reviewed_at) } });
-    }),
+      res.json({
+        verification: {
+          ...result.rows[0],
+          reviewed_at: iso(result.rows[0].reviewed_at),
+        },
+      });
+    })
   );
 
   app.post(
@@ -1465,14 +1821,19 @@ export function registerApi(app: Express): void {
          SET status = 'rejected', approved_by_staff_id = $3, reviewed_at = now(), reject_reason = $4
          WHERE id = $1 AND approved_by_org_id = $2
          RETURNING id, status, reject_reason, reviewed_at`,
-        [param(req, "id"), req.auth?.organizationId, req.auth?.sub, reason],
+        [param(req, "id"), req.auth?.organizationId, req.auth?.sub, reason]
       );
       if (!result.rows[0]) {
         res.status(404).json({ message: "Verification not found." });
         return;
       }
-      res.json({ verification: { ...result.rows[0], reviewed_at: iso(result.rows[0].reviewed_at) } });
-    }),
+      res.json({
+        verification: {
+          ...result.rows[0],
+          reviewed_at: iso(result.rows[0].reviewed_at),
+        },
+      });
+    })
   );
 
   app.get(
@@ -1482,16 +1843,21 @@ export function registerApi(app: Express): void {
       const result = await pool.query(
         `SELECT document, document_filename FROM driver_verifications
          WHERE id = $1 AND approved_by_org_id = $2`,
-        [param(req, "id"), req.auth?.organizationId],
+        [param(req, "id"), req.auth?.organizationId]
       );
-      const row = result.rows[0] as { document: Buffer; document_filename: string | null } | undefined;
+      const row = result.rows[0] as
+        | { document: Buffer; document_filename: string | null }
+        | undefined;
       if (!row) {
         res.status(404).json({ message: "No uploaded document." });
         return;
       }
-      res.setHeader("Content-Disposition", `inline; filename="${row.document_filename ?? "document"}"`);
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${row.document_filename ?? "document"}"`
+      );
       res.type("application/octet-stream").send(row.document);
-    }),
+    })
   );
 
   app.get(
@@ -1501,9 +1867,9 @@ export function registerApi(app: Express): void {
       const result = await pool.query(
         `SELECT id, staff_id, ride_request_id, title, message, action_url, channel, metadata, is_read, created_at
          FROM notifications
-         WHERE ${req.auth?.kind === 'driver' ? 'driver_id' : 'staff_id'} = $1
+         WHERE ${req.auth?.kind === "driver" ? "driver_id" : "staff_id"} = $1
          ORDER BY created_at DESC`,
-        [req.auth?.sub],
+        [req.auth?.sub]
       );
       res.json({
         notifications: result.rows.map((row) => ({
@@ -1514,7 +1880,7 @@ export function registerApi(app: Express): void {
           read_at: row.is_read ? iso(row.created_at) : null,
         })),
       });
-    }),
+    })
   );
 
   app.post(
@@ -1523,16 +1889,16 @@ export function registerApi(app: Express): void {
     asyncRoute(async (req, res) => {
       const result = await pool.query(
         `UPDATE notifications SET is_read = true
-         WHERE id = $1 AND ${req.auth?.kind === 'driver' ? 'driver_id' : 'staff_id'} = $2
+         WHERE id = $1 AND ${req.auth?.kind === "driver" ? "driver_id" : "staff_id"} = $2
          RETURNING id, is_read`,
-        [param(req, "id"), req.auth?.sub],
+        [param(req, "id"), req.auth?.sub]
       );
       if (!result.rows[0]) {
         res.status(404).json({ message: "Notification not found." });
         return;
       }
       res.json({ notification: result.rows[0] });
-    }),
+    })
   );
 
   app.get(
@@ -1543,9 +1909,10 @@ export function registerApi(app: Express): void {
         `SELECT count(*)::int AS completed_rides
          FROM ride_requests
          WHERE organization_id = $1 AND status = 'completed'`,
-        [req.auth?.organizationId],
+        [req.auth?.organizationId]
       );
-      const completed = (result.rows[0] as { completed_rides: number }).completed_rides;
+      const completed = (result.rows[0] as { completed_rides: number })
+        .completed_rides;
       res.json({
         label: "Sample data",
         completed_rides: completed,
@@ -1554,11 +1921,13 @@ export function registerApi(app: Express): void {
         estimated_cost_saved: completed * 28,
         staff_minutes_spent: completed * 15,
       });
-    }),
+    })
   );
 
-  app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(error);
-    res.status(500).json({ message: "Internal server error." });
-  });
+  app.use(
+    (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error." });
+    }
+  );
 }

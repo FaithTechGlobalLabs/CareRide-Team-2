@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "zod";
 
 /** JSON representation produced by the current ride response mapper. */
 export const rideResponseSchema = z.object({
@@ -54,24 +54,24 @@ export const rideResponseSchema = z.object({
     })
     .nullable(),
   sample: z.boolean(),
-})
+});
 
 /** POST /rides 201 response, with the outbound leg before the optional return leg. */
 export const createRideResponseSchema = z.object({
   rides: z.array(rideResponseSchema),
-})
+});
 
 /** POST /rides 400, 401, 403, and 500 response body. */
 export const createRideErrorResponseSchema = z.object({
   message: z.string(),
-})
+});
 
 /** POST /rides/:id/accept 200 response.
  * The post-commit lookup can return null; otherwise it uses the shared ride mapper.
  */
 export const acceptRideResponseSchema = z.object({
   ride: rideResponseSchema.nullable(),
-})
+});
 
 /** POST /rides/:id/accept error response body:
  * - 401: Login required. / Login expired.
@@ -82,14 +82,14 @@ export const acceptRideResponseSchema = z.object({
  */
 export const acceptRideErrorResponseSchema = z.object({
   message: z.string(),
-})
+});
 
-export type RideResponse = z.infer<typeof rideResponseSchema>
-export type CreateRideResponse = z.infer<typeof createRideResponseSchema>
+export type RideResponse = z.infer<typeof rideResponseSchema>;
+export type CreateRideResponse = z.infer<typeof createRideResponseSchema>;
 export type CreateRideErrorResponse = z.infer<
   typeof createRideErrorResponseSchema
->
-export type AcceptRideResponse = z.infer<typeof acceptRideResponseSchema>
+>;
+export type AcceptRideResponse = z.infer<typeof acceptRideResponseSchema>;
 export type AcceptRideErrorResponse = z.infer<
   typeof acceptRideErrorResponseSchema
->
+>;

@@ -1,20 +1,21 @@
-import { pool } from "./db.js";
 import type { Staff, StaffRole } from "../types/user.types.js";
+
+import { pool } from "./db.js";
 
 function postgresUnused(): never {
   throw new Error(
-    "Postgres staff helpers are unused. Use the JSON API in src/api/routes.ts.",
+    "Postgres staff helpers are unused. Use the JSON API in src/api/routes.ts."
   );
 }
 
 export const findStaffByEmail = async (
-  email: string,
+  email: string
 ): Promise<Staff | null> => {
   const result = await pool.query<Staff>(
     `SELECT *
      FROM staff
      WHERE email = $1`,
-    [email],
+    [email]
   );
 
   return result.rows[0] ?? null;
@@ -33,7 +34,7 @@ export const createStaff = async (staff: Omit<Staff, "id">): Promise<Staff> => {
       staff.phone,
       staff.password_hash,
       staff.is_active,
-    ],
+    ]
   );
 
   const created = result.rows[0];
@@ -46,14 +47,14 @@ export const createStaff = async (staff: Omit<Staff, "id">): Promise<Staff> => {
 export const getAllStaff = async (): Promise<Staff[]> => postgresUnused();
 
 export const findStaffById = async (
-  _id: string | string[] | undefined,
+  _id: string | string[] | undefined
 ): Promise<Staff | null> => postgresUnused();
 
 export const updateStaffRoleById = async (
   _id: string | string[] | undefined,
-  _role: StaffRole,
+  _role: StaffRole
 ): Promise<Staff> => postgresUnused();
 
 export const deleteStaffById = async (
-  _id: string | string[] | undefined,
+  _id: string | string[] | undefined
 ): Promise<void> => postgresUnused();

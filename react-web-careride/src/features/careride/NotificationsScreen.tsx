@@ -1,20 +1,21 @@
-import { useState } from "react"
-import { Link } from "@tanstack/react-router"
-import { ArrowRight, Bell, CheckCheck } from "lucide-react"
-import { useCare } from "./context"
-import { Layout } from "./Layout"
-import { ActionButton, Empty, PageTitle, Panel, dateTime } from "./ui"
-import { NotificationControls } from "./NotificationControls"
+import { Link } from "@tanstack/react-router";
+import { ArrowRight, Bell, CheckCheck } from "lucide-react";
+import { useState } from "react";
+
+import { useCare } from "./context";
+import { Layout } from "./Layout";
+import { NotificationControls } from "./NotificationControls";
+import { ActionButton, Empty, PageTitle, Panel, dateTime } from "./ui";
 
 export function NotificationsScreen() {
-  const { session, data, mutate } = useCare()
-  const [unreadOnly, setUnreadOnly] = useState(false)
-  const driver = session?.user.role === "driver"
-  const unread = data.notifications.filter((n) => !n.read_at).length
+  const { session, data, mutate } = useCare();
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const driver = session?.user.role === "driver";
+  const unread = data.notifications.filter((n) => !n.read_at).length;
   const notices = data.notifications
     .filter((n) => !unreadOnly || !n.read_at)
-    .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""))
-  const firstName = session?.user.name.split(" ")[0] ?? "Your"
+    .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""));
+  const firstName = session?.user.name.split(" ")[0] ?? "Your";
   return (
     <Layout driver={driver}>
       <PageTitle
@@ -58,11 +59,11 @@ export function NotificationsScreen() {
           {notices.map((n) => {
             const clientId = n.action_url?.startsWith("/clients/")
               ? n.action_url.slice("/clients/".length)
-              : undefined
+              : undefined;
             const noLongerAvailable =
               driver &&
               n.type === "available_ride" &&
-              !data.availableRides.some((r) => r.id === n.ride_request_id)
+              !data.availableRides.some((r) => r.id === n.ride_request_id);
             const title =
               n.title ??
               {
@@ -71,7 +72,7 @@ export function NotificationsScreen() {
                 completed: "Your client has arrived",
                 cancelled: "Ride cancelled",
               }[n.type] ??
-              "Ride update"
+              "Ride update";
             return (
               <article
                 key={n.id}
@@ -119,7 +120,7 @@ export function NotificationsScreen() {
                   </ActionButton>
                 )}
               </article>
-            )
+            );
           })}
         </div>
         {!notices.length && (
@@ -136,5 +137,5 @@ export function NotificationsScreen() {
         )}
       </Panel>
     </Layout>
-  )
+  );
 }

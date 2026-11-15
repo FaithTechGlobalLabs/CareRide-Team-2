@@ -4,8 +4,8 @@ export class PassengerCount {
 
   static of(value: number): PassengerCount {
     if (!Number.isInteger(value) || value <= 0) {
-      throw new Error("Passenger count must be a positive integer.")
+      throw new Error("Passenger count must be a positive integer.");
     }
-    return Object.freeze(new PassengerCount(value))
+    return Object.freeze(new PassengerCount(value));
   }
 }

@@ -1,10 +1,10 @@
-import type { DatabaseTransaction } from "../../../application/ports/database.js"
+import type { DatabaseTransaction } from "../../../application/ports/database.js";
 import type {
   INotificationsRepository,
   StaffNotification,
-} from "../../../application/ports/notificationsRepository.js"
+} from "../../../application/ports/notificationsRepository.js";
 
-import { RideAssignmentConflict } from "../../../application/ports/rideRequestsRepository.js"
+import { RideAssignmentConflict } from "../../../application/ports/rideRequestsRepository.js";
 
 export class NotificationsRepository implements INotificationsRepository {
   async addForStaff(
@@ -27,13 +27,13 @@ export class NotificationsRepository implements INotificationsRepository {
             trip_leg: notification.metadata.tripLeg,
           },
         })
-        .execute()
+        .execute();
     } catch (error) {
       // Preserve the old transaction adapter's unique-violation outcome.
       if (error instanceof Error && "code" in error && error.code === "23505") {
-        throw new RideAssignmentConflict("Already assigned", { cause: error })
+        throw new RideAssignmentConflict("Already assigned", { cause: error });
       }
-      throw error
+      throw error;
     }
   }
 }

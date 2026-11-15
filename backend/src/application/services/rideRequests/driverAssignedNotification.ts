@@ -1,5 +1,5 @@
-import type { StaffNotification } from "../../ports/notificationsRepository.js"
-import type { RideNotificationContext } from "../../ports/rideQueries.js"
+import type { StaffNotification } from "../../ports/notificationsRepository.js";
+import type { RideNotificationContext } from "../../ports/rideQueries.js";
 
 export function driverAssignedNotification(
   rideId: string,
@@ -12,12 +12,12 @@ export function driverAssignedNotification(
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(context.pickupAt)
+  }).format(context.pickupAt);
   const people =
     context.passengerCount === 1
       ? "1 passenger"
-      : `${context.passengerCount} passengers`
-  const leg = context.tripLeg === "return" ? "Return leg" : "One way"
+      : `${context.passengerCount} passengers`;
+  const leg = context.tripLeg === "return" ? "Return leg" : "One way";
   return {
     staffId: context.requestedByStaffId,
     rideId,
@@ -28,5 +28,5 @@ export function driverAssignedNotification(
       passengerCount: context.passengerCount,
       tripLeg: context.tripLeg,
     },
-  }
+  };
 }

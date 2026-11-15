@@ -1,26 +1,29 @@
-import { useCallback, useEffect, useState } from "react"
-import type { ReactNode } from "react"
-import { Context, emptyData } from "./context"
-import { request, IS_DEMO } from "./api"
-import type { Data, Session } from "./types"
-import { disableDevice } from "./NotificationControls"
-const KEY = "careride-session"
+import type { ReactNode } from "react";
+
+import { useCallback, useEffect, useState } from "react";
+
+import type { Data, Session } from "./types";
+
+import { request, IS_DEMO } from "./api";
+import { Context, emptyData } from "./context";
+import { disableDevice } from "./NotificationControls";
+const KEY = "careride-session";
 export function CareProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => {
     try {
-      return JSON.parse(sessionStorage.getItem(KEY) ?? "null")
+      return JSON.parse(sessionStorage.getItem(KEY) ?? "null");
     } catch {
-      return null
+      return null;
     }
-  })
-  const [data, setData] = useState<Data>(emptyData)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  });
+  const [data, setData] = useState<Data>(emptyData);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const refresh = useCallback(async () => {
-    if (!session) return
-    setLoading(true)
+    if (!session) return;
+    setLoading(true);
     try {
-      const driver = session.user.role === "driver"
+      const driver = session.user.role === "driver";
       const paths = driver
         ? [
             "/drivers/me/rides",
@@ -37,7 +40,7 @@ export function CareProvider({ children }: { children: ReactNode }) {
             "/notifications",
             "/admin/verifications",
             "/admin/demo-summary",
-          ]
+          ];
       const keys: (keyof Data)[] = driver
         ? [
             "rides",
@@ -54,64 +57,64 @@ export function CareProvider({ children }: { children: ReactNode }) {
             "notifications",
             "verifications",
             "summary",
-          ]
+          ];
       const results = await Promise.allSettled(
         paths.map((path) => request(path, session))
-      )
-      const next = { ...emptyData }
-      const failures: string[] = []
+      );
+      const next = { ...emptyData };
+      const failures: string[] = [];
       results.forEach((r, i) => {
         if (r.status === "fulfilled")
-          Object.assign(next, { [keys[i]]: r.value })
+          Object.assign(next, { [keys[i]]: r.value });
         else
           failures.push(
             r.reason instanceof Error
               ? r.reason.message
               : "Could not load data."
-          )
-      })
-      setData(next)
-      setError(failures.length ? failures.join(" ") : "")
+          );
+      });
+      setData(next);
+      setError(failures.length ? failures.join(" ") : "");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [session])
+  }, [session]);
   useEffect(() => {
     const timer = setTimeout(() => {
-      void refresh()
-    }, 0)
+      void refresh();
+    }, 0);
     const interval = setInterval(
       () => {
-        void refresh()
+        void refresh();
       },
       IS_DEMO ? 10000 : 15000
-    )
+    );
     const update = () => {
-      void refresh()
-    }
-    window.addEventListener("storage", update)
+      void refresh();
+    };
+    window.addEventListener("storage", update);
     return () => {
-      clearTimeout(timer)
-      clearInterval(interval)
-      window.removeEventListener("storage", update)
-    }
-  }, [refresh])
+      clearTimeout(timer);
+      clearInterval(interval);
+      window.removeEventListener("storage", update);
+    };
+  }, [refresh]);
   function login(value: Session) {
-    sessionStorage.setItem(KEY, JSON.stringify(value))
-    setData(emptyData)
-    setSession(value)
+    sessionStorage.setItem(KEY, JSON.stringify(value));
+    setData(emptyData);
+    setSession(value);
   }
   async function logout() {
-    if (session && !IS_DEMO) await disableDevice(session).catch(() => {})
-    sessionStorage.removeItem(KEY)
-    setSession(null)
-    setData(emptyData)
-    setError("")
+    if (session && !IS_DEMO) await disableDevice(session).catch(() => {});
+    sessionStorage.removeItem(KEY);
+    setSession(null);
+    setData(emptyData);
+    setError("");
   }
   async function mutate<T>(path: string, method = "POST", body?: unknown) {
-    const result = await request<T>(path, session, method, body)
-    await refresh()
-    return result
+    const result = await request<T>(path, session, method, body);
+    await refresh();
+    return result;
   }
   return (
     <Context.Provider
@@ -119,5 +122,5 @@ export function CareProvider({ children }: { children: ReactNode }) {
     >
       {children}
     </Context.Provider>
-  )
+  );
 }

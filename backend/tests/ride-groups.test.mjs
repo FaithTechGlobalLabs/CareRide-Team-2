@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
 import { groupRideAppointments } from "../../react-web-careride/src/features/careride/rideGroups.ts";
 
 test("linked legs stay together across midnight, outbound first", () => {
@@ -18,9 +19,9 @@ test("linked legs stay together across midnight, outbound first", () => {
   const single = { id: "single", requested_pickup_at: "2026-10-05T07:00:00Z" };
   assert.deepEqual(
     groupRideAppointments([inbound, single, outbound]).map((g) =>
-      g.map((r) => r.id),
+      g.map((r) => r.id)
     ),
-    [["out", "back"], ["single"]],
+    [["out", "back"], ["single"]]
   );
 });
 test("trip IDs group legs without link IDs and do not merge other appointments", () => {
@@ -41,7 +42,7 @@ test("trip IDs group legs without link IDs and do not merge other appointments",
   ];
   assert.deepEqual(
     groupRideAppointments(rides).map((g) => g.map((r) => r.id)),
-    [["out", "back"], ["single"]],
+    [["out", "back"], ["single"]]
   );
 });
 test("filtering to one leg never reveals an unlisted ride", () => {

@@ -1,4 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { DriverDashboard } from "@/features/careride/Dashboard"
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/driver/")({ component: DriverDashboard })
+import { DriverDashboard } from "@/features/careride/Dashboard";
+
+export const Route = createFileRoute("/driver/")({
+  component: DriverDashboard,
+});

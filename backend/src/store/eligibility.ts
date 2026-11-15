@@ -10,7 +10,7 @@ function kmBetween(
   lat1: number,
   lng1: number,
   lat2: number,
-  lng2: number,
+  lng2: number
 ): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -64,7 +64,7 @@ function vancouverParts(iso: string): {
 function availabilityCovers(
   rule: DriverAvailability,
   pickupIso: string,
-  now: Date,
+  now: Date
 ): boolean {
   if (!rule.is_active) return false;
   const pickup = new Date(pickupIso);
@@ -86,7 +86,7 @@ export function matchingAvailability(
   db: Db,
   driverId: string,
   ride: RideRequest,
-  now = new Date(),
+  now = new Date()
 ): DriverAvailability | undefined {
   return db.availabilities.find(
     (rule) =>
@@ -96,8 +96,10 @@ export function matchingAvailability(
         rule.centre_lat,
         rule.centre_lng,
         ride.pickup_lat,
-        ride.pickup_lng,
-      ) <= (rule.radius_km ?? (rule as DriverAvailability & { radius_m?: number }).radius_m! / 1000),
+        ride.pickup_lng
+      ) <=
+        (rule.radius_km ??
+          (rule as DriverAvailability & { radius_m?: number }).radius_m! / 1000)
   );
 }
 
@@ -106,7 +108,7 @@ export function driverCanClaim(
   driver: Driver,
   vehicle: Vehicle | undefined,
   ride: RideRequest,
-  now = new Date(),
+  now = new Date()
 ):
   | { ok: true; availability: DriverAvailability }
   | { ok: false; reason: string } {
@@ -117,7 +119,8 @@ export function driverCanClaim(
     (row) =>
       row.driver_id === driver.id &&
       row.approved_by_org_id === ride.organization_id &&
-      row.status === "approved" && (!row.expires_on || row.expires_on >= now.toISOString().slice(0, 10)),
+      row.status === "approved" &&
+      (!row.expires_on || row.expires_on >= now.toISOString().slice(0, 10))
   );
   if (!approved) {
     return { ok: false, reason: "This organization has not approved you." };
@@ -126,9 +129,11 @@ export function driverCanClaim(
     return { ok: false, reason: "Vehicle capacity is too small." };
   }
   const rawNeeds: unknown = ride.accessibility_needs;
-  const needs = Array.isArray(rawNeeds) ? rawNeeds.map(String) : [String(rawNeeds ?? "")];
+  const needs = Array.isArray(rawNeeds)
+    ? rawNeeds.map(String)
+    : [String(rawNeeds ?? "")];
   const needsWheelchair = needs.some((need) =>
-    need.toLowerCase().includes("wheelchair"),
+    need.toLowerCase().includes("wheelchair")
   );
   if (needsWheelchair && !vehicle.wheelchair_accessible) {
     return {

@@ -1,5 +1,4 @@
-import { useState } from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   Check,
@@ -10,13 +9,15 @@ import {
   Phone,
   Users,
   Plus,
-} from "lucide-react"
-import { ConfettiButton } from "../../components/ui/confetti"
-import { BookingDayCard } from "./BookingDay"
-import { AddToCalendar } from "./AddToCalendar"
-import { useCare } from "./context"
-import { Layout } from "./Layout"
-import { queueInstallHelpAfterFirstRideAcceptance } from "./iosInstall"
+} from "lucide-react";
+import { useState } from "react";
+
+import { ConfettiButton } from "../../components/ui/confetti";
+import { AddToCalendar } from "./AddToCalendar";
+import { BookingDayCard } from "./BookingDay";
+import { useCare } from "./context";
+import { queueInstallHelpAfterFirstRideAcceptance } from "./iosInstall";
+import { Layout } from "./Layout";
 import {
   Badge,
   Empty,
@@ -26,31 +27,31 @@ import {
   dateTime,
   passengerName,
   placeLabel,
-} from "./ui"
+} from "./ui";
 export function RideDetail({ rideId }: { rideId: string }) {
-  const { data, session, mutate } = useCare()
-  const navigate = useNavigate()
-  const driver = session?.user.role === "driver"
+  const { data, session, mutate } = useCare();
+  const navigate = useNavigate();
+  const driver = session?.user.role === "driver";
   const [mapProvider, setMapProvider] = useState<"google" | "apple">(() => {
     try {
       return localStorage.getItem("careride-map-provider") === "apple"
         ? "apple"
-        : "google"
+        : "google";
     } catch {
-      return "google"
+      return "google";
     }
-  })
+  });
   function selectMapProvider(provider: "google" | "apple") {
-    setMapProvider(provider)
+    setMapProvider(provider);
     try {
-      localStorage.setItem("careride-map-provider", provider)
+      localStorage.setItem("careride-map-provider", provider);
     } catch {
       /* Keep the selection for this visit if storage is unavailable. */
     }
   }
   const ride = [...data.rides, ...data.availableRides].find(
     (r) => r.id === rideId
-  )
+  );
   if (!ride)
     return (
       <Layout driver={driver}>
@@ -64,11 +65,11 @@ export function RideDetail({ rideId }: { rideId: string }) {
           }
         />
       </Layout>
-    )
+    );
   const client =
-    ride.client ?? data.clients.find((c) => c.id === ride.client_id)
-  const assigned = ride.driver_id === session?.user.id
-  const maps = mapLinks(ride)
+    ride.client ?? data.clients.find((c) => c.id === ride.client_id);
+  const assigned = ride.driver_id === session?.user.id;
+  const maps = mapLinks(ride);
   const steps = [
     { title: "Request submitted", done: true, time: ride.created_at },
     {
@@ -86,7 +87,7 @@ export function RideDetail({ rideId }: { rideId: string }) {
       done: ride.status === "completed",
       time: ride.completed_at,
     },
-  ]
+  ];
   return (
     <Layout driver={driver}>
       <Link to={driver ? "/driver" : "/rides"} className="text-link">
@@ -162,18 +163,18 @@ export function RideDetail({ rideId }: { rideId: string }) {
                         onSubmit={async (reason) => {
                           await mutate(`/rides/${ride.id}/withdraw`, "POST", {
                             reason,
-                          })
+                          });
                           sessionStorage.removeItem(
                             "careride-driver-accepted-ride"
-                          )
+                          );
                           sessionStorage.setItem(
                             "careride-driver-confirmation",
                             "You’ve withdrawn from the ride. If you added it to your calendar, delete that event manually." +
                               (ride.linked_ride_id
                                 ? " For a round trip, check the other leg separately."
                                 : "")
-                          )
-                          await navigate({ to: "/driver" })
+                          );
+                          await navigate({ to: "/driver" });
                         }}
                       />
                     </>
@@ -192,18 +193,18 @@ export function RideDetail({ rideId }: { rideId: string }) {
               >
                 <ConfettiButton
                   onClick={async () => {
-                    await mutate(`/rides/${ride.id}/accept`)
+                    await mutate(`/rides/${ride.id}/accept`);
                     if (session?.user.id)
-                      queueInstallHelpAfterFirstRideAcceptance(session.user.id)
+                      queueInstallHelpAfterFirstRideAcceptance(session.user.id);
                     sessionStorage.setItem(
                       "careride-driver-confirmation",
                       "You’re good to go. The ride is now in your upcoming rides."
-                    )
+                    );
                     sessionStorage.setItem(
                       "careride-driver-accepted-ride",
                       ride.id
-                    )
-                    await navigate({ to: "/driver" })
+                    );
+                    await navigate({ to: "/driver" });
                   }}
                   className="btn primary"
                 >
@@ -293,7 +294,7 @@ export function RideDetail({ rideId }: { rideId: string }) {
                   ["DESTINATION", "destination", ride.destination_address],
                 ] as const
               ).map(([label, kind, address]) => {
-                const name = placeLabel(ride, kind, data.destinations)
+                const name = placeLabel(ride, kind, data.destinations);
                 return (
                   <div key={label}>
                     {kind === "pickup" ? (
@@ -307,7 +308,7 @@ export function RideDetail({ rideId }: { rideId: string }) {
                       {name !== address && <p>{address}</p>}
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
             <div className="detail-grid">
@@ -465,24 +466,24 @@ export function RideDetail({ rideId }: { rideId: string }) {
         </div>
       </div>
     </Layout>
-  )
+  );
 }
 
 function mapLinks(ride: {
-  pickup_lat?: number
-  pickup_lng?: number
-  destination_lat?: number
-  destination_lng?: number
-  pickup_address: string
-  destination_address: string
+  pickup_lat?: number;
+  pickup_lng?: number;
+  destination_lat?: number;
+  destination_lng?: number;
+  pickup_address: string;
+  destination_address: string;
 }) {
   const point = (kind: "pickup" | "destination") => {
-    const lat = ride[`${kind}_lat`]
-    const lng = ride[`${kind}_lng`]
+    const lat = ride[`${kind}_lat`];
+    const lng = ride[`${kind}_lng`];
     return encodeURIComponent(
       lat != null && lng != null ? `${lat},${lng}` : ride[`${kind}_address`]
-    )
-  }
+    );
+  };
   return {
     google: {
       pickup: `https://www.google.com/maps/dir/?api=1&destination=${point("pickup")}&travelmode=driving`,
@@ -492,5 +493,5 @@ function mapLinks(ride: {
       pickup: `https://maps.apple.com/?daddr=${point("pickup")}&dirflg=d`,
       destination: `https://maps.apple.com/?saddr=${point("pickup")}&daddr=${point("destination")}&dirflg=d`,
     },
-  }
+  };
 }

@@ -1,8 +1,20 @@
-import { useState, type FocusEvent } from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
-import { ArrowRight, MapPin, Search, Users } from "lucide-react"
-import { useCare } from "./context"
-import { Layout } from "./Layout"
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ArrowRight, MapPin, Search, Users } from "lucide-react";
+import { useState, type FocusEvent } from "react";
+
+import { fireConfetti } from "@/components/ui/confetti";
+
+import type { Client, Destination, Ride } from "./types";
+
+import { useCare } from "./context";
+import {
+  addDays,
+  formatClockTime,
+  vancouverMinutes,
+  vancouverYmd,
+} from "./dates";
+import { Layout } from "./Layout";
+import { PinMap } from "./MapPin";
 import {
   ActionButton,
   AddLink,
@@ -16,39 +28,30 @@ import {
   ReviewNote,
   Success,
   dateTime,
-} from "./ui"
-import { PinMap } from "./MapPin"
-import { fireConfetti } from "@/components/ui/confetti"
-import {
-  addDays,
-  formatClockTime,
-  vancouverMinutes,
-  vancouverYmd,
-} from "./dates"
-import type { Client, Destination, Ride } from "./types"
+} from "./ui";
 
 function upcomingQuarterSlot(now = new Date()) {
-  const ymd = vancouverYmd(now)
-  const minutes = vancouverMinutes(now.toISOString())
-  const slot = Math.ceil((minutes + 1) / 15) * 15
-  if (slot >= 24 * 60) return { date: addDays(ymd, 1), time: "00:00" }
-  const hour = String(Math.floor(slot / 60)).padStart(2, "0")
-  const minute = String(slot % 60).padStart(2, "0")
-  return { date: ymd, time: `${hour}:${minute}` }
+  const ymd = vancouverYmd(now);
+  const minutes = vancouverMinutes(now.toISOString());
+  const slot = Math.ceil((minutes + 1) / 15) * 15;
+  if (slot >= 24 * 60) return { date: addDays(ymd, 1), time: "00:00" };
+  const hour = String(Math.floor(slot / 60)).padStart(2, "0");
+  const minute = String(slot % 60).padStart(2, "0");
+  return { date: ymd, time: `${hour}:${minute}` };
 }
 
 const quarterHourTimes = Array.from({ length: 24 * 4 }, (_, index) => {
-  const hour = String(Math.floor(index / 4)).padStart(2, "0")
-  const minute = String((index % 4) * 15).padStart(2, "0")
-  return `${hour}:${minute}`
-})
+  const hour = String(Math.floor(index / 4)).padStart(2, "0");
+  const minute = String((index % 4) * 15).padStart(2, "0");
+  return `${hour}:${minute}`;
+});
 
 export function ClientsScreen() {
-  const { data } = useCare()
-  const [q, setQ] = useState("")
+  const { data } = useCare();
+  const [q, setQ] = useState("");
   const clients = data.clients.filter((c) =>
     `${c.first_name} ${c.last_name}`.toLowerCase().includes(q.toLowerCase())
-  )
+  );
   return (
     <Layout>
       <PageTitle
@@ -104,12 +107,12 @@ export function ClientsScreen() {
         )}
       </Panel>
     </Layout>
-  )
+  );
 }
 export function ClientScreen({ clientId }: { clientId?: string }) {
-  const { data, mutate } = useCare()
-  const navigate = useNavigate()
-  const client = data.clients.find((c) => c.id === clientId)
+  const { data, mutate } = useCare();
+  const navigate = useNavigate();
+  const client = data.clients.find((c) => c.id === clientId);
   if (clientId && !client)
     return (
       <Layout>
@@ -123,7 +126,7 @@ export function ClientScreen({ clientId }: { clientId?: string }) {
           }
         />
       </Layout>
-    )
+    );
   return (
     <Layout>
       <PageTitle
@@ -145,8 +148,8 @@ export function ClientScreen({ clientId }: { clientId?: string }) {
                 ...Object.fromEntries(f),
                 has_smartphone: f.has("has_smartphone"),
               }
-            )
-            await navigate({ to: "/clients" })
+            );
+            await navigate({ to: "/clients" });
           }}
         >
           <Field label="First name">
@@ -212,17 +215,17 @@ export function ClientScreen({ clientId }: { clientId?: string }) {
         </Form>
       </Panel>
     </Layout>
-  )
+  );
 }
 export function LocationsScreen() {
-  const { data, mutate } = useCare()
-  const [q, setQ] = useState("")
-  const [type, setType] = useState("all")
+  const { data, mutate } = useCare();
+  const [q, setQ] = useState("");
+  const [type, setType] = useState("all");
   const locations = data.destinations.filter(
     (d) =>
       `${d.name} ${d.address}`.toLowerCase().includes(q.toLowerCase()) &&
       (type === "all" || d.type === type)
-  )
+  );
   return (
     <Layout>
       <PageTitle
@@ -298,12 +301,12 @@ export function LocationsScreen() {
         )}
       </Panel>
     </Layout>
-  )
+  );
 }
 export function LocationScreen({ locationId }: { locationId?: string }) {
-  const { data, mutate } = useCare()
-  const navigate = useNavigate()
-  const location = data.destinations.find((d) => d.id === locationId)
+  const { data, mutate } = useCare();
+  const navigate = useNavigate();
+  const location = data.destinations.find((d) => d.id === locationId);
   if (locationId && !location)
     return (
       <Layout>
@@ -312,7 +315,7 @@ export function LocationScreen({ locationId }: { locationId?: string }) {
           description="Return to the address book and try again."
         />
       </Layout>
-    )
+    );
   return (
     <LocationForm
       key={location?.id ?? "new"}
@@ -322,21 +325,21 @@ export function LocationScreen({ locationId }: { locationId?: string }) {
           location ? `/destinations/${location.id}` : "/destinations",
           location ? "PATCH" : "POST",
           f
-        )
-        await navigate({ to: "/locations" })
+        );
+        await navigate({ to: "/locations" });
       }}
     />
-  )
+  );
 }
 function LocationForm({
   location,
   save,
 }: {
-  location?: Destination
-  save: (body: unknown) => Promise<void>
+  location?: Destination;
+  save: (body: unknown) => Promise<void>;
 }) {
-  const [lat, setLat] = useState(location?.lat ?? 49.2665)
-  const [lng, setLng] = useState(location?.lng ?? -123.1128)
+  const [lat, setLat] = useState(location?.lat ?? 49.2665);
+  const [lng, setLng] = useState(location?.lng ?? -123.1128);
   return (
     <Layout>
       <PageTitle
@@ -377,8 +380,8 @@ function LocationForm({
               lat={lat}
               lng={lng}
               onChange={(a, b) => {
-                setLat(a)
-                setLng(b)
+                setLat(a);
+                setLng(b);
               }}
             />
           </div>
@@ -415,19 +418,19 @@ function LocationForm({
         </Form>
       </Panel>
     </Layout>
-  )
+  );
 }
 export function BookingScreen({
   selectedClient,
   editRideId,
 }: {
-  selectedClient?: string
-  editRideId?: string
+  selectedClient?: string;
+  editRideId?: string;
 }) {
-  const { data } = useCare()
+  const { data } = useCare();
   const editingRide = editRideId
     ? data.rides.find((ride) => ride.id === editRideId)
-    : undefined
+    : undefined;
 
   if (editRideId && !editingRide)
     return (
@@ -442,62 +445,62 @@ export function BookingScreen({
           }
         />
       </Layout>
-    )
+    );
 
   return (
     <BookingForm selectedClient={selectedClient} editingRide={editingRide} />
-  )
+  );
 }
 
 function BookingForm({
   selectedClient,
   editingRide,
 }: {
-  selectedClient?: string
-  editingRide?: Ride
+  selectedClient?: string;
+  editingRide?: Ride;
 }) {
-  const { data, mutate } = useCare()
-  const navigate = useNavigate()
+  const { data, mutate } = useCare();
+  const navigate = useNavigate();
   const initialPickup =
     editingRide?.pickup_id ??
     data.destinations.find(
       (item) => item.address === editingRide?.pickup_address
     )?.id ??
-    ""
+    "";
   const initialDestination =
     editingRide?.destination_id ??
     data.destinations.find(
       (item) => item.address === editingRide?.destination_address
     )?.id ??
-    ""
-  const [pickup, setPickup] = useState(initialPickup)
-  const [destination, setDestination] = useState(initialDestination)
-  const [roundTrip, setRoundTrip] = useState(false)
-  const [slot] = useState(upcomingQuarterSlot)
+    "";
+  const [pickup, setPickup] = useState(initialPickup);
+  const [destination, setDestination] = useState(initialDestination);
+  const [roundTrip, setRoundTrip] = useState(false);
+  const [slot] = useState(upcomingQuarterSlot);
   const editingMinutes = editingRide
     ? vancouverMinutes(editingRide.requested_pickup_at)
-    : undefined
+    : undefined;
   const [pickupDate, setPickupDate] = useState(
     editingRide
       ? vancouverYmd(new Date(editingRide.requested_pickup_at))
       : slot.date
-  )
+  );
   const [pickupTime, setPickupTime] = useState(
     editingMinutes == null
       ? slot.time
       : `${String(Math.floor(editingMinutes / 60)).padStart(2, "0")}:${String(editingMinutes % 60).padStart(2, "0")}`
-  )
-  const [returnDate, setReturnDate] = useState("")
-  const locations = data.destinations.filter((d) => d.is_active)
+  );
+  const [returnDate, setReturnDate] = useState("");
+  const locations = data.destinations.filter((d) => d.is_active);
   const openDatePicker = (event: FocusEvent<HTMLInputElement>) => {
     try {
-      event.currentTarget.showPicker?.()
+      event.currentTarget.showPicker?.();
     } catch (error) {
       // Programmatic focus may lack the user activation required by the browser.
       if (!(error instanceof DOMException && error.name === "NotAllowedError"))
-        throw error
+        throw error;
     }
-  }
+  };
   return (
     <Layout>
       <PageTitle
@@ -517,37 +520,37 @@ function BookingForm({
           <Form
             submit={editingRide ? "Save booking" : "Make booking"}
             onSubmit={async (f) => {
-              const p = locations.find((d) => d.id === pickup)
-              const d = locations.find((d) => d.id === destination)
-              if (!p || !d) throw new Error("Choose a pickup and destination.")
+              const p = locations.find((d) => d.id === pickup);
+              const d = locations.find((d) => d.id === destination);
+              if (!p || !d) throw new Error("Choose a pickup and destination.");
               if (p.id === d.id)
                 throw new Error(
                   "Pickup and destination must be different places."
-                )
+                );
               const pickupAt = new Date(
                 `${f.get("requested_pickup_date")}T${f.get("requested_pickup_time")}`
-              )
+              );
               if (Number.isNaN(pickupAt.getTime()) || pickupAt <= new Date())
-                throw new Error("Choose a pickup time in the future.")
+                throw new Error("Choose a pickup time in the future.");
               const returnAt = roundTrip
                 ? new Date(
                     `${f.get("return_pickup_date")}T${f.get("return_pickup_time")}`
                   )
-                : undefined
+                : undefined;
               if (
                 returnAt &&
                 (Number.isNaN(returnAt.getTime()) || returnAt <= pickupAt)
               )
                 throw new Error(
                   "Return pickup must be after the outbound pickup."
-                )
+                );
               for (const name of [
                 "requested_pickup_date",
                 "requested_pickup_time",
                 "return_pickup_date",
                 "return_pickup_time",
               ])
-                f.delete(name)
+                f.delete(name);
               const body = {
                 ...Object.fromEntries(f),
                 pickup_destination_id: p.id,
@@ -566,18 +569,18 @@ function BookingForm({
                 trip_type: roundTrip ? "round_trip" : "one_way",
                 round_trip: roundTrip,
                 ride_option: "free",
-              }
+              };
               const result = await mutate<Ride | Ride[]>(
                 editingRide ? `/rides/${editingRide.id}` : "/rides",
                 editingRide ? "PATCH" : "POST",
                 body
-              )
-              const ride = Array.isArray(result) ? result[0] : result
-              if (!editingRide) fireConfetti()
+              );
+              const ride = Array.isArray(result) ? result[0] : result;
+              if (!editingRide) fireConfetti();
               await navigate({
                 to: "/rides/$rideId",
                 params: { rideId: ride.id },
-              })
+              });
             }}
           >
             <Field label="Primary client" wide>
@@ -783,12 +786,12 @@ function BookingForm({
         </div>
       </div>
     </Layout>
-  )
+  );
 }
 export function NotificationsScreen() {
-  const { data, mutate } = useCare()
-  const [unread, setUnread] = useState(false)
-  const notices = data.notifications.filter((n) => !unread || !n.read_at)
+  const { data, mutate } = useCare();
+  const [unread, setUnread] = useState(false);
+  const notices = data.notifications.filter((n) => !unread || !n.read_at);
   return (
     <Layout>
       <PageTitle
@@ -851,11 +854,11 @@ export function NotificationsScreen() {
         )}
       </Panel>
     </Layout>
-  )
+  );
 }
 export function ApprovalsScreen() {
-  const { data, mutate } = useCare()
-  const [success, setSuccess] = useState("")
+  const { data, mutate } = useCare();
+  const [success, setSuccess] = useState("");
   return (
     <Layout>
       <PageTitle
@@ -889,8 +892,8 @@ export function ApprovalsScreen() {
                 <ActionButton
                   className="primary"
                   onClick={async () => {
-                    await mutate(`/admin/verifications/${v.id}/approve`)
-                    setSuccess("Driver approved for your organization.")
+                    await mutate(`/admin/verifications/${v.id}/approve`);
+                    setSuccess("Driver approved for your organization.");
                   }}
                 >
                   Approve driver
@@ -915,5 +918,5 @@ export function ApprovalsScreen() {
         )}
       </Panel>
     </Layout>
-  )
+  );
 }

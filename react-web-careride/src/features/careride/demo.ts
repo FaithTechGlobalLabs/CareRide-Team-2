@@ -5,35 +5,38 @@ import type {
   Driver,
   Availability,
   Verification,
-} from "./types"
-import { addDays, vancouverYmd } from "./dates"
+} from "./types";
 
-const KEY = "careride-screen-demo-v4"
+import { addDays, vancouverYmd } from "./dates";
+
+const KEY = "careride-screen-demo-v4";
 const org = {
   id: "org_belkin",
   name: "Belkin Communities of Hope",
   type: "partner_org" as const,
   address: "228 W. 5th Ave, Vancouver",
   phone: "(604) 681-3405",
-}
+};
 
 function wallTime(dayOffset: number, hour: number, minute = 0) {
-  const ymd = addDays(vancouverYmd(new Date()), dayOffset)
-  const [year, month, day] = ymd.split("-").map(Number)
-  const guess = new Date(Date.UTC(year, month - 1, day, hour + 7, minute))
+  const ymd = addDays(vancouverYmd(new Date()), dayOffset);
+  const [year, month, day] = ymd.split("-").map(Number);
+  const guess = new Date(Date.UTC(year, month - 1, day, hour + 7, minute));
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Vancouver",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(guess)
-  const gotHour = Number(parts.find((part) => part.type === "hour")?.value ?? 0)
+  }).formatToParts(guess);
+  const gotHour = Number(
+    parts.find((part) => part.type === "hour")?.value ?? 0
+  );
   const gotMinute = Number(
     parts.find((part) => part.type === "minute")?.value ?? 0
-  )
+  );
   const delta =
-    hour * 60 + minute - ((gotHour === 24 ? 0 : gotHour) * 60 + gotMinute)
-  return new Date(guess.getTime() + delta * 60000).toISOString()
+    hour * 60 + minute - ((gotHour === 24 ? 0 : gotHour) * 60 + gotMinute);
+  return new Date(guess.getTime() + delta * 60000).toISOString();
 }
 const demoDrivers: Driver[] = [
   {
@@ -88,8 +91,8 @@ const demoDrivers: Driver[] = [
       wheelchair_accessible: false,
     },
   },
-]
-const driver = demoDrivers[0]
+];
+const driver = demoDrivers[0];
 const demoStaff = [
   {
     id: "staff_alvin",
@@ -109,13 +112,13 @@ const demoStaff = [
     email: "billy.demo@careride.local",
     role: "staff" as const,
   },
-]
-const now = () => new Date().toISOString()
-const id = () => crypto.randomUUID()
+];
+const now = () => new Date().toISOString();
+const id = () => crypto.randomUUID();
 function seed(): Data {
-  const pickup = new Date()
-  pickup.setDate(pickup.getDate() + 1)
-  pickup.setHours(14, 0, 0, 0)
+  const pickup = new Date();
+  pickup.setDate(pickup.getDate() + 1);
+  pickup.setHours(14, 0, 0, 0);
   const base = {
     client_id: "client_jamie",
     round_trip: false,
@@ -131,7 +134,7 @@ function seed(): Data {
     passenger_count: 1,
     created_at: now(),
     waiting_minutes: 15,
-  }
+  };
   return {
     clients: [
       {
@@ -335,15 +338,15 @@ function seed(): Data {
       estimated_cost_saved: 22,
       staff_minutes_saved: 12,
     },
-  }
+  };
 }
 export function readDemo(): Data {
-  let data: Data
+  let data: Data;
   try {
-    const saved = localStorage.getItem(KEY)
-    data = saved ? (JSON.parse(saved) as Data) : seed()
+    const saved = localStorage.getItem(KEY);
+    data = saved ? (JSON.parse(saved) as Data) : seed();
   } catch {
-    data = seed()
+    data = seed();
   }
   if (!data.organizations.some((item) => item.id === "org_raincity")) {
     data.organizations.push({
@@ -352,16 +355,16 @@ export function readDemo(): Data {
       type: "partner_org",
       address: "153 Powell St, Vancouver",
       phone: "(604) 254-9999",
-    })
-    save(data)
+    });
+    save(data);
   }
-  return data
+  return data;
 }
 function save(data: Data) {
-  localStorage.setItem(KEY, JSON.stringify(data))
+  localStorage.setItem(KEY, JSON.stringify(data));
 }
 function eligible(ride: Ride, data: Data, activeDriver = driver) {
-  const date = new Date(ride.requested_pickup_at)
+  const date = new Date(ride.requested_pickup_at);
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Vancouver",
     year: "numeric",
@@ -371,13 +374,13 @@ function eligible(ride: Ride, data: Data, activeDriver = driver) {
     minute: "2-digit",
     hourCycle: "h23",
     weekday: "short",
-  }).formatToParts(date)
-  const p = Object.fromEntries(parts.map((x) => [x.type, x.value]))
+  }).formatToParts(date);
+  const p = Object.fromEntries(parts.map((x) => [x.type, x.value]));
   const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
     p.weekday
-  )
-  const time = `${p.hour}:${p.minute}`
-  const localDate = `${p.year}-${p.month}-${p.day}`
+  );
+  const time = `${p.hour}:${p.minute}`;
+  const localDate = `${p.year}-${p.month}-${p.day}`;
   return (
     ride.status === "requested" &&
     data.verifications.some(
@@ -393,16 +396,16 @@ function eligible(ride: Ride, data: Data, activeDriver = driver) {
     data.availability
       .filter((a) => a.driver_id === activeDriver.id)
       .some((a) => {
-        const rad = Math.PI / 180
-        const dLat = (ride.pickup_lat - a.centre_lat) * rad
-        const dLng = (ride.pickup_lng - a.centre_lng) * rad
+        const rad = Math.PI / 180;
+        const dLat = (ride.pickup_lat - a.centre_lat) * rad;
+        const dLng = (ride.pickup_lng - a.centre_lng) * rad;
         const hav =
           Math.sin(dLat / 2) ** 2 +
           Math.cos(a.centre_lat * rad) *
             Math.cos(ride.pickup_lat * rad) *
-            Math.sin(dLng / 2) ** 2
+            Math.sin(dLng / 2) ** 2;
         const distance =
-          6371 * 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav))
+          6371 * 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
         return (
           a.is_active &&
           distance <= a.radius_km &&
@@ -414,22 +417,22 @@ function eligible(ride: Ride, data: Data, activeDriver = driver) {
           ((a.kind === "one_time" && localDate === a.on_date) ||
             (a.kind === "weekly" && a.weekdays?.includes(day)) ||
             (a.kind === "monthly" && a.month_days?.includes(Number(p.day))))
-        )
+        );
       })
-  )
+  );
 }
 function presentDemoRide(ride: Ride, data: Data, driverView: boolean): Ride {
-  const client = data.clients.find((item) => item.id === ride.client_id)
+  const client = data.clients.find((item) => item.id === ride.client_id);
   const pickup = data.destinations.find(
     (item) => item.id === ride.pickup_id || item.address === ride.pickup_address
-  )
+  );
   const destination = data.destinations.find(
     (item) =>
       item.id === ride.destination_id ||
       item.address === ride.destination_address
-  )
+  );
   const organization =
-    data.organizations.find((item) => item.id === ride.organization_id) ?? org
+    data.organizations.find((item) => item.id === ride.organization_id) ?? org;
   return {
     ...ride,
     linked_leg_status: data.rides.find(
@@ -451,7 +454,7 @@ function presentDemoRide(ride: Ride, data: Data, driverView: boolean): Ride {
           }
         : client
       : undefined,
-  }
+  };
 }
 
 export async function demoRequest(
@@ -460,21 +463,21 @@ export async function demoRequest(
   body: unknown,
   session: Session | null
 ): Promise<unknown> {
-  const data = readDemo()
+  const data = readDemo();
   const b =
     body instanceof FormData
       ? Object.fromEntries(body.entries())
-      : ((body ?? {}) as Record<string, unknown>)
+      : ((body ?? {}) as Record<string, unknown>);
   if (path === "/auth/login") {
     const selectedDriver = demoDrivers.find(
       (item) => item.email === String(b.email)
-    )
+    );
     const selectedStaff = demoStaff.find(
       (item) => item.email === String(b.email)
-    )
+    );
     if (b.password !== "CareRideDemo1" || (!selectedStaff && !selectedDriver))
-      throw new Error("Use a demo account below with password CareRideDemo1.")
-    const isDriver = !!selectedDriver
+      throw new Error("Use a demo account below with password CareRideDemo1.");
+    const isDriver = !!selectedDriver;
     return {
       token: "screen-demo",
       user: {
@@ -485,7 +488,7 @@ export async function demoRequest(
         organization_id: isDriver ? undefined : org.id,
       },
       organization: isDriver ? undefined : org,
-    }
+    };
   }
   if (path.endsWith("/register")) {
     if (path === "/organizations/register") {
@@ -494,9 +497,9 @@ export async function demoRequest(
         name: String(b.name),
         type: b.type as "partner_org",
         address: String(b.address),
-      }
-      data.organizations.push(organization)
-      save(data)
+      };
+      data.organizations.push(organization);
+      save(data);
       return {
         token: "screen-demo",
         user: {
@@ -507,31 +510,31 @@ export async function demoRequest(
           organization_id: organization.id,
         },
         organization,
-      }
+      };
     }
     return {
       token: "screen-demo",
       user: { id: id(), name: b.name, email: b.email, role: "driver" },
-    }
+    };
   }
   if (method === "GET") {
-    if (path === "/organizations") return data.organizations
-    if (path === "/clients") return data.clients
-    if (path === "/destinations") return data.destinations
+    if (path === "/organizations") return data.organizations;
+    if (path === "/clients") return data.clients;
+    if (path === "/destinations") return data.destinations;
     if (path === "/rides")
-      return data.rides.map((ride) => presentDemoRide(ride, data, false))
+      return data.rides.map((ride) => presentDemoRide(ride, data, false));
     if (path === "/drivers/me/rides")
       return data.rides
         .filter((r) => r.driver_id === session?.user.id)
-        .map((ride) => presentDemoRide(ride, data, true))
+        .map((ride) => presentDemoRide(ride, data, true));
     if (path === "/drivers/me/rides/available") {
       const activeDriver = demoDrivers.find(
         (item) => item.id === session?.user.id
-      )
-      if (!activeDriver) return []
+      );
+      if (!activeDriver) return [];
       const available = data.rides.filter((r) =>
         eligible(r, data, activeDriver)
-      )
+      );
       return data.rides
         .filter((r) =>
           available.some(
@@ -548,26 +551,26 @@ export async function demoRequest(
         .map((ride) => ({
           ...presentDemoRide(ride, data, true),
           can_accept: eligible(ride, data, activeDriver),
-        }))
+        }));
     }
     if (path === "/drivers/me/availability")
-      return session?.user.id === driver.id ? data.availability : []
+      return session?.user.id === driver.id ? data.availability : [];
     if (path === "/drivers/me/verifications")
-      return data.verifications.filter((v) => v.driver_id === session?.user.id)
-    if (path === "/admin/verifications") return data.verifications
-    if (path === "/notifications") return data.notifications
+      return data.verifications.filter((v) => v.driver_id === session?.user.id);
+    if (path === "/admin/verifications") return data.verifications;
+    if (path === "/notifications") return data.notifications;
     if (path === "/admin/demo-summary")
       return {
         completed_rides: data.rides.filter((r) => r.status === "completed")
           .length,
         estimated_cost_saved: 22,
         staff_minutes_saved: 12,
-      }
+      };
     if (path.startsWith("/rides/")) {
-      const ride = data.rides.find((r) => r.id === path.split("/")[2])
+      const ride = data.rides.find((r) => r.id === path.split("/")[2]);
       return ride
         ? presentDemoRide(ride, data, session?.user.role === "driver")
-        : ride
+        : ride;
     }
   }
   const notice = (ride: Ride, type: string) =>
@@ -576,14 +579,14 @@ export async function demoRequest(
       ride_request_id: ride.id,
       type,
       sent_at: now(),
-    })
-  let result: unknown
+    });
+  let result: unknown;
   if (path === "/rides" && method === "POST") {
     if (
       (b.pickup_id && b.pickup_id === b.destination_id) ||
       (b.pickup_address && b.pickup_address === b.destination_address)
     )
-      throw new Error("Pickup and destination must be different places.")
+      throw new Error("Pickup and destination must be different places.");
     const ride = {
       ...b,
       id: id(),
@@ -591,10 +594,10 @@ export async function demoRequest(
       created_at: now(),
       requested_by_user_id: session?.user.id,
       organization_id: session?.user.organization_id ?? org.id,
-    } as unknown as Ride
-    data.rides.unshift(ride)
-    notice(ride, "confirmation")
-    result = ride
+    } as unknown as Ride;
+    data.rides.unshift(ride);
+    notice(ride, "confirmation");
+    result = ride;
     if (b.trip_type === "round_trip") {
       const back = {
         ...ride,
@@ -608,71 +611,73 @@ export async function demoRequest(
         requested_pickup_at: String(b.return_pickup_at),
         linked_ride_id: ride.id,
         trip_leg: "return",
-      }
-      ride.linked_ride_id = back.id
-      ride.trip_leg = "outbound"
-      data.rides.unshift(back)
-      notice(back, "confirmation")
-      result = [ride, back]
+      };
+      ride.linked_ride_id = back.id;
+      ride.trip_leg = "outbound";
+      data.rides.unshift(back);
+      notice(back, "confirmation");
+      result = [ride, back];
     }
   } else if (path.startsWith("/rides/")) {
-    const ride = data.rides.find((r) => r.id === path.split("/")[2])
-    if (!ride) throw new Error("Ride not found.")
-    const action = path.split("/")[3]
+    const ride = data.rides.find((r) => r.id === path.split("/")[2]);
+    if (!ride) throw new Error("Ride not found.");
+    const action = path.split("/")[3];
     if (method === "PATCH") {
       if (ride.status !== "requested")
-        throw new Error("This ride can no longer be edited.")
+        throw new Error("This ride can no longer be edited.");
       if (
         (b.pickup_id && b.pickup_id === b.destination_id) ||
         (b.pickup_address && b.pickup_address === b.destination_address)
       )
-        throw new Error("Pickup and destination must be different places.")
-      Object.assign(ride, b)
+        throw new Error("Pickup and destination must be different places.");
+      Object.assign(ride, b);
     } else if (action === "accept") {
       if (ride.status !== "requested")
-        throw new Error("Another driver has already accepted this ride.")
+        throw new Error("Another driver has already accepted this ride.");
       const activeDriver = demoDrivers.find(
         (item) => item.id === session?.user.id
-      )
+      );
       if (!activeDriver || !eligible(ride, data, activeDriver))
         throw new Error(
           "This ride no longer matches your approval, capacity, or availability."
-        )
-      ride.status = "accepted"
-      ride.driver_id = session?.user.id
-      ride.driver = activeDriver
-      ride.accepted_at = now()
+        );
+      ride.status = "accepted";
+      ride.driver_id = session?.user.id;
+      ride.driver = activeDriver;
+      ride.accepted_at = now();
       ride.waiting_minutes = data.availability.find(
         (a) => a.is_active
-      )?.max_wait_minutes
-      notice(ride, "driver_assigned")
+      )?.max_wait_minutes;
+      notice(ride, "driver_assigned");
     } else if (action === "cancel") {
       if (!["requested", "accepted"].includes(ride.status))
-        throw new Error("This ride can no longer be cancelled.")
-      ride.status = "cancelled"
-      ride.cancelled_reason = String(b.reason)
-      notice(ride, "cancelled")
+        throw new Error("This ride can no longer be cancelled.");
+      ride.status = "cancelled";
+      ride.cancelled_reason = String(b.reason);
+      notice(ride, "cancelled");
     } else {
       if (ride.driver_id !== session?.user.id)
-        throw new Error("Only the assigned driver can update this ride.")
+        throw new Error("Only the assigned driver can update this ride.");
       if (action === "pickup" && ride.status === "accepted") {
-        ride.status = "in_progress"
-        ride.picked_up_at = now()
+        ride.status = "in_progress";
+        ride.picked_up_at = now();
       } else if (action === "dropoff" && ride.status === "in_progress") {
-        ride.status = "completed"
-        ride.completed_at = now()
-        notice(ride, "completed")
+        ride.status = "completed";
+        ride.completed_at = now();
+        notice(ride, "completed");
       } else if (action === "no-show" && ride.status === "accepted")
-        ride.status = "no_show"
+        ride.status = "no_show";
       else if (action === "withdraw" && ride.status === "accepted") {
-        ride.status = "requested"
-        delete ride.driver_id
-        delete ride.driver
-        delete ride.accepted_at
+        ride.status = "requested";
+        delete ride.driver_id;
+        delete ride.driver;
+        delete ride.accepted_at;
       } else
-        throw new Error("This action is no longer available. Refresh the ride.")
+        throw new Error(
+          "This action is no longer available. Refresh the ride."
+        );
     }
-    result = ride
+    result = ride;
   } else if (
     path.startsWith("/clients") ||
     path.startsWith("/destinations") ||
@@ -682,18 +687,18 @@ export async function demoRequest(
       ? data.clients
       : path.startsWith("/destinations")
         ? data.destinations
-        : data.availability
-    const itemId = path.split("/").at(-1)
-    const item = collection.find((x) => x.id === itemId)
+        : data.availability;
+    const itemId = path.split("/").at(-1);
+    const item = collection.find((x) => x.id === itemId);
     if (method === "DELETE") {
-      data.availability = data.availability.filter((a) => a.id !== itemId)
+      data.availability = data.availability.filter((a) => a.id !== itemId);
     } else if (item) {
-      Object.assign(item, b)
-      result = item
+      Object.assign(item, b);
+      result = item;
     } else {
-      const created = { ...b, id: id() }
-      ;(collection as unknown[]).push(created)
-      result = created
+      const created = { ...b, id: id() };
+      (collection as unknown[]).push(created);
+      result = created;
     }
   } else if (path === "/drivers/me/verifications") {
     const record = {
@@ -711,23 +716,23 @@ export async function demoRequest(
       issued_on: String(b.issued_on || ""),
       expires_on: String(b.expires_on || ""),
       document_ref: b.document instanceof File ? b.document.name : "",
-    } as Verification
-    data.verifications.unshift(record)
-    result = record
+    } as Verification;
+    data.verifications.unshift(record);
+    result = record;
   } else if (path.startsWith("/admin/verifications/")) {
-    const record = data.verifications.find((v) => v.id === path.split("/")[3])
-    if (!record) throw new Error("Verification not found.")
-    record.status = path.endsWith("/approve") ? "approved" : "rejected"
-    record.reject_reason = String(b.reason || "")
-    record.reviewed_at = now()
-    record.reviewed_by_name = session?.user.name
-    record.approved_by_user_id = session?.user.id
-    result = record
+    const record = data.verifications.find((v) => v.id === path.split("/")[3]);
+    if (!record) throw new Error("Verification not found.");
+    record.status = path.endsWith("/approve") ? "approved" : "rejected";
+    record.reject_reason = String(b.reason || "");
+    record.reviewed_at = now();
+    record.reviewed_by_name = session?.user.name;
+    record.approved_by_user_id = session?.user.id;
+    result = record;
   } else if (path.startsWith("/notifications/")) {
-    const n = data.notifications.find((n) => n.id === path.split("/")[2])
-    if (n) n.read_at = now()
-  } else throw new Error("This screen action is not supported in the demo.")
-  save(data)
-  return result
+    const n = data.notifications.find((n) => n.id === path.split("/")[2]);
+    if (n) n.read_at = now();
+  } else throw new Error("This screen action is not supported in the demo.");
+  save(data);
+  return result;
 }
-export type DemoAvailability = Availability
+export type DemoAvailability = Availability;

@@ -1,63 +1,64 @@
-import { useState, type FormEvent } from "react"
-import { useNavigate } from "@tanstack/react-router"
-import { AlertTriangle, Trash2 } from "lucide-react"
-import { useCare } from "./context"
-import { request, IS_DEMO } from "./api"
-import { Layout } from "./Layout"
-import { ErrorBox, PageTitle, Panel } from "./ui"
-import { NotificationControls, disableDevice } from "./NotificationControls"
+import { useNavigate } from "@tanstack/react-router";
+import { AlertTriangle, Trash2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
+
+import { request, IS_DEMO } from "./api";
+import { useCare } from "./context";
+import { Layout } from "./Layout";
+import { NotificationControls, disableDevice } from "./NotificationControls";
+import { ErrorBox, PageTitle, Panel } from "./ui";
 
 export function SettingsScreen() {
-  const { session, logout } = useCare()
-  const navigate = useNavigate()
-  const [target, setTarget] = useState<"account" | "organization" | null>(null)
-  const [confirmation, setConfirmation] = useState("")
-  const [organizationName, setOrganizationName] = useState("")
-  const [password, setPassword] = useState("")
-  const [acknowledged, setAcknowledged] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const driver = session?.user.role === "driver"
+  const { session, logout } = useCare();
+  const navigate = useNavigate();
+  const [target, setTarget] = useState<"account" | "organization" | null>(null);
+  const [confirmation, setConfirmation] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
+  const [password, setPassword] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const driver = session?.user.role === "driver";
   const orgName =
-    session?.organization?.name ?? session?.user.organization_name ?? ""
-  const phrase = target === "organization" ? "DELETE ORGANIZATION" : "DELETE"
+    session?.organization?.name ?? session?.user.organization_name ?? "";
+  const phrase = target === "organization" ? "DELETE ORGANIZATION" : "DELETE";
   const ready =
     confirmation === phrase &&
     !!password &&
     (target !== "organization" ||
-      (orgName !== "" && organizationName === orgName && acknowledged))
+      (orgName !== "" && organizationName === orgName && acknowledged));
   function choose(value: typeof target) {
-    setTarget(value)
-    setConfirmation("")
-    setOrganizationName("")
-    setPassword("")
-    setAcknowledged(false)
-    setError("")
+    setTarget(value);
+    setConfirmation("");
+    setOrganizationName("");
+    setPassword("");
+    setAcknowledged(false);
+    setError("");
   }
   async function submit(event: FormEvent) {
-    event.preventDefault()
-    if (!ready || !session || !target || busy) return
-    setBusy(true)
-    setError("")
+    event.preventDefault();
+    if (!ready || !session || !target || busy) return;
+    setBusy(true);
+    setError("");
     try {
       await request(`/settings/${target}`, session, "DELETE", {
         password,
         confirmation,
         organization_name: organizationName,
         acknowledged,
-      })
-      await disableDevice(session).catch(() => {})
-      await logout()
-      void navigate({ to: "/login" })
+      });
+      await disableDevice(session).catch(() => {});
+      await logout();
+      void navigate({ to: "/login" });
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
           : "Deletion failed. Your account is still available."
-      )
+      );
     } finally {
-      setBusy(false)
-      setPassword("")
+      setBusy(false);
+      setPassword("");
     }
   }
   return (
@@ -129,7 +130,7 @@ export function SettingsScreen() {
         <div
           className="install-dialog-backdrop"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !busy) choose(null)
+            if (e.target === e.currentTarget && !busy) choose(null);
           }}
         >
           <section
@@ -226,5 +227,5 @@ export function SettingsScreen() {
         </div>
       )}
     </Layout>
-  )
+  );
 }

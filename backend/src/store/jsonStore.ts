@@ -1,9 +1,8 @@
+import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-import bcrypt from "bcrypt";
 
 import type {
   Driver,
@@ -11,11 +10,17 @@ import type {
   DriverVerification,
   Vehicle,
 } from "../types/driver.types.js";
-import type { Notification, NotificationPreference, PushSubscriptionRecord, PushDelivery } from "../types/notification.types.js";
-import { reconcileNotifications } from "../notifications/events.js";
+import type {
+  Notification,
+  NotificationPreference,
+  PushSubscriptionRecord,
+  PushDelivery,
+} from "../types/notification.types.js";
 import type { Destination, Organization } from "../types/organization.types.js";
 import type { RideRequest } from "../types/ride.types.js";
 import type { Client, Staff } from "../types/user.types.js";
+
+import { reconcileNotifications } from "../notifications/events.js";
 
 export interface Db {
   organizations: Organization[];
@@ -34,12 +39,16 @@ export interface Db {
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = process.env.CARERIDE_DATA_DIR ? path.resolve(process.env.CARERIDE_DATA_DIR) : path.resolve(here, "../../data");
+const dataDir = process.env.CARERIDE_DATA_DIR
+  ? path.resolve(process.env.CARERIDE_DATA_DIR)
+  : path.resolve(here, "../../data");
 const storePath = path.join(dataDir, "store.json");
 
 let queue: Promise<void> = Promise.resolve();
 let dispatchPush: (() => Promise<void>) | undefined;
-export function setPushDispatcher(dispatch: () => Promise<void>): void { dispatchPush = dispatch; }
+export function setPushDispatcher(dispatch: () => Promise<void>): void {
+  dispatchPush = dispatch;
+}
 
 function emptyDb(): Db {
   return {
@@ -272,7 +281,7 @@ function seed(): Db {
       timezone: "America/Vancouver",
       weekdays: [0, 1, 2, 3, 4, 5, 6],
       note: "Demo availability covering the user-test day.",
-    }),
+    })
   );
 
   const additionalVerifications: DriverVerification[] = additionalDrivers.map(
@@ -285,7 +294,7 @@ function seed(): Db {
       document_filename: "seed-identity.txt",
       status: "approved",
       reviewed_at: now,
-    }),
+    })
   );
 
   const belkinHouse: Destination = {
@@ -380,10 +389,11 @@ export function update<T>(fn: (db: Db) => T, internal = false): Promise<T> {
   });
   queue = run.then(
     () => undefined,
-    () => undefined,
+    () => undefined
   );
   return run.then(async () => {
-    if (!internal && dispatchPush) await dispatchPush().catch(() => console.error("Push delivery deferred"));
+    if (!internal && dispatchPush)
+      await dispatchPush().catch(() => console.error("Push delivery deferred"));
     return result as T;
   });
 }

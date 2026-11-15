@@ -1,5 +1,5 @@
-import { type Request, type Response } from "express";
 import bcrypt from "bcrypt";
+import { type Request, type Response } from "express";
 
 import type { Organization } from "../types/organization.types.js";
 import type { Staff } from "../types/user.types.js";
@@ -8,16 +8,22 @@ import {
   createOrganization,
   findOrganizationByEmail,
 } from "../db/organizationHelpers.js";
-
 import { createStaff, findStaffByEmail } from "../db/staffHelpers.js";
 
 export const registerOrganization = async (
   req: Request,
-  res: Response,
+  res: Response
 ): Promise<void> => {
   try {
-    const { name, email, phone, staffName, staffEmail, staffPhone, staffPassword } =
-      req.body;
+    const {
+      name,
+      email,
+      phone,
+      staffName,
+      staffEmail,
+      staffPhone,
+      staffPassword,
+    } = req.body;
 
     if (
       !name ||
@@ -29,7 +35,8 @@ export const registerOrganization = async (
       !staffPassword
     ) {
       res.status(400).json({
-        message: "Organization name, email, phone, and the first staff account are required.",
+        message:
+          "Organization name, email, phone, and the first staff account are required.",
       });
       return;
     }

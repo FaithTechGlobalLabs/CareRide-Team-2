@@ -1,5 +1,5 @@
-import type { DriverEligibilityFacts } from "../../domain/rides/rideAcceptancePolicy.js"
-import type { DatabaseTransaction } from "./database.js"
+import type { DriverEligibilityFacts } from "../../domain/rides/rideAcceptancePolicy.js";
+import type { DatabaseTransaction } from "./database.js";
 
 export interface IDriverEligibilityQuery {
   /** Authoritative facts for this ride's organization and pickup, from one
@@ -9,5 +9,5 @@ export interface IDriverEligibilityQuery {
     rideId: string,
     driverId: string,
     transaction: DatabaseTransaction
-  ): Promise<DriverEligibilityFacts>
+  ): Promise<DriverEligibilityFacts>;
 }

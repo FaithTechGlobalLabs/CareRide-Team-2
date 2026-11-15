@@ -1,21 +1,21 @@
-import { useState } from "react"
-import { MapPin, Minus, Plus } from "lucide-react"
-const SIZE = 256
+import { MapPin, Minus, Plus } from "lucide-react";
+import { useState } from "react";
+const SIZE = 256;
 function project(lat: number, lng: number, zoom: number) {
-  const scale = SIZE * 2 ** zoom
-  const sin = Math.sin((lat * Math.PI) / 180)
+  const scale = SIZE * 2 ** zoom;
+  const sin = Math.sin((lat * Math.PI) / 180);
   return {
     x: ((lng + 180) / 360) * scale,
     y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
-  }
+  };
 }
 function unproject(x: number, y: number, zoom: number) {
-  const scale = SIZE * 2 ** zoom
+  const scale = SIZE * 2 ** zoom;
   return {
     lat:
       (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / scale))) * 180) / Math.PI,
     lng: (x / scale) * 360 - 180,
-  }
+  };
 }
 export function PinMap({
   lat,
@@ -23,30 +23,30 @@ export function PinMap({
   onChange,
   radius,
 }: {
-  lat: number
-  lng: number
-  onChange: (lat: number, lng: number) => void
-  radius?: number
+  lat: number;
+  lng: number;
+  onChange: (lat: number, lng: number) => void;
+  radius?: number;
 }) {
-  const [zoom, setZoom] = useState(radius ? 10 : 13)
-  const [centre, setCentre] = useState({ lat, lng })
-  const [failed, setFailed] = useState(false)
-  const centrePixel = project(centre.lat, centre.lng, zoom)
-  const pin = project(lat, lng, zoom)
+  const [zoom, setZoom] = useState(radius ? 10 : 13);
+  const [centre, setCentre] = useState({ lat, lng });
+  const [failed, setFailed] = useState(false);
+  const centrePixel = project(centre.lat, centre.lng, zoom);
+  const pin = project(lat, lng, zoom);
   // Square viewport keeps click coordinates and map scale accurate at every screen width.
-  const width = 512
-  const left = centrePixel.x - width / 2
-  const top = centrePixel.y - width / 2
-  const x0 = Math.floor(left / SIZE)
-  const y0 = Math.floor(top / SIZE)
+  const width = 512;
+  const left = centrePixel.x - width / 2;
+  const top = centrePixel.y - width / 2;
+  const x0 = Math.floor(left / SIZE);
+  const y0 = Math.floor(top / SIZE);
   const tiles = Array.from({ length: 9 }, (_, i) => ({
     x: x0 + (i % 3),
     y: y0 + Math.floor(i / 3),
-  }))
+  }));
   const radiusPixels = radius
     ? (radius * 1000) /
       ((156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom)
-    : 0
+    : 0;
   return (
     <div className="map-widget">
       <div
@@ -55,20 +55,20 @@ export function PinMap({
         tabIndex={0}
         aria-label="Choose map pin. Click the map or adjust the coordinates below. Arrow keys move the pin."
         onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect()
+          const rect = e.currentTarget.getBoundingClientRect();
           const next = unproject(
             left + ((e.clientX - rect.left) / rect.width) * width,
             top + ((e.clientY - rect.top) / rect.height) * width,
             zoom
-          )
-          onChange(Number(next.lat.toFixed(6)), Number(next.lng.toFixed(6)))
+          );
+          onChange(Number(next.lat.toFixed(6)), Number(next.lng.toFixed(6)));
         }}
         onKeyDown={(e) => {
-          const step = 0.002
+          const step = 0.002;
           if (
             ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
           ) {
-            e.preventDefault()
+            e.preventDefault();
             onChange(
               lat +
                 (e.key === "ArrowUp"
@@ -82,7 +82,7 @@ export function PinMap({
                   : e.key === "ArrowLeft"
                     ? -step
                     : 0)
-            )
+            );
           }
         }}
       >
@@ -161,5 +161,5 @@ export function PinMap({
         Recenter to move the map to your pin.
       </p>
     </div>
-  )
+  );
 }

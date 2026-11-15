@@ -1,14 +1,14 @@
-import { sql } from "kysely"
+import { sql } from "kysely";
 
-import type { DatabaseTransaction } from "../../../application/ports/database.js"
-import type { IRideRequestsRepository } from "../../../application/ports/rideRequestsRepository.js"
+import type { DatabaseTransaction } from "../../../application/ports/database.js";
+import type { IRideRequestsRepository } from "../../../application/ports/rideRequestsRepository.js";
 
-import { RideAssignmentConflict } from "../../../application/ports/rideRequestsRepository.js"
+import { RideAssignmentConflict } from "../../../application/ports/rideRequestsRepository.js";
 import {
   AcceptedDispatch,
   RideRequest,
-} from "../../../domain/rides/rideRequest.js"
-import { availabilityComparisons } from "../queries/driverEligibilityQuery.js"
+} from "../../../domain/rides/rideRequest.js";
+import { availabilityComparisons } from "../queries/driverEligibilityQuery.js";
 
 /** Transaction arguments are required: writes and the locking read must share
  * the transaction opened by the application service.
@@ -30,15 +30,15 @@ export class RideRequestsRepository implements IRideRequestsRepository {
       ])
       .where("id", "=", rideId)
       .forUpdate()
-      .executeTakeFirst()
-    if (!row) return null
+      .executeTakeFirst();
+    if (!row) return null;
 
     const dispatch = await transaction
       .selectFrom("dispatches")
       .select(["driver_id", "responded_at"])
       .where("ride_request_id", "=", rideId)
       .where("response", "=", "accepted")
-      .executeTakeFirst()
+      .executeTakeFirst();
 
     return new RideRequest({
       id: row.id,
@@ -50,7 +50,7 @@ export class RideRequestsRepository implements IRideRequestsRepository {
       acceptedDispatch: dispatch
         ? new AcceptedDispatch(dispatch.driver_id, dispatch.responded_at)
         : null,
-    })
+    });
   }
 
   async saveTimeout(
@@ -58,30 +58,30 @@ export class RideRequestsRepository implements IRideRequestsRepository {
     transaction: DatabaseTransaction
   ): Promise<void> {
     if (ride.status !== "timed_out")
-      throw new Error("Expected a timed-out ride.")
+      throw new Error("Expected a timed-out ride.");
     await transaction
       .updateTable("ride_requests")
       .set({ status: "timed_out", updated_at: sql<Date>`now()` })
       .where("id", "=", ride.id)
       .where("status", "=", "requested")
       .where("driver_id", "is", null)
-      .executeTakeFirst()
+      .executeTakeFirst();
   }
 
   async saveAcceptance(
     ride: RideRequest,
     transaction: DatabaseTransaction
   ): Promise<boolean> {
-    const dispatch = ride.acceptedDispatch
+    const dispatch = ride.acceptedDispatch;
     if (
       ride.status !== "accepted" ||
       !dispatch?.acceptedAt ||
       ride.driverId !== dispatch.driverId
     ) {
-      throw new Error("An accepted ride must agree with its dispatch.")
+      throw new Error("An accepted ride must agree with its dispatch.");
     }
     try {
-      const comparisons = availabilityComparisons()
+      const comparisons = availabilityComparisons();
       // The domain decides whether to accept. These conditional-write safeguards
       // independently recheck authoritative eligibility in the UPDATE snapshot,
       // preserving the legacy claim's guarantee if facts changed since evaluation.
@@ -149,8 +149,8 @@ export class RideRequestsRepository implements IRideRequestsRepository {
           )
         )
         .returning("r.id")
-        .executeTakeFirst()
-      if (!claimed) return false
+        .executeTakeFirst();
+      if (!claimed) return false;
 
       await transaction
         .insertInto("dispatches")
@@ -160,13 +160,13 @@ export class RideRequestsRepository implements IRideRequestsRepository {
           response: "accepted",
           responded_at: dispatch.acceptedAt,
         })
-        .execute()
-      return true
+        .execute();
+      return true;
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "23505") {
-        throw new RideAssignmentConflict("Already assigned", { cause: error })
+        throw new RideAssignmentConflict("Already assigned", { cause: error });
       }
-      throw error
+      throw error;
     }
   }
 }

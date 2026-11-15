@@ -1,11 +1,11 @@
+import bcrypt from "bcrypt";
+import express from "express";
+import jwt from "jsonwebtoken";
 import assert from "node:assert/strict";
-import test, { before, after, beforeEach } from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import express from "express";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
+import test, { before, after, beforeEach } from "node:test";
 import webpush from "web-push";
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "careride-personal-"));
@@ -104,7 +104,7 @@ function fixture() {
 function token(id, kind = "staff", org = "org") {
   return jwt.sign(
     { sub: id, kind, role: kind, organizationId: org },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET
   );
 }
 async function call(
@@ -113,7 +113,7 @@ async function call(
   body,
   id = "staff",
   kind = "staff",
-  org = "org",
+  org = "org"
 ) {
   const response = await fetch(origin + url, {
     method,
@@ -130,11 +130,11 @@ before(async () => {
   app.use(express.json());
   registerApi(app);
   app.use((error, req, res, next) =>
-    res.status(500).json({ message: String(error) }),
+    res.status(500).json({ message: String(error) })
   );
   await new Promise((resolve, reject) => {
     server = app.listen(0, "127.0.0.1", (error) =>
-      error ? reject(error) : resolve(),
+      error ? reject(error) : resolve()
     );
   });
   origin = `http://127.0.0.1:${server.address().port}`;
@@ -143,7 +143,7 @@ beforeEach(() => {
   setPushDispatcher(async () => {});
   fs.writeFileSync(
     path.join(directory, "store.json"),
-    JSON.stringify(fixture()),
+    JSON.stringify(fixture())
   );
 });
 after(async () => {
@@ -160,7 +160,7 @@ test("notifications are scoped, eligible, deduplicated, and include client updat
     readDb()
       .notifications.map((n) => n.recipient_user_id)
       .sort(),
-    ["colleague", "staff"],
+    ["colleague", "staff"]
   );
   await update((db) => {
     db.rides[0].status = "requested";
@@ -169,7 +169,7 @@ test("notifications are scoped, eligible, deduplicated, and include client updat
   });
   assert.equal(
     readDb().notifications.filter((n) => n.type === "available_ride").length,
-    1,
+    1
   );
   const count = readDb().notifications.length;
   await update(() => {});
@@ -179,14 +179,14 @@ test("notifications are scoped, eligible, deduplicated, and include client updat
   });
   assert.equal(
     readDb().notifications.filter((n) => n.type === "client_updated").length,
-    2,
+    2
   );
   const driverNotes = await call(
     "/notifications",
     "GET",
     undefined,
     "driver",
-    "driver",
+    "driver"
   );
   assert.equal(driverNotes.status, 200);
   assert.equal(driverNotes.body.notifications.length, 1);
@@ -195,28 +195,63 @@ test("notifications are scoped, eligible, deduplicated, and include client updat
       await call(
         `/notifications/${driverNotes.body.notifications[0].id}/read`,
         "POST",
-        {},
+        {}
       )
     ).status,
-    404,
+    404
   );
 });
 
 test("round trips show both open legs and accepting either leg leaves the other available", async () => {
-  await update(db => {
+  await update((db) => {
     db.rides[0].linked_ride_id = "return";
     db.rides[0].trip_group_id = "trip";
     db.rides[0].trip_leg = "outbound";
-    db.rides.push({ ...db.rides[0], id: "return", linked_ride_id: "ride", trip_leg: "return" });
+    db.rides.push({
+      ...db.rides[0],
+      id: "return",
+      linked_ride_id: "ride",
+      trip_leg: "return",
+    });
   });
-  let available = await call("/drivers/me/rides/available", "GET", undefined, "driver", "driver");
-  assert.deepEqual(available.body.rides.map(r => r.id).sort(), ["return", "ride"]);
-  assert.equal((await call("/rides/return/accept", "POST", {}, "driver", "driver")).status, 200);
-  available = await call("/drivers/me/rides/available", "GET", undefined, "driver", "driver");
-  assert.deepEqual(available.body.rides.map(r => r.id), ["ride"]);
+  let available = await call(
+    "/drivers/me/rides/available",
+    "GET",
+    undefined,
+    "driver",
+    "driver"
+  );
+  assert.deepEqual(available.body.rides.map((r) => r.id).sort(), [
+    "return",
+    "ride",
+  ]);
+  assert.equal(
+    (await call("/rides/return/accept", "POST", {}, "driver", "driver")).status,
+    200
+  );
+  available = await call(
+    "/drivers/me/rides/available",
+    "GET",
+    undefined,
+    "driver",
+    "driver"
+  );
+  assert.deepEqual(
+    available.body.rides.map((r) => r.id),
+    ["ride"]
+  );
   assert.equal(available.body.rides[0].linked_leg_status, "accepted");
-  const assigned = await call("/drivers/me/rides", "GET", undefined, "driver", "driver");
-  assert.deepEqual(assigned.body.rides.map(r => r.id), ["return"]);
+  const assigned = await call(
+    "/drivers/me/rides",
+    "GET",
+    undefined,
+    "driver",
+    "driver"
+  );
+  assert.deepEqual(
+    assigned.body.rides.map((r) => r.id),
+    ["return"]
+  );
 });
 
 test("preferences wait a day, persist later/decline, and unsubscribe is scoped", async () => {
@@ -225,29 +260,29 @@ test("preferences wait a day, persist later/decline, and unsubscribe is scoped",
     "GET",
     undefined,
     "driver",
-    "driver",
+    "driver"
   );
   assert.ok(
     new Date(first.body.preferences.prompt_after).getTime() >
-      Date.now() + 23 * 3600000,
+      Date.now() + 23 * 3600000
   );
   const later = await call(
     "/notifications/preferences",
     "PATCH",
     { prompt: "later" },
     "driver",
-    "driver",
+    "driver"
   );
   assert.ok(
     new Date(later.body.preferences.prompt_after).getTime() >
-      Date.now() + 6 * 86400000,
+      Date.now() + 6 * 86400000
   );
   const declined = await call(
     "/notifications/preferences",
     "PATCH",
     { prompt: "declined" },
     "driver",
-    "driver",
+    "driver"
   );
   assert.equal(declined.body.preferences.prompt_dismissed, true);
   await update((db) => {
@@ -271,10 +306,10 @@ test("driver deletion requires exact text and password, releases rides, and revo
         "DELETE",
         { confirmation: "delete", password: "fixture-password" },
         "driver",
-        "driver",
+        "driver"
       )
     ).status,
-    400,
+    400
   );
   assert.equal(
     (
@@ -283,10 +318,10 @@ test("driver deletion requires exact text and password, releases rides, and revo
         "DELETE",
         { confirmation: "DELETE", password: "wrong" },
         "driver",
-        "driver",
+        "driver"
       )
     ).status,
-    403,
+    403
   );
   assert.equal(
     (
@@ -295,25 +330,25 @@ test("driver deletion requires exact text and password, releases rides, and revo
         "DELETE",
         { confirmation: "DELETE", password: "fixture-password" },
         "driver",
-        "driver",
+        "driver"
       )
     ).status,
-    200,
+    200
   );
   const db = readDb();
   assert.equal(
     db.drivers.some((d) => d.id === "driver"),
-    false,
+    false
   );
   assert.equal(db.rides[0].status, "requested");
   assert.equal(db.rides[0].driver_id, undefined);
   assert.equal(
     db.vehicles.some((v) => v.driver_id === "driver"),
-    false,
+    false
   );
   assert.equal(
     (await call("/notifications", "GET", undefined, "driver", "driver")).status,
-    401,
+    401
   );
 });
 
@@ -328,7 +363,7 @@ test("first acceptance offers a gentle prompt once and respects an earlier snooz
       "GET",
       undefined,
       "driver",
-      "driver",
+      "driver"
     )
   ).body.preferences;
   assert.equal(prefs.first_ride_prompt_pending, true);
@@ -337,7 +372,7 @@ test("first acceptance offers a gentle prompt once and respects an earlier snooz
     "PATCH",
     { prompt: "later" },
     "driver",
-    "driver",
+    "driver"
   );
   await update((db) => {
     db.rides[0].status = "requested";
@@ -353,7 +388,7 @@ test("first acceptance offers a gentle prompt once and respects an earlier snooz
       "GET",
       undefined,
       "driver",
-      "driver",
+      "driver"
     )
   ).body.preferences;
   assert.equal(prefs.first_ride_prompt_pending, false);
@@ -371,10 +406,10 @@ test("active rides block deletion and staff account deletion preserves organizat
         "DELETE",
         { confirmation: "DELETE", password: "fixture-password" },
         "driver",
-        "driver",
+        "driver"
       )
     ).status,
-    409,
+    409
   );
   assert.equal(
     (
@@ -383,7 +418,7 @@ test("active rides block deletion and staff account deletion preserves organizat
         password: "fixture-password",
       })
     ).status,
-    200,
+    200
   );
   assert.equal(readDb().clients.length, 1);
   assert.equal(readDb().organizations.length, 2);
@@ -400,7 +435,7 @@ test("any active staff can delete only their own organization with stronger conf
   assert.equal(
     (await call("/settings/organization", "DELETE", body, "driver", "driver"))
       .status,
-    403,
+    403
   );
   assert.equal(
     (
@@ -409,7 +444,7 @@ test("any active staff can delete only their own organization with stronger conf
         organization_name: "Other",
       })
     ).status,
-    400,
+    400
   );
   assert.equal(
     (
@@ -418,16 +453,16 @@ test("any active staff can delete only their own organization with stronger conf
         acknowledged: false,
       })
     ).status,
-    400,
+    400
   );
   assert.equal(
     (await call("/settings/organization", "DELETE", body, "colleague")).status,
-    200,
+    200
   );
   const db = readDb();
   assert.deepEqual(
     db.organizations.map((o) => o.id),
-    ["other"],
+    ["other"]
   );
   assert.equal(db.clients.length, 0);
   assert.equal(db.rides.length, 0);
@@ -453,10 +488,10 @@ test("push delivery retries transient failures, prunes expired subscriptions, an
         "POST",
         { ...sub, endpoint: "http://127.0.0.1/private" },
         "driver",
-        "driver",
+        "driver"
       )
     ).status,
-    400,
+    400
   );
   assert.equal(
     (
@@ -465,10 +500,10 @@ test("push delivery retries transient failures, prunes expired subscriptions, an
         "POST",
         sub,
         "driver",
-        "driver",
+        "driver"
       )
     ).status,
-    201,
+    201
   );
   await new Promise((resolve) => setTimeout(resolve, 5));
   await update((db) => {

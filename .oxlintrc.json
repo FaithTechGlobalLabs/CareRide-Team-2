@@ -1,6 +1,5 @@
 {
   "$schema": "../node_modules/oxlint/configuration_schema.json",
-  "plugins": [],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -108,5 +107,12 @@
         "typescript/no-explicit-any": "off"
       }
     }
-  ]
+  ],
+  "options": {
+    "typeAware": true,
+    "typeCheck": true
+  },
+  "rules": {
+    "react/react-in-jsx-scope": "off"
+  }
 }

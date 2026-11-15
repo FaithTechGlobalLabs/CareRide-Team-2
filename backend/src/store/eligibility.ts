@@ -99,7 +99,7 @@ export function matchingAvailability(
         ride.pickup_lng
       ) <=
         (rule.radius_km ??
-          (rule as DriverAvailability & { radius_m?: number }).radius_m! / 1000)
+          (rule as DriverAvailability & { radius_m?: number }).radius_m / 1000)
   );
 }
 

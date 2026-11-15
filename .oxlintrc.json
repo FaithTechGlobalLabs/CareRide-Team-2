@@ -99,8 +99,8 @@
     },
     {
       "files": [
-        "**/*.{test,spec}.{ts,tsx,mts,cts}",
-        "**/{test,tests,__tests__}/**/*.{ts,tsx,mts,cts}"
+        "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/{test,tests,__tests__}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"
       ],
       "plugins": ["typescript"],
       "rules": {

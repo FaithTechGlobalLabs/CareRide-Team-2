@@ -36,7 +36,9 @@ export function Dashboard() {
   ).length;
   const upcoming = data.rides
     .filter((r) => ["requested", "accepted", "in_progress"].includes(r.status))
-    .sort((a, b) => a.requested_pickup_at.localeCompare(b.requested_pickup_at));
+    .toSorted((a, b) =>
+      a.requested_pickup_at.localeCompare(b.requested_pickup_at)
+    );
   const awaiting = upcoming.filter((r) => r.status === "requested");
   const assigned = upcoming.filter((r) => r.status !== "requested");
   const completed = data.rides.filter((r) => r.status === "completed");

@@ -27,7 +27,28 @@ const body = {
   note: "Updated service area",
 };
 
-test("availability editing saves schedule fields and preserves pause/resume", async (t) => {
+const invoke = (input) =>
+  new Promise((resolve, reject) => {
+    const response = {
+      statusCode: 200,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(value) {
+        resolve({ status: this.statusCode, body: value });
+      },
+    };
+    handler(
+      { params: { id: "rule" }, auth: { sub: "driver" }, body: input },
+      response,
+      reject
+    );
+  });
+
+void test("availability editing saves schedule fields and preserves pause/resume", async (t) => {
+  // Save for restoration only; this method is never invoked without its pool receiver.
+  // oxlint-disable-next-line typescript/unbound-method
   const originalQuery = pool.query;
   const calls = [];
   let rows = [{ id: "rule", is_active: true }];
@@ -35,24 +56,6 @@ test("availability editing saves schedule fields and preserves pause/resume", as
     calls.push({ sql, values });
     return { rows };
   };
-  const invoke = (input) =>
-    new Promise((resolve, reject) => {
-      const response = {
-        statusCode: 200,
-        status(code) {
-          this.statusCode = code;
-          return this;
-        },
-        json(value) {
-          resolve({ status: this.statusCode, body: value });
-        },
-      };
-      handler(
-        { params: { id: "rule" }, auth: { sub: "driver" }, body: input },
-        response,
-        reject
-      );
-    });
   try {
     await t.test(
       "full edit saves coordinates, radius, hours, weekdays, and note for the authenticated driver",
@@ -105,7 +108,7 @@ test("availability editing saves schedule fields and preserves pause/resume", as
         assert.equal((await invoke({ is_active: false })).status, 200);
         assert.deepEqual(calls.at(-1).values, ["rule", "driver", false]);
         assert.doesNotMatch(calls.at(-1).sql, /SET centre/);
-        const { is_active, ...withoutActive } = body;
+        const { is_active: _isActive, ...withoutActive } = body;
         assert.equal((await invoke(withoutActive)).status, 200);
         assert.equal(calls.at(-1).values.at(-1), null);
         assert.match(calls.at(-1).sql, /COALESCE/);

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { groupRideAppointments } from "../../react-web-careride/src/features/careride/rideGroups.ts";
 
-test("linked legs stay together across midnight, outbound first", () => {
+void test("linked legs stay together across midnight, outbound first", () => {
   const outbound = {
     id: "out",
     linked_ride_id: "back",
@@ -24,7 +24,7 @@ test("linked legs stay together across midnight, outbound first", () => {
     [["out", "back"], ["single"]]
   );
 });
-test("trip IDs group legs without link IDs and do not merge other appointments", () => {
+void test("trip IDs group legs without link IDs and do not merge other appointments", () => {
   const rides = [
     {
       id: "out",
@@ -45,7 +45,7 @@ test("trip IDs group legs without link IDs and do not merge other appointments",
     [["out", "back"], ["single"]]
   );
 });
-test("filtering to one leg never reveals an unlisted ride", () => {
+void test("filtering to one leg never reveals an unlisted ride", () => {
   const onlyVisible = {
     id: "back",
     linked_ride_id: "private-outbound",

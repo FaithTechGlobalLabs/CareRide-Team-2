@@ -86,7 +86,13 @@ async function deliver(): Promise<void> {
             );
             success = true;
           } catch (error) {
-            const code = (error as { statusCode?: number }).statusCode;
+            const code =
+              typeof error === "object" &&
+              error !== null &&
+              "statusCode" in error &&
+              typeof error.statusCode === "number"
+                ? error.statusCode
+                : undefined;
             gone = code === 404 || code === 410;
             terminal =
               gone ||

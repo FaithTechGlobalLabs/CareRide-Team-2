@@ -3,11 +3,12 @@ import jwt from "jsonwebtoken";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-process.env.JWT_SECRET = "accepted-rides-test-only";
+const testSecret = "accepted-rides-test-only";
+process.env.JWT_SECRET = testSecret;
 const { pool } = await import("../src/db/db.ts");
 const { registerApi } = await import("../src/api/routes.ts");
 
-test("SQL acceptance remains visible after reload to its driver and staff, and can be picked up", async () => {
+void test("SQL acceptance remains visible after reload to its driver and staff, and can be picked up", async () => {
   const ride = {
     id: "ride",
     organization_id: "org",
@@ -23,7 +24,11 @@ test("SQL acceptance remains visible after reload to its driver and staff, and c
     passenger_count: 1,
     accessibility_needs: [],
   };
+  // Save for restoration only; this method is never invoked without its pool receiver.
+  // oxlint-disable-next-line typescript/unbound-method
   const originalQuery = pool.query;
+  // Save for restoration only; this method is never invoked without its pool receiver.
+  // oxlint-disable-next-line typescript/unbound-method
   const originalConnect = pool.connect;
   const query = async (sql, values = []) => {
     if (["BEGIN", "COMMIT", "ROLLBACK"].includes(sql)) return { rows: [] };
@@ -69,7 +74,7 @@ test("SQL acceptance remains visible after reload to its driver and staff, and c
     const app = express();
     app.use(express.json());
     registerApi(app);
-    app.use((error, req, res, next) =>
+    app.use((error, req, res, _next) =>
       res.status(500).json({ message: String(error) })
     );
     await new Promise((resolve) => {
@@ -78,10 +83,10 @@ test("SQL acceptance remains visible after reload to its driver and staff, and c
     async function call(path, method = "GET", kind = "driver", id = kind) {
       const token = jwt.sign(
         { sub: id, kind, role: kind, organizationId: "org" },
-        process.env.JWT_SECRET
+        testSecret
       );
       const response = await fetch(
-        `http://127.0.0.1:${server.address().port}${path}`,
+        `http://127.0.0.1:${String(server.address().port)}${path}`,
         {
           method,
           headers: { Authorization: `Bearer ${token}` },

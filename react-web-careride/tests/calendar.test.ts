@@ -10,6 +10,8 @@ import {
   shareableCalendarFile,
 } from "../src/features/careride/calendar.ts";
 
+const share = async () => {};
+
 const now = new Date("2026-10-04T20:00:00Z");
 function ride(overrides: Partial<Ride> = {}): Ride {
   return {
@@ -36,7 +38,7 @@ function unfolded(calendar: string) {
   return calendar.replace(/\r\n /g, "");
 }
 
-test("single ride exports a private event with UTC times, route and ride link", () => {
+void test("single ride exports a private event with UTC times, route and ride link", () => {
   const calendar = unfolded(
     buildRideCalendar([ride()], "https://careride.example", now)
   );
@@ -60,7 +62,7 @@ test("single ride exports a private event with UTC times, route and ride link", 
   }
 });
 
-test("round trip includes only accepted legs assigned to this driver", () => {
+void test("round trip includes only accepted legs assigned to this driver", () => {
   const outbound = ride({ linked_ride_id: "return", trip_leg: "outbound" });
   const back = ride({
     id: "return",
@@ -104,7 +106,7 @@ test("round trip includes only accepted legs assigned to this driver", () => {
   }
 });
 
-test("summer and winter offsets preserve the pickup instant and fallback duration", () => {
+void test("summer and winter offsets preserve the pickup instant and fallback duration", () => {
   for (const [pickup, expected] of [
     ["2026-07-05T09:30:00-07:00", "20260705T163000Z"],
     ["2026-12-05T09:30:00-08:00", "20261205T173000Z"],
@@ -131,7 +133,7 @@ test("summer and winter offsets preserve the pickup instant and fallback duratio
   }
 });
 
-test("escapes text injection and folds Unicode lines to at most 75 UTF-8 bytes", () => {
+void test("escapes text injection and folds Unicode lines to at most 75 UTF-8 bytes", () => {
   const address = `Clinic; unit 2, \\ entrance\r\nBEGIN:VEVENT ${"🏥é".repeat(70)}`;
   const calendar = buildRideCalendar(
     [ride({ pickup_address: address })],
@@ -155,7 +157,7 @@ test("escapes text injection and folds Unicode lines to at most 75 UTF-8 bytes",
   assert.ok(contents.includes("🏥é".repeat(70)));
 });
 
-test("UIDs remain stable across repeat exports and links never carry credentials", () => {
+void test("UIDs remain stable across repeat exports and links never carry credentials", () => {
   const first = unfolded(
     buildRideCalendar([ride()], "https://careride.example/?token=secret", now)
   );
@@ -170,7 +172,7 @@ test("UIDs remain stable across repeat exports and links never carry credentials
   assert.ok(!first.includes("secret"));
 });
 
-test("invalid or timezone-less pickup times cannot produce misleading events", () => {
+void test("invalid or timezone-less pickup times cannot produce misleading events", () => {
   for (const pickup of ["invalid", "2026-10-05T09:30:00", "2026-10-05"]) {
     assert.throws(
       () =>
@@ -188,7 +190,7 @@ test("invalid or timezone-less pickup times cannot produce misleading events", (
   );
 });
 
-test("provider editors preserve pickup times, route text and manual-removal guidance", () => {
+void test("provider editors preserve pickup times, route text and manual-removal guidance", () => {
   const location = "Clinic & entrance #2 + café <side door>";
   const links = calendarEditorLinks(
     ride({ pickup_address: location }),
@@ -232,7 +234,7 @@ test("provider editors preserve pickup times, route text and manual-removal guid
   }
 });
 
-test("each round-trip leg opens its own event editor with its own time and title", () => {
+void test("each round-trip leg opens its own event editor with its own time and title", () => {
   const outbound = new URL(
     calendarEditorLinks(
       ride({ trip_leg: "outbound" }),
@@ -262,10 +264,9 @@ test("each round-trip leg opens its own event editor with its own time and title
   );
 });
 
-test("native file handoff checks exact file support and retains calendar contents", async () => {
+void test("native file handoff checks exact file support and retains calendar contents", async () => {
   const calendar = buildRideCalendar([ride()], "https://careride.example", now);
   const file = new File([calendar], "ride.ics", { type: "text/calendar" });
-  const share = async () => {};
   assert.equal(shareableCalendarFile(file, {}), null);
   assert.equal(shareableCalendarFile(file, { share }), null);
   assert.equal(

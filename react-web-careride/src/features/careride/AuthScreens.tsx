@@ -311,7 +311,11 @@ export function DriverRegistration() {
             name="dob"
             type="date"
             required
-            max={new Date().toISOString().slice(0, 10)}
+            max={
+              // Keep the date limit current on every render, including after midnight.
+              // oxlint-disable-next-line react/purity
+              new Date().toISOString().slice(0, 10)
+            }
           />
         </Field>
         <Field label="Phone">

@@ -12,6 +12,24 @@ import {
 import { useCare } from "./context";
 import { ErrorBox } from "./ui";
 
+function openFile(calendar: File, download: boolean) {
+  const url = URL.createObjectURL(calendar);
+  const link = document.createElement("a");
+  link.href = url;
+  if (download) link.download = calendar.name;
+  else {
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  }
+  document.body.append(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+}
+
 export function AddToCalendar({ ride }: { ride: Ride }) {
   const { data, session } = useCare();
   const hintId = useId();
@@ -33,24 +51,6 @@ export function AddToCalendar({ ride }: { ride: Ride }) {
       `careride-${encodeURIComponent(rides[0].id)}${rides.length > 1 ? "-round-trip" : ""}.ics`,
       { type: "text/calendar;charset=utf-8" }
     );
-  }
-
-  function openFile(calendar: File, download: boolean) {
-    const url = URL.createObjectURL(calendar);
-    const link = document.createElement("a");
-    link.href = url;
-    if (download) link.download = calendar.name;
-    else {
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-    }
-    document.body.append(link);
-    try {
-      link.click();
-    } finally {
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-    }
   }
 
   async function deviceCalendar(download = false) {

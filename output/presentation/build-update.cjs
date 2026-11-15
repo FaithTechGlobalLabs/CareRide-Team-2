@@ -1,3 +1,4 @@
+const ts=n=>`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;
 const fs=require('fs'),path=require('path');
 const PptxGenJS=require('/Users/kentonbell/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pptxgenjs');
 const out=__dirname,repo='https://github.com/FaithTechGlobalLabs/CareRide-Team-2';
@@ -32,7 +33,7 @@ async function main(){for(let i=0;i<7;i++){
  s.addNotes(`${content[i].seconds} seconds.\n\n${content[i].notes}\n\nSources: supplied CareRide brief pp.19–21; organizer guidelines; docs/PROGRESS.md; docs/NOTIFICATION_MERGE_FIX.md; current repository source. Independent platform; unconfirmed partners; illustrative demo data.\nRepository: ${repo}`);
  }
  await pptx.writeFile({fileName:path.join(out,'CareRide-HACKVAN2026-Project-Update.pptx')});
- let elapsed=0;const ts=n=>`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;
+ let elapsed=0;
  const md=['# CareRide — seven-slide project update','','Total: 7:00. Slides 1–4: 3:00. Slide 5 live demo: 2:00. Slides 6–7: 2:00.','','Team: Derek, Kenton, Eashan, Chong.','','Before presenting: replace the four title-slide photo slots with real team photos. Add confirmed individual contributions and one authentic personal moment to slide 6 notes. The deck uses collective contributions because individual roles have not been confirmed.','','Prepare two sessions and a sample ride that is eligible for the driver, including the pickup time. Decide whether presenting screen-demo mode or the live API, and state this accurately. Use the embedded screenshots as a fallback. Sample savings are illustrative, never outcome evidence.',''];
  for(const d of content){md.push(`## ${d.section} — ${ts(elapsed)}–${ts(elapsed+d.seconds)}`,'',d.notes,'');elapsed+=d.seconds;}
  md.push('## Product-plan and judging Q&A','','**Client technical-stack fit:** The repository includes a React frontend, Express/PostgreSQL API, and deployment support. Before a pilot, verify them together, understand the organization’s technical environment, and agree maintenance ownership. No integration with Salvation Army systems is confirmed.','','**Evidence:** Project notes record a staff-to-driver browser pass and integration fixes. A local screen-demo capture does not prove current live deployment health.','','**Potential:** The workflow could serve additional organizations. Driver availability, staff usefulness, client experience, and outcomes need pilot validation.','','**Problem research:** The supplied Belkin challenge informed the approach. A quantified baseline and a formal competitor study are not claimed.','','Repository: '+repo);

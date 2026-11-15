@@ -22,6 +22,8 @@ const route =
   ): RequestHandler =>
   (req: Request, res: Response, next: NextFunction) => {
     req.body ??= {};
+    // These account routes are registered after requireAuth attaches the claims.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     void fn(req as PersonalRequest, res).catch(next);
   };
 
@@ -185,7 +187,11 @@ export function registerPersonalApi(app: Express, auth: RequestHandler): void {
             try {
               fs.unlinkSync(path.join(uploadsDir(), file));
             } catch (e) {
-              if ((e as NodeJS.ErrnoException).code !== "ENOENT")
+              if (
+                (typeof e === "object" && e !== null && "code" in e
+                  ? e.code
+                  : undefined) !== "ENOENT"
+              )
                 console.error("Deleted account document cleanup failed");
             }
           }

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-test("merged SQL API registers staff preferences, inbox, read-all and subscriptions without touching JSON", async () => {
+void test("merged SQL API registers staff preferences, inbox, read-all and subscriptions without touching JSON", async () => {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), "careride-merge-test-")
   );
@@ -16,6 +16,8 @@ test("merged SQL API registers staff preferences, inbox, read-all and subscripti
   delete process.env.VAPID_PRIVATE_KEY;
   delete process.env.VAPID_SUBJECT;
   const { pool } = await import("../src/db/db.ts");
+  // Save for restoration only; this method is never invoked without its pool receiver.
+  // oxlint-disable-next-line typescript/unbound-method
   const original = pool.query;
   const queries = [];
   const userId = "00000000-0000-4000-8000-000000000001";
@@ -63,7 +65,7 @@ test("merged SQL API registers staff preferences, inbox, read-all and subscripti
     app.use(express.json());
     registerApi(app);
     app.use((req, res) => res.status(404).json({ error: "Route not found" }));
-    app.use((error, req, res, next) =>
+    app.use((error, req, res, _next) =>
       res.status(500).json({ message: String(error) })
     );
     await new Promise((resolve, reject) => {

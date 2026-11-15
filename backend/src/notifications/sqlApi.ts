@@ -17,6 +17,8 @@ const route =
   (fn: (req: AuthRequest, res: Response) => Promise<void>): RequestHandler =>
   (req: Request, res: Response, next: NextFunction) => {
     req.body ??= {};
+    // Authenticated routes are registered after requireAuth; the internal worker route reads its own header.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     void fn(req as AuthRequest, res).catch(next);
   };
 

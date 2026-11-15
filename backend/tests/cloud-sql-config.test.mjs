@@ -10,7 +10,7 @@ const credentials = {
   POSTGRES_DB: "test-database",
 };
 
-test("Cloud Run deployment DB_* variables select the intended socket and credentials", async () => {
+void test("Cloud Run deployment DB_* variables select the intended socket and credentials", async () => {
   const pool = new Pool(
     databaseConfig({
       K_SERVICE: "test-backend",
@@ -36,7 +36,7 @@ test("Cloud Run deployment DB_* variables select the intended socket and credent
   }
 });
 
-test("DB_* names also support TCP and INSTANCE_CONNECTION_NAME", () => {
+void test("DB_* names also support TCP and INSTANCE_CONNECTION_NAME", () => {
   const env = {
     DB_USER: "test-user",
     DB_PASS: "test-password",
@@ -53,7 +53,7 @@ test("DB_* names also support TCP and INSTANCE_CONNECTION_NAME", () => {
   assert.equal(socket.database, "test-database");
 });
 
-test("POSTGRES_* settings retain precedence when both naming conventions are present", () => {
+void test("POSTGRES_* settings retain precedence when both naming conventions are present", () => {
   const config = databaseConfig({
     ...credentials,
     POSTGRES_HOST: "127.0.0.1",
@@ -68,7 +68,7 @@ test("POSTGRES_* settings retain precedence when both naming conventions are pre
   assert.equal(config.database, credentials.POSTGRES_DB);
 });
 
-test("Cloud SQL selects a usable pg socket even with a stale local URL", async () => {
+void test("Cloud SQL selects a usable pg socket even with a stale local URL", async () => {
   const pool = new Pool(
     databaseConfig({
       ...credentials,
@@ -95,7 +95,7 @@ test("Cloud SQL selects a usable pg socket even with a stale local URL", async (
   }
 });
 
-test("an explicit Cloud SQL host also overrides URL configuration", () => {
+void test("an explicit Cloud SQL host also overrides URL configuration", () => {
   const config = databaseConfig({
     ...credentials,
     POSTGRES_HOST: "/cloudsql/test-project:us-central1:test-instance",
@@ -105,7 +105,7 @@ test("an explicit Cloud SQL host also overrides URL configuration", () => {
   assert.equal(config.connectionString, undefined);
 });
 
-test("missing socket credentials fail early without revealing secrets", () => {
+void test("missing socket credentials fail early without revealing secrets", () => {
   assert.throws(
     () =>
       databaseConfig({
@@ -121,7 +121,7 @@ test("missing socket credentials fail early without revealing secrets", () => {
   );
 });
 
-test("malformed names and unusably long Unix socket paths fail early", () => {
+void test("malformed names and unusably long Unix socket paths fail early", () => {
   for (const name of [
     "instance-only",
     "project:region:../instance",
@@ -142,7 +142,7 @@ test("malformed names and unusably long Unix socket paths fail early", () => {
   );
 });
 
-test("hosted URL TLS options and local TCP configuration remain supported", () => {
+void test("hosted URL TLS options and local TCP configuration remain supported", () => {
   const url =
     "postgres://test-user:test-password@example.test/db?sslmode=require";
   const config = databaseConfig({ DATABASE_URL: url });
@@ -158,7 +158,7 @@ test("hosted URL TLS options and local TCP configuration remain supported", () =
   assert.equal(tcp.port, 5433);
 });
 
-test("pool settings can be tuned but not silently disabled by invalid values", () => {
+void test("pool settings can be tuned but not silently disabled by invalid values", () => {
   const config = databaseConfig({
     DB_POOL_MAX: "3",
     DB_CONNECT_TIMEOUT_MS: "1000",
@@ -179,7 +179,7 @@ test("pool settings can be tuned but not silently disabled by invalid values", (
   assert.throws(() => databaseConfig({ POSTGRES_PORT: "65536" }), /65535/);
 });
 
-test("Cloud Run cannot silently fall back to localhost with no database configured", () => {
+void test("Cloud Run cannot silently fall back to localhost with no database configured", () => {
   assert.throws(
     () => databaseConfig({ K_SERVICE: "test-backend" }),
     /Configure/

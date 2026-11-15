@@ -1,3 +1,4 @@
+const ts=n=>`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;
 const fs = require('fs');
 const path = require('path');
 const lib='/Users/kentonbell/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules';
@@ -21,7 +22,6 @@ const source='Sources: CareRide Team 2 HACKVAN2026.pdf, pp. 19–21; docs/CARERI
 let elapsed=0;
 const script=['# CareRide — HACKVAN2026 proposal pitch','', '10 slides · 7 minutes 20 seconds of planned stage time, including demo pauses. Rehearse at a conversational pace; use the screenshots if a live demo is unavailable.', '', 'Exact slogan: A little help, A way forward. Connecting people to the care they need.', '',source,''];
 for(const [i,s] of slides.entries()){
- const ts=n=>`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;
  script.push(`## ${i+1}. ${s.title.replace(/\n/g,' ')} (${ts(elapsed)}–${ts(elapsed+s.time)})`,'',s.notes,'');elapsed+=s.time;
 }
 script.push('## Presenter preparation','','Open the deck locally before presenting. Slides 5–6 include screenshots, so no live network is required. If demonstrating live, use synthetic records, do not expose personal client information, and keep the two demo segments to 60 seconds each. Do not describe the proposed four-week pilot as agreed or launched. Avoid quoting sample savings as evidence.','','## Likely judge questions','','**What is different?** Staff arrange and follow essential-service rides for clients who may lack digital access; organization approval is part of the workflow.','','**Is this a Salvation Army product?** No. It is an independent proposal shaped by the Belkin Communities of Hope challenge, with participation open to other service organizations.','','**Does it solve homelessness?** It addresses one barrier to reaching care. Housing, health care, and support services remain essential.','','**What still needs validation?** Partner commitment, operational procedures, screening/insurance, privacy/consent, driver supply, and measured staff and client outcomes.');

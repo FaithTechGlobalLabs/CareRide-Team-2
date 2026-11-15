@@ -48,6 +48,8 @@ export function WeekCalendar({
   weekStart: string;
   setWeekStart: (value: string) => void;
 }) {
+  // Keep the calendar date current on rerenders across midnight.
+  // oxlint-disable-next-line react/purity
   const today = vancouverYmd(new Date());
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
@@ -57,6 +59,8 @@ export function WeekCalendar({
     { length: END_HOUR - START_HOUR },
     (_, index) => START_HOUR + index
   );
+  // The time marker follows the current time on each render.
+  // oxlint-disable-next-line react/purity
   const nowMinutes = vancouverMinutes(new Date().toISOString());
   const showNow =
     days.includes(today) &&
@@ -72,6 +76,8 @@ export function WeekCalendar({
       0,
       current.offsetLeft - root.clientWidth / 2 + current.clientWidth / 2
     );
+    // Recenter after navigation changes the rendered week, even though the ref is stable.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [weekStart]);
 
   const byDay = useMemo(() => {
@@ -95,7 +101,7 @@ export function WeekCalendar({
         .filter(
           (event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60
         )
-        .sort((a, b) => a.start - b.start || a.end - b.end);
+        .toSorted((a, b) => a.start - b.start || a.end - b.end);
       return layout(events);
     });
   }, [rides, days, driveTimes]);
@@ -295,7 +301,7 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
       .filter(
         (event) => event.end > START_HOUR * 60 && event.start < END_HOUR * 60
       )
-      .sort((a, b) => a.start - b.start || a.end - b.end);
+      .toSorted((a, b) => a.start - b.start || a.end - b.end);
     return layout(placed);
   }, [todays, driveTimes]);
 
@@ -304,6 +310,8 @@ export function TodayColumn({ rides }: { rides: Ride[] }) {
     const marker = root?.querySelector<HTMLElement>(".cal-event");
     if (!root || !marker) return;
     root.scrollTop = Math.max(0, marker.offsetTop - 28);
+    // Scroll again when the number of rendered events changes.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [events.length]);
 
   if (!todays.length) {
@@ -389,6 +397,8 @@ export function RideSchedule({
 }) {
   const { data } = useCare();
   const [view, setView] = useState<"week" | "month">("week");
+  // Keep the calendar date current on rerenders across midnight.
+  // oxlint-disable-next-line react/purity
   const today = vancouverYmd(new Date());
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today));
   const [monthCursor, setMonthCursor] = useState(today.slice(0, 7));
@@ -471,6 +481,8 @@ function MonthCalendar({
   cursor: string;
   setCursor: (value: string) => void;
 }) {
+  // Keep the calendar date current on rerenders across midnight.
+  // oxlint-disable-next-line react/purity
   const today = vancouverYmd(new Date());
   const cells = useMemo(() => monthCells(cursor), [cursor]);
 
@@ -514,7 +526,7 @@ function MonthCalendar({
             .filter(
               (ride) => vancouverYmd(new Date(ride.requested_pickup_at)) === day
             )
-            .sort((a, b) =>
+            .toSorted((a, b) =>
               a.requested_pickup_at.localeCompare(b.requested_pickup_at)
             );
           return (
@@ -568,14 +580,15 @@ function shiftMonth(yearMonth: string, delta: number) {
   return `${y}-${m}`;
 }
 
+const rangeDateLabel = (ymd: string) => {
+  const [year, month, day] = ymd.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+};
+
 function formatRange(start: string, end: string) {
-  const label = (ymd: string) => {
-    const [year, month, day] = ymd.split("-").map(Number);
-    return new Intl.DateTimeFormat("en-CA", {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    }).format(new Date(Date.UTC(year, month - 1, day, 12)));
-  };
-  return `${label(start)} – ${label(end)}`;
+  return `${rangeDateLabel(start)} – ${rangeDateLabel(end)}`;
 }

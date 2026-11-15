@@ -21,6 +21,7 @@ import {
   Badge,
   Empty,
   Field,
+  formText,
   Form,
   PageTitle,
   Panel,
@@ -168,7 +169,11 @@ export function ClientScreen({ clientId }: { clientId?: string }) {
               type="date"
               defaultValue={client?.dob}
               required
-              max={new Date().toISOString().slice(0, 10)}
+              max={
+                // Keep the date limit current on every render, including after midnight.
+                // oxlint-disable-next-line react/purity
+                new Date().toISOString().slice(0, 10)
+              }
             />
           </Field>
           <Field label="Address / transitional home">
@@ -452,6 +457,16 @@ export function BookingScreen({
   );
 }
 
+const openDatePicker = (event: FocusEvent<HTMLInputElement>) => {
+  try {
+    event.currentTarget.showPicker?.();
+  } catch (error) {
+    // Programmatic focus may lack the user activation required by the browser.
+    if (!(error instanceof DOMException && error.name === "NotAllowedError"))
+      throw error;
+  }
+};
+
 function BookingForm({
   selectedClient,
   editingRide,
@@ -492,15 +507,6 @@ function BookingForm({
   );
   const [returnDate, setReturnDate] = useState("");
   const locations = data.destinations.filter((d) => d.is_active);
-  const openDatePicker = (event: FocusEvent<HTMLInputElement>) => {
-    try {
-      event.currentTarget.showPicker?.();
-    } catch (error) {
-      // Programmatic focus may lack the user activation required by the browser.
-      if (!(error instanceof DOMException && error.name === "NotAllowedError"))
-        throw error;
-    }
-  };
   return (
     <Layout>
       <PageTitle
@@ -521,20 +527,24 @@ function BookingForm({
             submit={editingRide ? "Save booking" : "Make booking"}
             onSubmit={async (f) => {
               const p = locations.find((d) => d.id === pickup);
-              const d = locations.find((d) => d.id === destination);
+              const d = locations.find(
+                (location) => location.id === destination
+              );
               if (!p || !d) throw new Error("Choose a pickup and destination.");
               if (p.id === d.id)
                 throw new Error(
                   "Pickup and destination must be different places."
                 );
               const pickupAt = new Date(
-                `${f.get("requested_pickup_date")}T${f.get("requested_pickup_time")}`
+                `${formText(f, "requested_pickup_date")}T${formText(f, "requested_pickup_time")}`
               );
+              // This is the submit handler: validate against click-time, not render-time.
+              // oxlint-disable-next-line react/purity
               if (Number.isNaN(pickupAt.getTime()) || pickupAt <= new Date())
                 throw new Error("Choose a pickup time in the future.");
               const returnAt = roundTrip
                 ? new Date(
-                    `${f.get("return_pickup_date")}T${f.get("return_pickup_time")}`
+                    `${formText(f, "return_pickup_date")}T${formText(f, "return_pickup_time")}`
                   )
                 : undefined;
               if (
@@ -565,7 +575,10 @@ function BookingForm({
                 requested_pickup_at: pickupAt.toISOString(),
                 return_pickup_at: returnAt?.toISOString(),
                 passenger_count: Number(f.get("passenger_count")),
-                accessibility_needs: f.getAll("accessibility").join(", "),
+                accessibility_needs: f
+                  .getAll("accessibility")
+                  .map(String)
+                  .join(", "),
                 trip_type: roundTrip ? "round_trip" : "one_way",
                 round_trip: roundTrip,
                 ride_option: "free",

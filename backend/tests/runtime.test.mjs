@@ -11,7 +11,7 @@ async function listen(server) {
 }
 
 for (const socketMode of [false, true]) {
-  test(
+  void test(
     socketMode
       ? "Cloud Run starts with only DB_* socket settings and no accessible database"
       : "server stays live during DB timeouts and shuts down cleanly on SIGTERM",

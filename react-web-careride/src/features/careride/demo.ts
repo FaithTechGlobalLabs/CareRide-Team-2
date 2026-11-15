@@ -344,7 +344,8 @@ export function readDemo(): Data {
   let data: Data;
   try {
     const saved = localStorage.getItem(KEY);
-    data = saved ? (JSON.parse(saved) as Data) : seed();
+    // save() persists the Data shape under this versioned storage key.
+    data = saved ? JSON.parse(saved) : seed();
   } catch {
     data = seed();
   }
@@ -467,7 +468,9 @@ export async function demoRequest(
   const b =
     body instanceof FormData
       ? Object.fromEntries(body.entries())
-      : ((body ?? {}) as Record<string, unknown>);
+      : // Preserve the demo dispatcher's permissive form/JSON input boundary.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+        ((body ?? {}) as Record<string, unknown>);
   if (path === "/auth/login") {
     const selectedDriver = demoDrivers.find(
       (item) => item.email === String(b.email)
@@ -495,6 +498,8 @@ export async function demoRequest(
       const organization = {
         id: id(),
         name: String(b.name),
+        // The demo mirrors the registration form without adding runtime rejection.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         type: b.type as "partner_org",
         address: String(b.address),
       };
@@ -587,6 +592,8 @@ export async function demoRequest(
       (b.pickup_address && b.pickup_address === b.destination_address)
     )
       throw new Error("Pickup and destination must be different places.");
+    // The booking form supplies the ride fields; the demo adds its local metadata.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const ride = {
       ...b,
       id: id(),
@@ -713,7 +720,11 @@ export async function demoRequest(
       approved_by_org_id: String(b.approved_by_org_id),
       check_type: String(b.check_type),
       status: "pending",
+      // Preserve the existing conversion of optional demo form values.
+      // oxlint-disable-next-line typescript/no-base-to-string
       issued_on: String(b.issued_on || ""),
+      // Preserve the existing conversion of optional demo form values.
+      // oxlint-disable-next-line typescript/no-base-to-string
       expires_on: String(b.expires_on || ""),
       document_ref: b.document instanceof File ? b.document.name : "",
     } as Verification;
@@ -723,13 +734,17 @@ export async function demoRequest(
     const record = data.verifications.find((v) => v.id === path.split("/")[3]);
     if (!record) throw new Error("Verification not found.");
     record.status = path.endsWith("/approve") ? "approved" : "rejected";
+    // Preserve the existing conversion of optional demo form values.
+    // oxlint-disable-next-line typescript/no-base-to-string
     record.reject_reason = String(b.reason || "");
     record.reviewed_at = now();
     record.reviewed_by_name = session?.user.name;
     record.approved_by_user_id = session?.user.id;
     result = record;
   } else if (path.startsWith("/notifications/")) {
-    const n = data.notifications.find((n) => n.id === path.split("/")[2]);
+    const n = data.notifications.find(
+      (notification) => notification.id === path.split("/")[2]
+    );
     if (n) n.read_at = now();
   } else throw new Error("This screen action is not supported in the demo.");
   save(data);

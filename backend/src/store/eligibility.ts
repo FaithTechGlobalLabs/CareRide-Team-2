@@ -6,13 +6,14 @@ import type {
 import type { RideRequest } from "../types/ride.types.js";
 import type { Db } from "./jsonStore.js";
 
+const toRad = (value: number) => (value * Math.PI) / 180;
+
 function kmBetween(
   lat1: number,
   lng1: number,
   lat2: number,
   lng2: number
 ): number {
-  const toRad = (value: number) => (value * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a =
@@ -128,7 +129,7 @@ export function driverCanClaim(
   if (!vehicle || vehicle.seats < ride.passenger_count) {
     return { ok: false, reason: "Vehicle capacity is too small." };
   }
-  const rawNeeds: unknown = ride.accessibility_needs;
+  const rawNeeds = ride.accessibility_needs;
   const needs = Array.isArray(rawNeeds)
     ? rawNeeds.map(String)
     : [String(rawNeeds ?? "")];

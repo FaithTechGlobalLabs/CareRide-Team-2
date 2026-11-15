@@ -88,6 +88,8 @@ function requireAuth(kind?: Auth["kind"]) {
       return;
     }
     try {
+      // sign() above defines the claims carried by tokens using this secret.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       const auth = jwt.verify(token, secret) as Auth;
       if (kind && auth.kind !== kind) {
         res
@@ -114,9 +116,17 @@ function param(req: Request, name: string): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
+function queryText(req: Request, name: string): string {
+  // Preserve the existing coercion of repeated and nested query parameters.
+  // oxlint-disable-next-line typescript/no-base-to-string
+  return String(req.query[name] ?? "");
+}
+
 function iso(value: unknown): string | null {
   if (value == null) return null;
   if (value instanceof Date) return value.toISOString();
+  // Preserve the mapper's existing fallback for non-Date database values.
+  // oxlint-disable-next-line typescript/no-base-to-string
   return String(value);
 }
 
@@ -130,6 +140,8 @@ function needs(body: unknown): string[] {
       .map(String)
       .map((item) => item.trim())
       .filter(Boolean);
+  // Legacy input accepts scalar values via JavaScript string coercion.
+  // oxlint-disable-next-line typescript/no-base-to-string
   const text = String(body ?? "").trim();
   if (!text) return [];
   return text
@@ -165,7 +177,15 @@ async function notifyStaff(
   rideId: string,
   title: string
 ): Promise<void> {
-  const ride = await client.query(
+  const ride = await client.query<{
+    requested_by_staff_id: string;
+    passenger_count: number;
+    requested_pickup_at: Date;
+    trip_leg: string | null;
+    first_name: string;
+    destination_name: string;
+    pickup_name: string;
+  }>(
     `SELECT r.id, r.organization_id, r.pickup_address, r.destination_id, r.requested_by_staff_id,
             r.passenger_count, r.requested_pickup_at, r.trip_leg, c.first_name,
             dest.name AS destination_name,
@@ -178,17 +198,7 @@ async function notifyStaff(
      WHERE r.id = $1`,
     [rideId]
   );
-  const row = ride.rows[0] as
-    | {
-        requested_by_staff_id: string;
-        passenger_count: number;
-        requested_pickup_at: Date;
-        trip_leg: string | null;
-        first_name: string;
-        destination_name: string;
-        pickup_name: string;
-      }
-    | undefined;
+  const row = ride.rows[0];
   if (!row) return;
   const message = rideMessage({
     firstName: row.first_name,
@@ -217,7 +227,7 @@ async function notifyStaff(
 }
 
 async function presentRide(client: PoolClient | typeof pool, id: string) {
-  const result = await client.query(
+  const result = await client.query<RideRow>(
     `SELECT r.*,
             c.first_name, c.last_name,
             d.first_name AS driver_first_name,
@@ -236,14 +246,22 @@ async function presentRide(client: PoolClient | typeof pool, id: string) {
      WHERE r.id = $1`,
     [id]
   );
-  const row = result.rows[0] as Record<string, unknown> | undefined;
+  const row = result.rows[0];
   if (!row) return null;
   return shapeRide(row);
 }
 
-function shapeRide(row: Record<string, unknown>) {
+type RideRow = Record<string, unknown> & {
+  accessibility_needs: string[] | null;
+  first_name: string;
+  last_name: string;
+  driver_first_name: string | null;
+  driver_last_name: string | null;
+};
+
+function shapeRide(row: RideRow) {
   const needsList = Array.isArray(row.accessibility_needs)
-    ? (row.accessibility_needs as string[])
+    ? row.accessibility_needs
     : [];
   const driverName = row.driver_first_name
     ? `${row.driver_first_name} ${row.driver_last_name}`
@@ -321,6 +339,28 @@ const rideListSql = `
   ) v ON true
 `;
 
+async function driverMove(
+  req: AuthedRequest,
+  res: Response,
+  from: string,
+  changes: string
+) {
+  const result = await pool.query(
+    `UPDATE ride_requests
+     SET ${changes}, updated_at = now()
+     WHERE id = $1 AND driver_id = $2 AND status = $3
+     RETURNING id`,
+    [param(req, "id"), req.auth?.sub, from]
+  );
+  if (!result.rows[0]) {
+    res
+      .status(409)
+      .json({ message: "That ride is not ready for this action." });
+    return;
+  }
+  res.json({ ride: await presentRide(pool, param(req, "id")) });
+}
+
 export function registerApi(app: Express): void {
   registerPersonalApi(app, requireAuth());
   app.post(
@@ -330,24 +370,22 @@ export function registerApi(app: Express): void {
         .trim()
         .toLowerCase();
       const password = String(req.body.password ?? "");
-      const staff = await pool.query(
+      const staff = await pool.query<{
+        id: string;
+        organization_id: string;
+        name: string;
+        email: string;
+        phone: string;
+        password_hash: string;
+        organization_name: string;
+      }>(
         `SELECT s.*, o.name AS organization_name
          FROM staff s
          JOIN organizations o ON o.id = s.organization_id
          WHERE lower(s.email) = $1 AND s.is_active`,
         [email]
       );
-      const staffRow = staff.rows[0] as
-        | {
-            id: string;
-            organization_id: string;
-            name: string;
-            email: string;
-            phone: string;
-            password_hash: string;
-            organization_name: string;
-          }
-        | undefined;
+      const staffRow = staff.rows[0];
       if (
         staffRow &&
         (await bcrypt.compare(password, staffRow.password_hash))
@@ -373,21 +411,16 @@ export function registerApi(app: Express): void {
         });
         return;
       }
-      const driver = await pool.query(
-        `SELECT * FROM drivers WHERE lower(email) = $1`,
-        [email]
-      );
-      const driverRow = driver.rows[0] as
-        | {
-            id: string;
-            first_name: string;
-            last_name: string;
-            email: string;
-            phone: string;
-            password_hash: string;
-            dob: string;
-          }
-        | undefined;
+      const driver = await pool.query<{
+        id: string;
+        first_name: string;
+        last_name: string;
+        email: string;
+        phone: string;
+        password_hash: string;
+        dob: string;
+      }>(`SELECT * FROM drivers WHERE lower(email) = $1`, [email]);
+      const driverRow = driver.rows[0];
       if (
         driverRow &&
         (await bcrypt.compare(password, driverRow.password_hash))
@@ -441,13 +474,14 @@ export function registerApi(app: Express): void {
         res.json({ user: { ...row, kind: "staff", role: "staff" } });
         return;
       }
-      const driver = await pool.query(
+      const driver = await pool.query<{
+        first_name: string;
+        last_name: string;
+      }>(
         `SELECT id, first_name, last_name, email, phone, dob FROM drivers WHERE id = $1`,
         [auth.sub]
       );
-      const row = driver.rows[0] as
-        | { first_name: string; last_name: string }
-        | undefined;
+      const row = driver.rows[0];
       if (!row) {
         res.status(401).json({ message: "Login required." });
         return;
@@ -500,7 +534,13 @@ export function registerApi(app: Express): void {
       }
       const passwordHash = await bcrypt.hash(adminPassword, 10);
       try {
-        const created = await pool.query(
+        const created = await pool.query<{
+          id: string;
+          organization_id: string;
+          name: string;
+          email: string;
+          phone: string;
+        }>(
           `WITH org AS (
              INSERT INTO organizations (name, email, phone)
              VALUES ($1, $2, $3)
@@ -511,13 +551,7 @@ export function registerApi(app: Express): void {
            RETURNING id, organization_id, name, email, phone`,
           [name, email, phone, adminName, adminEmail, adminPhone, passwordHash]
         );
-        const staff = created.rows[0] as {
-          id: string;
-          organization_id: string;
-          name: string;
-          email: string;
-          phone: string;
-        };
+        const staff = created.rows[0]!;
         const org = await pool.query(
           `SELECT name FROM organizations WHERE id = $1`,
           [staff.organization_id]
@@ -538,7 +572,10 @@ export function registerApi(app: Express): void {
           },
         });
       } catch (error) {
-        const code = (error as { code?: string }).code;
+        const code =
+          typeof error === "object" && error !== null && "code" in error
+            ? error.code
+            : undefined;
         if (code === "23505") {
           res
             .status(409)
@@ -554,9 +591,7 @@ export function registerApi(app: Express): void {
     "/clients",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const q = String(req.query.q ?? "")
-        .trim()
-        .toLowerCase();
+      const q = queryText(req, "q").trim().toLowerCase();
       const result = await pool.query(
         `SELECT id, organization_id, first_name, last_name, dob::text, address, has_smartphone,
                 phone, email, emergency_contact_name, emergency_contact_phone, notes, created_at
@@ -691,10 +726,8 @@ export function registerApi(app: Express): void {
     "/destinations",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const q = String(req.query.q ?? "")
-        .trim()
-        .toLowerCase();
-      const type = String(req.query.type ?? "");
+      const q = queryText(req, "q").trim().toLowerCase();
+      const type = queryText(req, "type");
       const result = await pool.query(
         `SELECT id, organization_id, name, location_type AS type, address,
                 latitude AS lat, longitude AS lng, is_active
@@ -791,13 +824,11 @@ export function registerApi(app: Express): void {
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
       await markTimedOut();
-      const requestedStatus = String(req.query.status ?? "");
+      const requestedStatus = queryText(req, "status");
       const status =
         requestedStatus === "accepted" ? "approved" : requestedStatus;
-      const q = String(req.query.q ?? "")
-        .trim()
-        .toLowerCase();
-      const result = await pool.query(
+      const q = queryText(req, "q").trim().toLowerCase();
+      const result = await pool.query<RideRow>(
         `${rideListSql}
          WHERE r.organization_id = $1
            AND ($2 = '' OR r.status = $2)
@@ -809,9 +840,7 @@ export function registerApi(app: Express): void {
         [req.auth?.organizationId, status, q]
       );
       res.json({
-        rides: result.rows.map((row) =>
-          shapeRide(row as Record<string, unknown>)
-        ),
+        rides: result.rows.map((row) => shapeRide(row)),
       });
     })
   );
@@ -880,33 +909,29 @@ export function registerApi(app: Express): void {
           `SELECT id, first_name FROM clients WHERE id = $1 AND organization_id = $2`,
           [clientId, orgId]
         );
-        const pickup = await db.query(
+        const pickup = await db.query<{
+          name: string;
+          address: string;
+          latitude: number;
+          longitude: number;
+        }>(
           `SELECT id, name, address, latitude, longitude FROM addresses
            WHERE id = $1 AND organization_id = $2 AND is_active`,
           [pickupId, orgId]
         );
-        const destination = await db.query(
+        const destination = await db.query<{
+          id: string;
+          name: string;
+          address: string;
+          latitude: number;
+          longitude: number;
+        }>(
           `SELECT id, name, address, latitude, longitude FROM addresses
            WHERE id = $1 AND organization_id = $2 AND is_active`,
           [destinationId, orgId]
         );
-        const pickupRow = pickup.rows[0] as
-          | {
-              name: string;
-              address: string;
-              latitude: number;
-              longitude: number;
-            }
-          | undefined;
-        const destinationRow = destination.rows[0] as
-          | {
-              id: string;
-              name: string;
-              address: string;
-              latitude: number;
-              longitude: number;
-            }
-          | undefined;
+        const pickupRow = pickup.rows[0];
+        const destinationRow = destination.rows[0];
         if (!client.rows[0] || !pickupRow || !destinationRow) {
           await db.query("ROLLBACK");
           res.status(400).json({
@@ -917,7 +942,10 @@ export function registerApi(app: Express): void {
         const needList = needs(req.body.accessibility_needs);
         const notes = String(req.body.notes ?? "").trim();
         const group = tripType === "round_trip";
-        const inserted = await db.query(
+        const inserted = await db.query<{
+          id: string;
+          trip_group_id: string | null;
+        }>(
           `INSERT INTO ride_requests (
              client_id, requested_by_staff_id, organization_id,
              pickup_address, pickup_lat, pickup_lng,
@@ -947,13 +975,10 @@ export function registerApi(app: Express): void {
             group,
           ]
         );
-        const outbound = inserted.rows[0] as {
-          id: string;
-          trip_group_id: string | null;
-        };
+        const outbound = inserted.rows[0]!;
         const ids = [outbound.id];
         if (group && outbound.trip_group_id) {
-          const inbound = await db.query(
+          const inbound = await db.query<{ id: string }>(
             `INSERT INTO ride_requests (
                client_id, requested_by_staff_id, organization_id,
                pickup_address, pickup_lat, pickup_lng,
@@ -982,7 +1007,7 @@ export function registerApi(app: Express): void {
               outbound.id,
             ]
           );
-          const returnId = (inbound.rows[0] as { id: string }).id;
+          const returnId = inbound.rows[0]!.id;
           await db.query(
             `UPDATE ride_requests SET linked_ride_id = $2 WHERE id = $1`,
             [outbound.id, returnId]
@@ -1055,14 +1080,12 @@ export function registerApi(app: Express): void {
     asyncRoute(async (req, res) => {
       await markTimedOut();
       await markTimedOut();
-      const result = await pool.query(
+      const result = await pool.query<RideRow>(
         `${rideListSql} WHERE ${eligibleSql.replaceAll("$DRIVER", "$1")} ORDER BY r.requested_pickup_at`,
         [req.auth?.sub]
       );
       res.json({
-        rides: result.rows.map((row) =>
-          shapeRide(row as Record<string, unknown>)
-        ),
+        rides: result.rows.map((row) => shapeRide(row)),
       });
     })
   );
@@ -1071,14 +1094,12 @@ export function registerApi(app: Express): void {
     "/drivers/me/rides",
     requireAuth("driver"),
     asyncRoute(async (req, res) => {
-      const result = await pool.query(
+      const result = await pool.query<RideRow>(
         `${rideListSql} WHERE r.driver_id = $1 ORDER BY r.requested_pickup_at`,
         [req.auth?.sub]
       );
       res.json({
-        rides: result.rows.map((row) =>
-          shapeRide(row as Record<string, unknown>)
-        ),
+        rides: result.rows.map((row) => shapeRide(row)),
       });
     })
   );
@@ -1092,17 +1113,15 @@ export function registerApi(app: Express): void {
       const db = await pool.connect();
       try {
         await db.query("BEGIN");
-        const locked = await db.query(
+        const locked = await db.query<{
+          status: string;
+          driver_id: string | null;
+          requested_pickup_at: Date;
+        }>(
           `SELECT status, driver_id, requested_pickup_at FROM ride_requests WHERE id = $1 FOR UPDATE`,
           [rideId]
         );
-        const current = locked.rows[0] as
-          | {
-              status: string;
-              driver_id: string | null;
-              requested_pickup_at: Date;
-            }
-          | undefined;
+        const current = locked.rows[0];
         if (!current) {
           await db.query("ROLLBACK");
           res.status(404).json({ message: "Ride not found." });
@@ -1148,7 +1167,10 @@ export function registerApi(app: Express): void {
         await db.query("COMMIT");
       } catch (error) {
         await db.query("ROLLBACK");
-        const code = (error as { code?: string }).code;
+        const code =
+          typeof error === "object" && error !== null && "code" in error
+            ? error.code
+            : undefined;
         if (code === "23505") {
           res.status(409).json({ message: "Already assigned" });
           return;
@@ -1160,28 +1182,6 @@ export function registerApi(app: Express): void {
       res.json({ ride: await presentRide(pool, rideId) });
     })
   );
-
-  async function driverMove(
-    req: AuthedRequest,
-    res: Response,
-    from: string,
-    changes: string
-  ) {
-    const result = await pool.query(
-      `UPDATE ride_requests
-       SET ${changes}, updated_at = now()
-       WHERE id = $1 AND driver_id = $2 AND status = $3
-       RETURNING id`,
-      [param(req, "id"), req.auth?.sub, from]
-    );
-    if (!result.rows[0]) {
-      res
-        .status(409)
-        .json({ message: "That ride is not ready for this action." });
-      return;
-    }
-    res.json({ ride: await presentRide(pool, param(req, "id")) });
-  }
 
   app.post(
     "/rides/:id/pickup",
@@ -1352,19 +1352,19 @@ export function registerApi(app: Express): void {
       const db = await pool.connect();
       try {
         await db.query("BEGIN");
-        const driver = await db.query(
-          `INSERT INTO drivers (first_name, last_name, dob, email, phone, password_hash)
-           VALUES ($1,$2,$3,$4,$5,$6)
-           RETURNING id, first_name, last_name, email, phone, dob::text`,
-          [first, last, dob, email, phone, passwordHash]
-        );
-        const row = driver.rows[0] as {
+        const driver = await db.query<{
           id: string;
           first_name: string;
           last_name: string;
           email: string;
           phone: string;
-        };
+        }>(
+          `INSERT INTO drivers (first_name, last_name, dob, email, phone, password_hash)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           RETURNING id, first_name, last_name, email, phone, dob::text`,
+          [first, last, dob, email, phone, passwordHash]
+        );
+        const row = driver.rows[0]!;
         await db.query(
           `INSERT INTO vehicles (driver_id, make, model, plate_number, seats, wheelchair_accessible)
            VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -1390,7 +1390,11 @@ export function registerApi(app: Express): void {
         });
       } catch (error) {
         await db.query("ROLLBACK");
-        if ((error as { code?: string }).code === "23505") {
+        if (
+          (typeof error === "object" && error !== null && "code" in error
+            ? error.code
+            : undefined) === "23505"
+        ) {
           res.status(409).json({ message: "That email is already in use." });
           return;
         }
@@ -1840,14 +1844,15 @@ export function registerApi(app: Express): void {
     "/admin/verifications/:id/document",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const result = await pool.query(
+      const result = await pool.query<{
+        document: Buffer;
+        document_filename: string | null;
+      }>(
         `SELECT document, document_filename FROM driver_verifications
          WHERE id = $1 AND approved_by_org_id = $2`,
         [param(req, "id"), req.auth?.organizationId]
       );
-      const row = result.rows[0] as
-        | { document: Buffer; document_filename: string | null }
-        | undefined;
+      const row = result.rows[0];
       if (!row) {
         res.status(404).json({ message: "No uploaded document." });
         return;
@@ -1905,14 +1910,13 @@ export function registerApi(app: Express): void {
     "/admin/demo-summary",
     requireAuth("staff"),
     asyncRoute(async (req, res) => {
-      const result = await pool.query(
+      const result = await pool.query<{ completed_rides: number }>(
         `SELECT count(*)::int AS completed_rides
          FROM ride_requests
          WHERE organization_id = $1 AND status = 'completed'`,
         [req.auth?.organizationId]
       );
-      const completed = (result.rows[0] as { completed_rides: number })
-        .completed_rides;
+      const completed = result.rows[0]!.completed_rides;
       res.json({
         label: "Sample data",
         completed_rides: completed,

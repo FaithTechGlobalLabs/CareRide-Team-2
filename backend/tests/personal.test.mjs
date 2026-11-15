@@ -10,7 +10,8 @@ import webpush from "web-push";
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "careride-personal-"));
 process.env.CARERIDE_DATA_DIR = directory;
-process.env.JWT_SECRET = "isolated-test-only";
+const testSecret = "isolated-test-only";
+process.env.JWT_SECRET = testSecret;
 delete process.env.VAPID_PUBLIC_KEY;
 delete process.env.VAPID_PRIVATE_KEY;
 delete process.env.VAPID_SUBJECT;
@@ -104,7 +105,7 @@ function fixture() {
 function token(id, kind = "staff", org = "org") {
   return jwt.sign(
     { sub: id, kind, role: kind, organizationId: org },
-    process.env.JWT_SECRET
+    testSecret
   );
 }
 async function call(
@@ -129,7 +130,7 @@ before(async () => {
   const app = express();
   app.use(express.json());
   registerApi(app);
-  app.use((error, req, res, next) =>
+  app.use((error, req, res, _next) =>
     res.status(500).json({ message: String(error) })
   );
   await new Promise((resolve, reject) => {
@@ -137,7 +138,7 @@ before(async () => {
       error ? reject(error) : resolve()
     );
   });
-  origin = `http://127.0.0.1:${server.address().port}`;
+  origin = `http://127.0.0.1:${String(server.address().port)}`;
 });
 beforeEach(() => {
   setPushDispatcher(async () => {});
@@ -151,7 +152,7 @@ after(async () => {
   fs.rmSync(directory, { recursive: true, force: true });
 });
 
-test("notifications are scoped, eligible, deduplicated, and include client updates", async () => {
+void test("notifications are scoped, eligible, deduplicated, and include client updates", async () => {
   await update((db) => {
     db.rides[0].status = "accepted";
     db.rides[0].driver_id = "driver";
@@ -159,7 +160,7 @@ test("notifications are scoped, eligible, deduplicated, and include client updat
   assert.deepEqual(
     readDb()
       .notifications.map((n) => n.recipient_user_id)
-      .sort(),
+      .toSorted(),
     ["colleague", "staff"]
   );
   await update((db) => {
@@ -202,7 +203,7 @@ test("notifications are scoped, eligible, deduplicated, and include client updat
   );
 });
 
-test("round trips show both open legs and accepting either leg leaves the other available", async () => {
+void test("round trips show both open legs and accepting either leg leaves the other available", async () => {
   await update((db) => {
     db.rides[0].linked_ride_id = "return";
     db.rides[0].trip_group_id = "trip";
@@ -221,7 +222,7 @@ test("round trips show both open legs and accepting either leg leaves the other 
     "driver",
     "driver"
   );
-  assert.deepEqual(available.body.rides.map((r) => r.id).sort(), [
+  assert.deepEqual(available.body.rides.map((r) => r.id).toSorted(), [
     "return",
     "ride",
   ]);
@@ -254,7 +255,7 @@ test("round trips show both open legs and accepting either leg leaves the other 
   );
 });
 
-test("preferences wait a day, persist later/decline, and unsubscribe is scoped", async () => {
+void test("preferences wait a day, persist later/decline, and unsubscribe is scoped", async () => {
   const first = await call(
     "/notifications/preferences",
     "GET",
@@ -294,7 +295,7 @@ test("preferences wait a day, persist later/decline, and unsubscribe is scoped",
   assert.equal(readDb().pushSubscriptions.length, 1);
 });
 
-test("driver deletion requires exact text and password, releases rides, and revokes tokens", async () => {
+void test("driver deletion requires exact text and password, releases rides, and revokes tokens", async () => {
   await update((db) => {
     db.rides[0].status = "accepted";
     db.rides[0].driver_id = "driver";
@@ -352,7 +353,7 @@ test("driver deletion requires exact text and password, releases rides, and revo
   );
 });
 
-test("first acceptance offers a gentle prompt once and respects an earlier snooze", async () => {
+void test("first acceptance offers a gentle prompt once and respects an earlier snooze", async () => {
   await update((db) => {
     db.rides[0].status = "accepted";
     db.rides[0].driver_id = "driver";
@@ -394,7 +395,7 @@ test("first acceptance offers a gentle prompt once and respects an earlier snooz
   assert.equal(prefs.first_ride_prompt_pending, false);
 });
 
-test("active rides block deletion and staff account deletion preserves organization data", async () => {
+void test("active rides block deletion and staff account deletion preserves organization data", async () => {
   await update((db) => {
     db.rides[0].status = "in_progress";
     db.rides[0].driver_id = "driver";
@@ -425,7 +426,7 @@ test("active rides block deletion and staff account deletion preserves organizat
   assert.equal((await call("/notifications")).status, 401);
 });
 
-test("any active staff can delete only their own organization with stronger confirmation", async () => {
+void test("any active staff can delete only their own organization with stronger confirmation", async () => {
   const body = {
     confirmation: "DELETE ORGANIZATION",
     password: "fixture-password",
@@ -472,7 +473,7 @@ test("any active staff can delete only their own organization with stronger conf
   assert.equal((await call("/notifications")).status, 401);
 });
 
-test("push delivery retries transient failures, prunes expired subscriptions, and hides client data", async () => {
+void test("push delivery retries transient failures, prunes expired subscriptions, and hides client data", async () => {
   const keys = webpush.generateVAPIDKeys();
   process.env.VAPID_PUBLIC_KEY = keys.publicKey;
   process.env.VAPID_PRIVATE_KEY = keys.privateKey;

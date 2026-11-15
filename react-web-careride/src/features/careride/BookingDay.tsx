@@ -136,6 +136,8 @@ export function BookingDayCard({
     const current = root?.querySelector<HTMLElement>(".preview-event.proposed");
     if (!root || !current) return;
     root.scrollTop = Math.max(0, current.offsetTop - 36);
+    // These values change the rendered event and its position; keep the preview in view.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [day, windowStart, body]);
 
   useEffect(() => {

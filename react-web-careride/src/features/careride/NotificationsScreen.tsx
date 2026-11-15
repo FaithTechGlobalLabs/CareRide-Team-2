@@ -14,7 +14,7 @@ export function NotificationsScreen() {
   const unread = data.notifications.filter((n) => !n.read_at).length;
   const notices = data.notifications
     .filter((n) => !unreadOnly || !n.read_at)
-    .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""));
+    .toSorted((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""));
   const firstName = session?.user.name.split(" ")[0] ?? "Your";
   return (
     <Layout driver={driver}>

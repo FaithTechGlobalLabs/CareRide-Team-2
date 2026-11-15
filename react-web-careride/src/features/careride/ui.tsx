@@ -124,6 +124,12 @@ export function ErrorBox({ error }: { error?: string }) {
     </div>
   ) : null;
 }
+export function formText(form: FormData, name: string): string {
+  // Preserve native FormData coercion, including null and File entries.
+  // oxlint-disable-next-line typescript/no-base-to-string
+  return String(form.get(name));
+}
+
 export function Form({
   children,
   onSubmit,
@@ -144,10 +150,10 @@ export function Form({
     setError("");
     try {
       await onSubmit(body);
-    } catch (e) {
+    } catch (submitError) {
       setError(
-        e instanceof Error
-          ? e.message
+        submitError instanceof Error
+          ? submitError.message
           : "Something went wrong. Please try again."
       );
     } finally {
@@ -178,6 +184,9 @@ const labels: Record<Status, string> = {
   cancelled: "Cancelled",
   no_show: "No-show",
 };
+function hasStatusLabel(status: string): status is Status {
+  return status in labels;
+}
 export function Badge({
   status,
 }: {
@@ -186,7 +195,7 @@ export function Badge({
   return (
     <span className={`badge ${status}`}>
       <span />
-      {status in labels ? labels[status as Status] : status.replace(/_/g, " ")}
+      {hasStatusLabel(status) ? labels[status] : status.replace(/_/g, " ")}
     </span>
   );
 }
@@ -347,7 +356,7 @@ export function GroupedRideList({
 }) {
   const groups = new Map<string, { label: string; rides: Ride[] }>();
   groupRideAppointments(rides)
-    .sort((a, b) =>
+    .toSorted((a, b) =>
       a[0].requested_pickup_at.localeCompare(b[0].requested_pickup_at)
     )
     .forEach((appointment) => {
@@ -496,7 +505,7 @@ export function ReasonAction({
           <Form
             submit={title}
             onSubmit={async (f) => {
-              await onSubmit(String(f.get("reason")));
+              await onSubmit(formText(f, "reason"));
               setOpen(false);
             }}
           >

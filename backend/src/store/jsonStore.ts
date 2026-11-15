@@ -50,21 +50,6 @@ export function setPushDispatcher(dispatch: () => Promise<void>): void {
   dispatchPush = dispatch;
 }
 
-function emptyDb(): Db {
-  return {
-    organizations: [],
-    staff: [],
-    clients: [],
-    destinations: [],
-    rides: [],
-    drivers: [],
-    vehicles: [],
-    availabilities: [],
-    verifications: [],
-    notifications: [],
-  };
-}
-
 function seed(): Db {
   const now = new Date().toISOString();
   const passwordHash = bcrypt.hashSync("CareRideDemo1", 10);
@@ -367,7 +352,8 @@ function read(): Db {
     fs.writeFileSync(storePath, JSON.stringify(db, null, 2));
     return db;
   }
-  const parsed = JSON.parse(fs.readFileSync(storePath, "utf8")) as Db;
+  // This file is written by write() using the Db shape.
+  const parsed: Db = JSON.parse(fs.readFileSync(storePath, "utf8"));
   return parsed;
 }
 
@@ -379,22 +365,22 @@ function write(db: Db): void {
 }
 
 export function update<T>(fn: (db: Db) => T, internal = false): Promise<T> {
-  let result: T | undefined;
   const run = queue.then(() => {
     const db = read();
     const before = structuredClone(db);
-    result = fn(db);
+    const result = fn(db);
     if (!internal) reconcileNotifications(before, db);
     write(db);
+    return { result };
   });
   queue = run.then(
     () => undefined,
     () => undefined
   );
-  return run.then(async () => {
+  return run.then(async ({ result }) => {
     if (!internal && dispatchPush)
       await dispatchPush().catch(() => console.error("Push delivery deferred"));
-    return result as T;
+    return result;
   });
 }
 

@@ -1,3 +1,8 @@
+import type {
+  DrivingRouteResponse,
+  GeocodingResponse,
+} from "@careride/api-contracts/external/travel-responses";
+
 import { useEffect, useRef, useState } from "react";
 
 import type { Destination, Ride } from "./types";
@@ -18,10 +23,7 @@ export async function getTravelTime(
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const data = (await response.json()) as {
-    code?: string;
-    routes?: { duration: number; distance: number }[];
-  };
+  const data: DrivingRouteResponse = await response.json();
   const route = data.code === "Ok" ? data.routes?.[0] : undefined;
   if (!route) return null;
   return {
@@ -38,7 +40,7 @@ export async function geocodeAddress(address: string): Promise<LatLng | null> {
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  const hits = (await response.json()) as { lat?: string; lon?: string }[];
+  const hits: GeocodingResponse = await response.json();
   const hit = hits[0];
   if (!hit?.lat || !hit.lon) return null;
   const lat = Number(hit.lat);
@@ -117,7 +119,7 @@ export function useDriveTimes(rides: Ride[], destinations: Destination[]) {
       (ride) =>
         `${ride.id}:${ride.pickup_lat},${ride.pickup_lng}:${ride.destination_lat},${ride.destination_lng}:${ride.pickup_address}:${ride.destination_address}`
     )
-    .sort()
+    .toSorted()
     .join("|");
   const ridesRef = useRef(rides);
   const destinationsRef = useRef(destinations);
@@ -130,7 +132,7 @@ export function useDriveTimes(rides: Ride[], destinations: Destination[]) {
   useEffect(() => {
     const current = ridesRef.current;
     const places = destinationsRef.current;
-    if (!current.length) return;
+    if (!current.length) return undefined;
     let cancel = false;
     void (async () => {
       const groups = new Map<
@@ -181,6 +183,8 @@ export function useDriveTimes(rides: Ride[], destinations: Destination[]) {
     return () => {
       cancel = true;
     };
+    // The content key intentionally triggers routing work using the latest ref values.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [key]);
 
   return times;

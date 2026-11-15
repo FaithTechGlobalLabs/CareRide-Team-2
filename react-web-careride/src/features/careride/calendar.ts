@@ -1,6 +1,10 @@
 import type { Ride } from "./types";
 
-export function calendarRides(ride: Ride, rides: Ride[], driverId: string) {
+export function calendarRides(
+  ride: Ride,
+  rides: Ride[],
+  driverId: string
+): Ride[] {
   if (ride.driver_id !== driverId || ride.status !== "accepted") return [];
   const linked = rides.find(
     (item) =>
@@ -9,7 +13,7 @@ export function calendarRides(ride: Ride, rides: Ride[], driverId: string) {
       item.driver_id === driverId &&
       item.status === "accepted"
   );
-  return (linked ? [ride, linked] : [ride]).sort(
+  return (linked ? [ride, linked] : [ride]).toSorted(
     (a, b) =>
       new Date(a.requested_pickup_at).getTime() -
       new Date(b.requested_pickup_at).getTime()

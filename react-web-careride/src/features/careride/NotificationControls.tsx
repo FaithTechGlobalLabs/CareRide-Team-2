@@ -1,3 +1,5 @@
+import type { NotificationPreferencesResponse } from "@careride/api-contracts/notifications/notification-responses";
+
 import { Bell, BellOff } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -7,16 +9,6 @@ import { IS_DEMO, request } from "./api";
 import { useCare } from "./context";
 import { ErrorBox } from "./ui";
 
-interface Preferences {
-  push_enabled: boolean;
-  updates_enabled: boolean;
-  available_rides_enabled: boolean;
-  prompt_after: string;
-  prompt_dismissed: boolean;
-  configured: boolean;
-  public_key: string | null;
-  first_ride_prompt_pending?: boolean;
-}
 const supported = () =>
   typeof window !== "undefined" &&
   window.isSecureContext &&
@@ -46,7 +38,9 @@ export function NotificationControls({
   afterAcceptance?: boolean;
 }) {
   const { session } = useCare();
-  const [prefs, setPrefs] = useState<Preferences | null>(null);
+  const [prefs, setPrefs] = useState<NotificationPreferencesResponse | null>(
+    null
+  );
   const [registration, setRegistration] =
     useState<ServiceWorkerRegistration | null>(null);
   const [error, setError] = useState("");
@@ -58,9 +52,12 @@ export function NotificationControls({
   const [now, setNow] = useState(Date.now);
   const driver = session?.user.role === "driver";
   useEffect(() => {
-    if (!session || IS_DEMO) return;
+    if (!session || IS_DEMO) return undefined;
     let live = true;
-    void request<Preferences>("/notifications/preferences", session)
+    void request<NotificationPreferencesResponse>(
+      "/notifications/preferences",
+      session
+    )
       .then(async (p) => {
         if (!live) return;
         setPrefs(p);
@@ -100,8 +97,8 @@ export function NotificationControls({
   }, [session]);
 
   async function save(body: object) {
-    if (!session) return;
-    const next = await request<Preferences>(
+    if (!session) return undefined;
+    const next = await request<NotificationPreferencesResponse>(
       "/notifications/preferences",
       session,
       "PATCH",

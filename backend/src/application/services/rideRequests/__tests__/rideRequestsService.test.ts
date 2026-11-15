@@ -43,6 +43,7 @@ function createHarness(overrides: Partial<RideRequestState> = {}) {
     ...overrides,
   });
   // The service only forwards this handle; no database operations run in these tests.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const transaction = {} as DatabaseTransaction;
   const lifecycle = { committed: false };
   const execute = vi.fn(
@@ -54,6 +55,7 @@ function createHarness(overrides: Partial<RideRequestState> = {}) {
   );
   // Only execute is used; the double omits Kysely's private builder internals.
   const database = {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     transaction: vi.fn<TransactionalDatabase["transaction"]>().mockReturnValue({
       execute,
     } as unknown as ReturnType<TransactionalDatabase["transaction"]>),

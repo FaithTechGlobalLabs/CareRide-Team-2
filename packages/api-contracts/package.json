@@ -4,6 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./http/api-responses": {
+      "development": "./src/http/api-responses.ts",
+      "types": "./dist/http/api-responses.d.ts",
+      "default": "./dist/http/api-responses.js"
+    },
+    "./external/travel-responses": {
+      "development": "./src/external/travel-responses.ts",
+      "types": "./dist/external/travel-responses.d.ts",
+      "default": "./dist/external/travel-responses.js"
+    },
+    "./notifications/notification-responses": {
+      "development": "./src/notifications/notification-responses.ts",
+      "types": "./dist/notifications/notification-responses.d.ts",
+      "default": "./dist/notifications/notification-responses.js"
+    },
     "./rides/ride-requests": {
       "development": "./src/rides/ride-requests.ts",
       "types": "./dist/rides/ride-requests.d.ts",

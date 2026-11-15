@@ -120,11 +120,15 @@ export function DriverAvailabilityScreen() {
             <Field label="Schedule type" wide>
               <select
                 value={kind}
-                onChange={(event) =>
-                  setKind(
-                    event.target.value as "one_time" | "weekly" | "monthly"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (
+                    value === "one_time" ||
+                    value === "weekly" ||
+                    value === "monthly"
                   )
-                }
+                    setKind(value);
+                }}
               >
                 <option value="weekly">Weekly schedule</option>
                 <option value="monthly">Monthly schedule</option>

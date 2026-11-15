@@ -39,6 +39,8 @@ export class RidesController {
     private readonly tokenVerifier: ITokenVerifier
   ) {}
 
+  // Every member of the service's result union returns in the exhaustive switch.
+  // oxlint-disable-next-line typescript/consistent-return
   async acceptRide(
     request: AcceptRideHttpRequest
   ): Promise<AcceptRideHttpResponse> {

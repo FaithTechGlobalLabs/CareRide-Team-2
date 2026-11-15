@@ -1,10 +1,11 @@
+import type { ApiPayload } from "@careride/api-contracts/http/api-responses";
+
 import type { Session } from "./types";
 
 import { demoRequest } from "./demo";
 
-export const API_URL = (
-  import.meta.env.VITE_API_URL as string | undefined
-)?.replace(/\/$/, "");
+const configuredApiUrl: string | undefined = import.meta.env.VITE_API_URL;
+export const API_URL = configuredApiUrl?.replace(/\/$/, "");
 export const IS_DEMO = !API_URL;
 export async function request<T>(
   path: string,
@@ -12,7 +13,11 @@ export async function request<T>(
   method = "GET",
   body?: unknown
 ): Promise<T> {
-  if (IS_DEMO) return (await demoRequest(path, method, body, session)) as T;
+  if (IS_DEMO) {
+    // The caller supplies the response contract; demo and HTTP share this boundary.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return (await demoRequest(path, method, body, session)) as T;
+  }
   const multipart = body instanceof FormData;
   const response = await fetch(`${API_URL}${path}`, {
     method,
@@ -22,15 +27,11 @@ export async function request<T>(
         ? { "Content-Type": "application/json" }
         : {}),
     },
-    body:
-      body === undefined ? undefined : multipart ? body : JSON.stringify(body),
+    ...(body === undefined
+      ? {}
+      : { body: multipart ? body : JSON.stringify(body) }),
   });
-  const payload = (await response.json().catch(() => ({}))) as {
-    message?: string;
-    error?: string;
-    data?: unknown;
-    [key: string]: unknown;
-  };
+  const payload: ApiPayload = await response.json().catch(() => ({}));
   if (!response.ok)
     throw new Error(
       payload.message ?? payload.error ?? `Request failed (${response.status}).`
@@ -41,13 +42,15 @@ export async function request<T>(
     (keys.length === 1 && !["message", "error"].includes(keys[0])
       ? payload[keys[0]]
       : payload);
+  // The endpoint-specific response contract is supplied by the caller.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return normalize(result) as T;
 }
 
 function normalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalize);
   if (!value || typeof value !== "object") return value;
-  const record = { ...(value as Record<string, unknown>) };
+  const record: Record<string, unknown> = { ...value };
   if (typeof record.document_type === "string") {
     record.check_type ??= record.document_type;
     record.document_ref ??= record.document_filename;
@@ -63,7 +66,7 @@ function normalize(value: unknown): unknown {
     record.user &&
     typeof record.user === "object"
   ) {
-    const user = { ...(record.user as Record<string, unknown>) };
+    const user: Record<string, unknown> = { ...record.user };
     if (!user.role && user.kind === "driver") user.role = "driver";
     record.user = user;
   }

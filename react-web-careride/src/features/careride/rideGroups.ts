@@ -29,7 +29,7 @@ export function groupRideAppointments(rides: Ride[]): Ride[][] {
     groups.set(key, group);
   }
   return [...groups.values()].map((group) =>
-    group.sort((a, b) => {
+    group.toSorted((a, b) => {
       if (a.trip_leg === "outbound" && b.trip_leg === "return") return -1;
       if (a.trip_leg === "return" && b.trip_leg === "outbound") return 1;
       return a.requested_pickup_at.localeCompare(b.requested_pickup_at);

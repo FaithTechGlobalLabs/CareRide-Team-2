@@ -6,8 +6,10 @@ import { Pool, type PoolClient } from "pg";
 import { databaseConfig } from "./config.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(here, "../../../.env"), quiet: true });
-dotenv.config({ path: path.resolve(here, "../../.env"), quiet: true });
+if (process.env.DB_SKIP_DOTENV !== "1") {
+  dotenv.config({ path: path.resolve(here, "../../../.env"), quiet: true });
+  dotenv.config({ path: path.resolve(here, "../../.env"), quiet: true });
+}
 
 export const pool = new Pool(databaseConfig(process.env));
 

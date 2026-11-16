@@ -26,7 +26,7 @@ jobs:
         working-directory: react-web-careride
       - name: Build React frontend
         env: 
-          VITE_API_URL: https://care-ride-team-2-g7nuhdbmi-hack-van-2026.vercel.app/
+          VITE_API_URL: https://careride-api-preview-hack-van-2026.vercel.app
         run: npm run build
         working-directory: react-web-careride
       - name: Deploy

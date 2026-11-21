@@ -51,6 +51,43 @@ constructs and connects classes across layers. Its wiring imports, and the HTTP
 bootstrap imports in `create-http-app.ts`, are distinct from domain/application
 business logic. A repository must not import a controller to perform its work.
 
+### Architectural names and dependency wiring
+
+Make an architectural collaborator's role visible in its exported name and in
+the fields that hold it. This makes responsibilities and wiring readable at the
+call site without opening the collaborator's implementation.
+
+- **Exported classes and collaborator interfaces include their role.** Use
+  suffixes such as `Controller`, `Service`, `Repository`, `Query` / `Queries`,
+  `Transport`, `Client`, and `Container` as appropriate. For example, use
+  `OpenRideNoticesRepository` and its application-owned port
+  `IOpenRideNoticesRepository`. Follow the existing `I` prefix convention for
+  collaborator interfaces. Entities, value objects, and data contracts retain
+  names describing their domain meaning or data.
+- **Injected fields include the same role.** Name constructor parameter
+  properties `openRideNoticesRepository`, `pushDeliveryService`, and
+  `databaseClient`, rather than shortened names such as `notices`, `push`, or
+  `database`. Apply the same convention to collaborators exposed by a composition
+  root: `this.bookingNotificationsService` makes the role explicit.
+- **Constructors receive collaborators; the composition root wires them.**
+  Controllers and services receive their dependencies through constructor
+  injection. Inner layers depend on their own ports or other allowed inner-layer
+  contracts; the composition root selects and constructs concrete infrastructure
+  adapters and passes them to their consumers. Keep those construction imports
+  in the composition root and hosting/bootstrap wiring.
+- **Shared behavior has one implementation in the appropriate layers.** When
+  extracting legacy behavior, place coordination in application services and
+  SQL/provider operations in infrastructure adapters behind application-owned
+  ports. Wire existing and new entry points to those shared collaborators.
+  Compatibility entry points can remain as thin delegates while callers migrate.
+
+The notification implementation illustrates these conventions in
+[NotificationContainer](../../backend/src/infrastructure/notificationContainer.ts)
+and
+[BookingNotificationService](../../backend/src/application/services/notifications/bookingNotificationService.ts).
+Apply the conventions within the files being changed for a task; older code can
+adopt them incrementally without expanding the task into a repository-wide rename.
+
 ### Deliberate exception: Kysely transaction coordination
 
 The application service calls `database.transaction().execute(...)` and forwards

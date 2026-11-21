@@ -38,23 +38,32 @@ With Docker running, run from the repository root:
 npm run test:integration
 ```
 
-This runs the backend's Vitest integration suite through Turborepo. Testcontainers
-starts a fresh `postgis/postgis:18-3.6` container on a random port, and global setup
-applies the Kysely migrations in
-`backend/src/infrastructure/persistence/migrations/`. Connection details pass to
-tests through Vitest's `provide`/`inject`; no database environment variables or
+This runs the backend's Vitest integration suite through Turborepo. Each database
+test file starts its own `PostgreSqlContainer` using `postgis/postgis:18-3.6` and
+connects `pg.Pool` through the container's generated `getConnectionUri()`, following
+the [Testcontainers PostgreSQL module](https://node.testcontainers.org/modules/postgresql/).
+The route suite constructs its container directly in `beforeAll` and stops it in
+`afterAll`. The query suite uses the shared lifecycle helper in
+`backend/test/postgresTestDatabase.ts`; both suites apply the real Kysely
+migrations through its migration helper. No database environment variables or
 manual database setup are needed. The first run downloads the image. The PostGIS
 image is amd64, so Docker must support amd64 emulation on Apple Silicon.
 
 The task disables caching so every invocation exercises PostgreSQL. Docker and
 Testcontainers environment overrides pass through Turborepo's strict environment
-filter. Tests run one file at a time against the shared migrated database;
-isolate fixture writes in transactions and roll them back after each test.
-Global teardown stops the container, and each test file closes its own client.
+filter. Files can run in parallel because they own independent databases. Query
+tests roll back fixture transactions; HTTP tests commit so other request
+connections can observe the writes, then clean up their own fixtures. Each
+suite's `afterAll` closes the pool and stops its container, and setup failures
+also release those resources.
 
-The example in `backend/test/integration/rideQueries.test.ts` tests
-`RideQueries.getNotificationContext` against real tables. Add tests under
-`backend/test/integration/**/*.test.ts` or `backend/src/**/*.integration.test.ts`.
+`backend/src/infrastructure/persistence/queries/rideQueries.integration.test.ts`
+tests its sibling `RideQueries` implementation against real tables.
+`backend/src/api/routes.integration.test.ts` covers its sibling HTTP routes,
+using sibling `routes.integration.fixtures.ts` for test data. Add database and
+HTTP integration tests as `*.integration.test.ts` siblings of their implementations.
+Production compilation excludes these tests and fixtures. The service-worker
+test remains under `backend/test/integration/` and needs no database container.
 To filter by filename through Turborepo, run:
 
 ```sh

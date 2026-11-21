@@ -1,6 +1,48 @@
 # Notifications and settings
 
+## SQL booking alerts
+
+The current `POST /rides` endpoint commits the booking, releases its transaction
+connection, then registers one notification promise with Vercel `waitUntil`.
+Matching, inbox creation, and push delivery are not awaited by the endpoint.
+One set-based eligibility statement finds all eligible drivers for either leg
+and bulk-creates one generic inbox notice per driver/booking. Category-disabled
+drivers receive neither a new notice nor push; push-disabled drivers still get
+their inbox notice. Only newly created bookings trigger this producer.
+
+Application notification services use application-owned ports implemented by
+SQL and web-push infrastructure adapters, following ADR 0001. Targeted delivery
+and the existing global dispatcher share these implementations. Targeted work
+snapshots its own new notices, then leases devices in groups of eight immediately
+before sending; it neither drains unrelated backlog nor retries its own failures.
+Matching is not repeated per driver or device before sending.
+
+Driver ride-alert pushes and generic inbox links open `/driver`, where the
+driver sees current eligible open ride requests. Staff pushes still open
+`/notifications`. The service worker permits these known app destinations and
+defaults to `/notifications` for missing or unknown destinations. Driver lists
+refresh on route entry, foreground return, and manual Refresh. Rejected
+acceptance attempts reload current data and display conflict feedback; the
+backend remains authoritative when drivers race for one ride.
+
+This is best-effort delivery within the current invocation's lifetime, not a
+durable queue. Crashes/timeouts can lose alerts. No scheduler, new retry loop,
+Queue, separate worker Function, or SSE mechanism is added. Missing VAPID
+configuration leaves inbox creation working. Preview verification of Vercel
+retention and an actual device alert remains a deployment check.
+
+Run focused checks with:
+
+```sh
+npm run test:unit --workspace=backend -- src/application/services/notifications src/presentation/notifications
+npm run test:integration --workspace=backend -- routes.integration notificationNavigation
+```
+
+## Legacy JSON implementation notes
+
 Implemented on KentonLast. The older database audit is outside this change's scope.
+The sections below document that older JSON implementation; the SQL booking
+path above uses PostgreSQL and is the reference for this change.
 
 ## Behavior
 

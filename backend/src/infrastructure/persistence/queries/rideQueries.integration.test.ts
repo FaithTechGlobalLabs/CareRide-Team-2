@@ -2,16 +2,15 @@ import type { ControlledTransaction } from "kysely";
 
 import { sql } from "kysely";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, inject, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-import type {
-  DatabaseClient,
-  DatabaseSchema,
-} from "../../src/infrastructure/persistence/databaseClient.js";
+import type { DatabaseClient, DatabaseSchema } from "../databaseClient.js";
 
-import { createDatabaseClient } from "../../src/infrastructure/persistence/databaseClient.js";
-import { RideQueries } from "../../src/infrastructure/persistence/queries/rideQueries.js";
-import { TEST_DATABASE_CONFIG } from "./databaseContext.js";
+import {
+  startPostgresTestDatabase,
+  type PostgresTestDatabase,
+} from "../../../../test/postgresTestDatabase.js";
+import { RideQueries } from "./rideQueries.js";
 
 const organizationId = randomUUID();
 const staffId = randomUUID();
@@ -20,14 +19,16 @@ const destinationId = randomUUID();
 const rideId = randomUUID();
 const pickupAt = new Date("2030-01-16T18:00:00.000Z");
 
+let testDatabase: PostgresTestDatabase | undefined;
 let database: DatabaseClient;
 
-beforeAll(() => {
-  database = createDatabaseClient(inject(TEST_DATABASE_CONFIG));
+beforeAll(async () => {
+  testDatabase = await startPostgresTestDatabase();
+  database = testDatabase.database;
 });
 
 afterAll(async () => {
-  await database?.destroy();
+  await testDatabase?.stop();
 });
 
 // Roll back every fixture, including when an assertion or insert fails.

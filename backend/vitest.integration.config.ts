@@ -8,11 +8,10 @@ export default defineConfig({
       "test/integration/**/*.test.ts",
     ],
     exclude: [...configDefaults.exclude, "dist/**"],
-    // One migrated database is shared by the files; tests isolate writes in transactions.
-    fileParallelism: false,
-    globalSetup: ["./test/integration/global-setup.ts"],
+    // Database suites own independent containers and close them in afterAll.
+    fileParallelism: true,
     environment: "node",
-    hookTimeout: 30_000,
+    hookTimeout: 150_000,
     testTimeout: 10_000,
   },
 });

@@ -1,21 +1,6 @@
-import fs from "node:fs/promises";
-
 import { pool } from "../db/db.js";
-
-let schemaReady: Promise<void> | undefined;
-export function ensureNotificationSchema(): Promise<void> {
-  schemaReady ??= (async () => {
-    const sql = await fs.readFile(
-      new URL("../../db/002_notifications.sql", import.meta.url),
-      "utf8"
-    );
-    await pool.query(sql);
-  })().catch((error) => {
-    schemaReady = undefined;
-    throw error;
-  });
-  return schemaReady;
-}
+import { ensureNotificationSchema } from "../infrastructure/persistence/notificationSchema.js";
+export { ensureNotificationSchema };
 
 export async function sqlPreference(userId: string, kind: "staff" | "driver") {
   await ensureNotificationSchema();

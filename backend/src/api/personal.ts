@@ -27,8 +27,12 @@ const route =
     void fn(req as PersonalRequest, res).catch(next);
   };
 
-export function registerPersonalApi(app: Express, auth: RequestHandler): void {
-  registerSqlNotificationApi(app, auth);
+export function registerPersonalApi(
+  app: Express,
+  auth: RequestHandler,
+  dispatchPush?: () => Promise<unknown>
+): void {
+  registerSqlNotificationApi(app, auth, dispatchPush);
 
   for (const target of ["account", "organization"] as const)
     app.delete(

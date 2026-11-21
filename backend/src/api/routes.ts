@@ -1,12 +1,14 @@
 import type { NextFunction, Request, Response } from "express";
 import type { Express } from "express";
 import type { PoolClient } from "pg";
+import type { Pool } from "pg";
 
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 
-import { pool } from "../db/db.js";
+import { pool as defaultPool } from "../db/db.js";
+import { eligibleSql } from "../infrastructure/persistence/queries/openRideEligibilitySql.js";
 import { registerPersonalApi } from "./personal.js";
 
 const secret = process.env.JWT_SECRET || "careride-dev-secret";
@@ -25,55 +27,6 @@ interface Auth {
 interface AuthedRequest extends Request {
   auth?: Auth;
 }
-
-const eligibleSql = `
-  r.status = 'requested'
-  AND r.driver_id IS NULL
-  AND r.requested_pickup_at > now()
-  AND EXISTS (
-    SELECT 1 FROM driver_verifications v
-    WHERE v.driver_id = $DRIVER
-      AND v.approved_by_org_id = r.organization_id
-      AND v.status = 'approved'
-      AND (v.expires_on IS NULL OR v.expires_on >= CURRENT_DATE)
-  )
-  AND EXISTS (
-    SELECT 1 FROM vehicles veh
-    WHERE veh.driver_id = $DRIVER
-      AND veh.seats >= r.passenger_count
-      AND (
-        veh.wheelchair_accessible
-        OR NOT EXISTS (
-          SELECT 1 FROM unnest(r.accessibility_needs) need
-          WHERE lower(need) LIKE '%wheelchair%'
-        )
-      )
-  )
-  AND EXISTS (
-    SELECT 1 FROM driver_availabilities a
-    WHERE a.driver_id = $DRIVER
-      AND a.is_active
-      AND (r.requested_pickup_at AT TIME ZONE a.timezone)::time BETWEEN a.start_time AND a.end_time
-      AND (a.starts_on IS NULL OR (r.requested_pickup_at AT TIME ZONE a.timezone)::date >= a.starts_on)
-      AND (a.ends_on IS NULL OR (r.requested_pickup_at AT TIME ZONE a.timezone)::date <= a.ends_on)
-      AND (
-        (a.kind = 'one_time' AND a.on_date = (r.requested_pickup_at AT TIME ZONE a.timezone)::date)
-        OR (
-          a.kind = 'weekly'
-          AND EXTRACT(DOW FROM r.requested_pickup_at AT TIME ZONE a.timezone)::int = ANY (a.weekdays::int[])
-        )
-        OR (
-          a.kind = 'monthly'
-          AND EXTRACT(DAY FROM r.requested_pickup_at AT TIME ZONE a.timezone)::int = ANY (a.month_days::int[])
-        )
-      )
-      AND ST_DWithin(
-        a.centre,
-        ST_SetSRID(ST_MakePoint(r.pickup_lng, r.pickup_lat), 4326)::geography,
-        a.radius_m
-      )
-  )
-`;
 
 function sign(auth: Auth): string {
   return jwt.sign(auth, secret, { expiresIn: "12h" });
@@ -226,7 +179,7 @@ async function notifyStaff(
   );
 }
 
-async function presentRide(client: PoolClient | typeof pool, id: string) {
+async function presentRide(client: PoolClient | Pool, id: string) {
   const result = await client.query<RideRow>(
     `SELECT r.*,
             c.first_name, c.last_name,
@@ -315,7 +268,7 @@ function shapeRide(row: RideRow) {
 }
 
 async function markTimedOut(): Promise<void> {
-  await pool.query(
+  await defaultPool.query(
     `UPDATE ride_requests
      SET status = 'timed_out', updated_at = now()
      WHERE status = 'requested'
@@ -345,7 +298,7 @@ async function driverMove(
   from: string,
   changes: string
 ) {
-  const result = await pool.query(
+  const result = await defaultPool.query(
     `UPDATE ride_requests
      SET ${changes}, updated_at = now()
      WHERE id = $1 AND driver_id = $2 AND status = $3
@@ -358,11 +311,21 @@ async function driverMove(
       .json({ message: "That ride is not ready for this action." });
     return;
   }
-  res.json({ ride: await presentRide(pool, param(req, "id")) });
+  res.json({ ride: await presentRide(defaultPool, param(req, "id")) });
 }
 
-export function registerApi(app: Express): void {
-  registerPersonalApi(app, requireAuth());
+export interface ApiDependencies {
+  databasePool?: Pool;
+  notifyBooking?: (rideIds: readonly string[]) => void;
+  dispatchPush?: () => Promise<unknown>;
+}
+
+export function registerApi(
+  app: Express,
+  dependencies: ApiDependencies = {}
+): void {
+  const pool = dependencies.databasePool ?? defaultPool;
+  registerPersonalApi(app, requireAuth(), dependencies.dispatchPush);
   app.post(
     "/auth/login",
     asyncRoute(async (req, res) => {
@@ -903,6 +866,7 @@ export function registerApi(app: Express): void {
         return;
       }
       const db = await pool.connect();
+      const ids: string[] = [];
       try {
         await db.query("BEGIN");
         const client = await db.query(
@@ -976,7 +940,7 @@ export function registerApi(app: Express): void {
           ]
         );
         const outbound = inserted.rows[0]!;
-        const ids = [outbound.id];
+        ids.push(outbound.id);
         if (group && outbound.trip_group_id) {
           const inbound = await db.query<{ id: string }>(
             `INSERT INTO ride_requests (
@@ -1016,18 +980,26 @@ export function registerApi(app: Express): void {
         }
         for (const id of ids) await notifyStaff(db, id, "Ride booked");
         await db.query("COMMIT");
-        const rides = [];
-        for (const id of ids) {
-          const ride = await presentRide(pool, id);
-          if (ride) rides.push(ride);
-        }
-        res.status(201).json({ rides });
       } catch (error) {
         await db.query("ROLLBACK");
         throw error;
       } finally {
         db.release();
       }
+      // Notification scheduling is isolated from the committed booking's error path.
+      try {
+        dependencies.notifyBooking?.([...ids]);
+      } catch (error) {
+        console.error("Booking notification scheduling failed", {
+          name: error instanceof Error ? error.name : "Error",
+        });
+      }
+      const rides = [];
+      for (const id of ids) {
+        const ride = await presentRide(pool, id);
+        if (ride) rides.push(ride);
+      }
+      res.status(201).json({ rides });
     })
   );
 

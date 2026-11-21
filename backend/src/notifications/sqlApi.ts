@@ -22,7 +22,11 @@ const route =
     void fn(req as AuthRequest, res).catch(next);
   };
 
-export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
+export function registerSqlNotificationApi(
+  app: Express,
+  auth: RequestHandler,
+  dispatchPush: () => Promise<unknown> = flushPush
+) {
   app.get(
     "/notifications/preferences",
     auth,
@@ -176,7 +180,7 @@ export function registerSqlNotificationApi(app: Express, auth: RequestHandler) {
         res.status(401).json({ message: "Unauthorized." });
         return;
       }
-      await flushPush();
+      await dispatchPush();
       res.json({ message: "Delivery batch processed." });
     })
   );

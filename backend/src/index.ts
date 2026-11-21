@@ -5,6 +5,8 @@ import express from "express";
 import { registerApi } from "./api/routes.js";
 // import { createHttpApp } from "./create-http-app.js"
 import { pool } from "./db/db.js";
+import { notificationContainer } from "./infrastructure/notificationContainer.js";
+import { createBookingNotificationHandler } from "./presentation/notifications/bookingNotificationHandler.js";
 // import { Container } from "./infrastructure/container.js"
 
 // const app = createHttpApp(new Container({}))
@@ -17,7 +19,12 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = Number(process.env.PORT) || 3000;
 
-registerApi(app);
+registerApi(app, {
+  notifyBooking: createBookingNotificationHandler(
+    notificationContainer.bookingNotificationsService
+  ),
+  dispatchPush: notificationContainer.dispatch,
+});
 
 app.get("/", (_req, res) => {
   res.status(200).json({

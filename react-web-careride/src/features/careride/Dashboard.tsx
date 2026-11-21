@@ -8,6 +8,7 @@ import {
   HeartHandshake,
   MapPin,
   Plus,
+  RefreshCw,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -248,7 +249,7 @@ export function RidesScreen() {
   );
 }
 export function DriverDashboard() {
-  const { data, session } = useCare();
+  const { data, session, loading, refresh } = useCare();
   const [confirmation] = useState(
     () => sessionStorage.getItem("careride-driver-confirmation") ?? ""
   );
@@ -295,9 +296,23 @@ export function DriverDashboard() {
             title="Ride Requests"
             description="Requests that match your organization approval, vehicle, schedule, and service area."
             action={
-              <span className="count-pill">
-                {data.availableRides.length} available
-              </span>
+              <div className="button-row">
+                <span className="count-pill">
+                  {data.availableRides.length} available
+                </span>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={loading}
+                  aria-busy={loading}
+                  onClick={() => {
+                    void refresh();
+                  }}
+                >
+                  <RefreshCw size={16} aria-hidden="true" />
+                  {loading ? "Refreshing…" : "Refresh"}
+                </button>
+              </div>
             }
           >
             {data.availableRides.length ? (

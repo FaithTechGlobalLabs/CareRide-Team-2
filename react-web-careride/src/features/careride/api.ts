@@ -7,6 +7,15 @@ import { demoRequest } from "./demo";
 const configuredApiUrl: string | undefined = import.meta.env.VITE_API_URL;
 export const API_URL = configuredApiUrl?.replace(/\/$/, "");
 export const IS_DEMO = !API_URL;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 export async function request<T>(
   path: string,
   session: Session | null,
@@ -33,8 +42,11 @@ export async function request<T>(
   });
   const payload: ApiPayload = await response.json().catch(() => ({}));
   if (!response.ok)
-    throw new Error(
-      payload.message ?? payload.error ?? `Request failed (${response.status}).`
+    throw new ApiError(
+      payload.message ??
+        payload.error ??
+        `Request failed (${response.status}).`,
+      response.status
     );
   const keys = Object.keys(payload);
   const result =

@@ -2,6 +2,10 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) =>
   event.waitUntil(self.clients.claim())
 );
+// Only destinations supplied by CareRide's notification workflows are allowed.
+function notificationDestination(value) {
+  return value === "/driver" ? "/driver" : "/notifications";
+}
 self.addEventListener("push", (event) => {
   let payload = {};
   try {
@@ -15,7 +19,7 @@ self.addEventListener("push", (event) => {
       icon: "/pwa-192x192.png",
       badge: "/pwa-192x192.png",
       tag: payload.tag || "careride-update",
-      data: { url: "/notifications" },
+      data: { url: notificationDestination(payload.url) },
     })
   );
 });
@@ -23,7 +27,10 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
     (async () => {
-      const url = new URL("/notifications", self.location.origin).href;
+      const url = new URL(
+        notificationDestination(event.notification.data?.url),
+        self.location.origin
+      ).href;
       const windows = await self.clients.matchAll({
         type: "window",
         includeUncontrolled: true,

@@ -63,6 +63,7 @@ export function NotificationsScreen() {
             const noLongerAvailable =
               driver &&
               n.type === "available_ride" &&
+              n.action_url !== "/driver" &&
               !data.availableRides.some((r) => r.id === n.ride_request_id);
             const title =
               n.title ??
@@ -97,7 +98,7 @@ export function NotificationsScreen() {
                     >
                       View client <ArrowRight size={15} />
                     </Link>
-                  ) : noLongerAvailable ? (
+                  ) : driver && n.type === "available_ride" ? (
                     <Link to="/driver" className="text-link">
                       Find available rides <ArrowRight size={15} />
                     </Link>

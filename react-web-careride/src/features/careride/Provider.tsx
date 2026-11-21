@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 
-import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Data, Session } from "./types";
 
-import { request, IS_DEMO } from "./api";
+import { ApiError, request, IS_DEMO } from "./api";
 import { Context, emptyData } from "./context";
 import { disableDevice } from "./NotificationControls";
 const KEY = "careride-session";
@@ -19,8 +20,15 @@ export function CareProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Data>(emptyData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const refreshVersion = useRef(0);
+  const onDriverList = useLocation({
+    select: (location) =>
+      location.pathname === "/driver" || location.pathname === "/driver/",
+  });
+  const previousDriverList = useRef(onDriverList);
   const refresh = useCallback(async () => {
     if (!session) return;
+    const version = ++refreshVersion.current;
     setLoading(true);
     try {
       const driver = session.user.role === "driver";
@@ -73,14 +81,16 @@ export function CareProvider({ children }: { children: ReactNode }) {
               : "Could not load data."
           );
       });
-      setData(next);
-      setError(failures.length ? failures.join(" ") : "");
+      if (version === refreshVersion.current) {
+        setData(next);
+        setError(failures.length ? failures.join(" ") : "");
+      }
     } finally {
-      setLoading(false);
+      if (version === refreshVersion.current) setLoading(false);
     }
   }, [session]);
   useEffect(() => {
-    const timer = setTimeout(() => {
+    let timer = setTimeout(() => {
       void refresh();
     }, 0);
     const interval = setInterval(
@@ -90,31 +100,71 @@ export function CareProvider({ children }: { children: ReactNode }) {
       IS_DEMO ? 10000 : 15000
     );
     const update = () => {
-      void refresh();
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        void refresh();
+      }, 0);
+    };
+    const foreground = () => {
+      if (
+        session?.user.role === "driver" &&
+        document.visibilityState === "visible"
+      )
+        update();
     };
     window.addEventListener("storage", update);
+    window.addEventListener("focus", foreground);
+    document.addEventListener("visibilitychange", foreground);
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
       window.removeEventListener("storage", update);
+      window.removeEventListener("focus", foreground);
+      document.removeEventListener("visibilitychange", foreground);
     };
-  }, [refresh]);
+  }, [refresh, session?.user.role]);
+  useEffect(() => {
+    const entered = onDriverList && !previousDriverList.current;
+    previousDriverList.current = onDriverList;
+    if (entered) void refresh();
+  }, [onDriverList, refresh]);
   function login(value: Session) {
+    refreshVersion.current++;
     sessionStorage.setItem(KEY, JSON.stringify(value));
     setData(emptyData);
     setSession(value);
   }
   async function logout() {
+    refreshVersion.current++;
     if (session && !IS_DEMO) await disableDevice(session).catch(() => {});
     sessionStorage.removeItem(KEY);
+    refreshVersion.current++;
+    setLoading(false);
     setSession(null);
     setData(emptyData);
     setError("");
   }
   async function mutate<T>(path: string, method = "POST", body?: unknown) {
-    const result = await request<T>(path, session, method, body);
-    await refresh();
-    return result;
+    try {
+      const result = await request<T>(path, session, method, body);
+      await refresh();
+      return result;
+    } catch (caught) {
+      if (
+        session?.user.role === "driver" &&
+        /^\/rides\/[^/]+\/accept$/.test(path)
+      ) {
+        await refresh();
+        setError(
+          caught instanceof ApiError && caught.status === 409
+            ? `This ride is no longer open. ${caught.message}`
+            : caught instanceof Error
+              ? caught.message
+              : "Unable to accept this ride."
+        );
+      }
+      throw caught;
+    }
   }
   return (
     <Context.Provider
